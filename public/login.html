@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso Restringido | Natillera</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;700;900&display=swap');
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            /* Quitamos el overflow hidden para que en celular se pueda hacer scroll si es necesario */
+            overflow-x: hidden; 
+        }
+
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        .linea-input {
+            background: transparent;
+            border: none;
+            border-left: 2px solid #1f1f1f;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .linea-input:focus {
+            border-left: 2px solid #22d3ee;
+            background: linear-gradient(90deg, rgba(34, 211, 238, 0.05) 0%, transparent 100%);
+            padding-left: 1.5rem;
+            outline: none;
+        }
+
+        .boton-ejecutar {
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.4s ease;
+        }
+
+        .boton-ejecutar:hover {
+            background: #ffffff;
+            color: #000000;
+        }
+
+        .revelado {
+            animation: subirRevelar 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes subirRevelar {
+            0% { transform: translateY(40px); opacity: 0; filter: blur(10px); }
+            100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+        }
+    </style>
+</head>
+<body class="grid-bg min-h-screen flex items-center justify-center p-4 md:p-10">
+
+    <div class="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+        
+        <div class="lg:col-span-7 space-y-4 md:space-y-6 revelado text-center lg:text-left">
+            <div class="flex items-center justify-center lg:justify-start gap-4 text-cyan-400">
+                <span class="h-[1px] w-8 md:w-12 bg-cyan-400"></span>
+                <span class="text-[8px] md:text-[10px] tracking-[0.4em] font-black uppercase">Seguridad</span>
+            </div>
+            
+            <h1 class="text-6xl md:text-8xl lg:text-9xl font-black leading-[0.85] tracking-tighter">
+                GESTIÓN <br> <span class="text-transparent" style="-webkit-text-stroke: 1px #444;">PRIVADA</span>
+            </h1>
+            
+            <p class="text-neutral-500 max-w-sm mx-auto lg:mx-0 text-base md:text-lg font-light leading-relaxed">
+                Terminal de auditoría para el control de activos. <br class="hidden md:block">
+                <span class="text-neutral-400 font-medium italic">Acceso Nivel 1.</span>
+            </p>
+        </div>
+
+        <div class="lg:col-span-5 bg-[#0a0a0a] border border-neutral-800 p-8 md:p-14 rounded-sm shadow-2xl revelado" style="animation-delay: 0.2s;">
+            <form id="loginForm" class="space-y-8 md:space-y-10">
+                
+                <div class="group text-left">
+                    <label class="block text-[9px] uppercase tracking-[0.2em] text-neutral-600 mb-2 group-focus-within:text-cyan-400 transition-colors">Usuario</label>
+                    <input type="text" id="username" placeholder="Identificación" required
+                        class="w-full linea-input py-3 md:py-4 px-4 text-lg md:text-xl font-light">
+                </div>
+
+                <div class="group text-left">
+                    <label class="block text-[9px] uppercase tracking-[0.2em] text-neutral-600 mb-2 group-focus-within:text-cyan-400 transition-colors">Contraseña</label>
+                    <input type="password" id="password" placeholder="••••••••" required
+                        class="w-full linea-input py-3 md:py-4 px-4 text-lg md:text-xl font-light">
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit" class="boton-ejecutar w-full py-4 md:py-5 text-[10px] font-black tracking-[0.3em] uppercase">
+                        Autorizar Ingreso
+                    </button>
+                    <div id="errorMsg" class="mt-4 text-[9px] text-center text-red-500 font-bold opacity-0 transition-opacity tracking-widest">
+                        ERROR: ACCESO DENEGADO
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="fixed top-0 right-0 p-10 hidden lg:block">
+        <div class="text-[10px] text-neutral-800 font-mono text-right">
+            SISTEMA: ACTIVO<br>
+            COLOMBIA: 2026
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user, pass })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('isLogged', 'true');
+                    document.body.style.filter = 'blur(20px)';
+                    document.body.style.opacity = '0';
+                    document.body.style.transition = 'all 0.8s ease';
+                    setTimeout(() => window.location.href = '/', 800);
+                } else {
+                    const err = document.getElementById('errorMsg');
+                    err.style.opacity = '1';
+                    setTimeout(() => err.style.opacity = '0', 3000);
+                }
+            } catch (err) { console.error("Error"); }
+        });
+    </script>
+</body>
+</html>

@@ -316,6 +316,19 @@ app.get('/obtener-totales', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
+// RUTA DE LOGIN (Credenciales fijas)
+app.post('/login', (req, res) => {
+    const { user, pass } = req.body;
+    
+    // AQUÍ defines tu usuario y contraseña
+    const USUARIO_MASTER = "admin";
+    const CLAVE_MASTER = "natillera2026"; 
 
+    if (user === USUARIO_MASTER && pass === CLAVE_MASTER) {
+        res.json({ success: true });
+    } else {
+        res.json({ success: false, message: "Datos incorrectos" });
+    }
+});
 
 app.listen(3000, () => console.log('🚀 SERVIDOR FULL COMPATIBLE CON TU INDEX.HTML'));

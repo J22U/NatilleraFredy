@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Natillera Pro v2.0</title>
+    <title>Natillera</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -30,14 +30,22 @@
 <body class="text-slate-800">
 
     <header class="bg-slate-900 text-white shadow-2xl sticky top-0 z-50">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-4">
-                <div class="bg-indigo-500 p-2 rounded-xl shadow-lg"><i class="fas fa-vault text-xl text-white"></i></div>
-                <h1 class="text-xl font-black tracking-tight uppercase">Natillera<span class="text-indigo-400 font-light italic ml-1">v2.0</span></h1>
-            </div>
-            <div id="current-date" class="hidden md:block text-xs font-medium text-slate-400 uppercase tracking-widest"></div>
+    <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-4">
+            <div class="bg-indigo-500 p-2 rounded-xl shadow-lg"><i class="fas fa-vault text-xl text-white"></i></div>
+            <h1 class="text-xl font-black tracking-tight uppercase">Natillera<span class="text-indigo-400 font-light italic ml-1"></span></h1>
         </div>
-    </header>
+        
+        <div class="flex items-center gap-6">
+            <div id="current-date" class="hidden md:block text-[10px] font-medium text-slate-400 uppercase tracking-widest border-r border-slate-700 pr-6"></div>
+            
+            <button onclick="cerrarSesion()" class="flex items-center gap-2 hover:text-red-400 transition-colors group">
+                <span class="text-[10px] font-black uppercase tracking-widest hidden sm:block">Salir</span>
+                <i class="fas fa-power-off text-slate-500 group-hover:text-red-400 transition-colors"></i>
+            </button>
+        </div>
+    </div>
+</header>
 
     <main class="container mx-auto px-4 py-8">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
@@ -136,6 +144,17 @@
     </main>
 
     <script>
+
+        // Al inicio de tu script en index.html
+if (localStorage.getItem('isLogged') !== 'true') {
+    window.location.href = '/login.html';
+}
+
+// Botón de cerrar sesión (opcional)
+function cerrarSesion() {
+    localStorage.removeItem('isLogged');
+    window.location.href = '/login.html';
+}
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
         window.mapeoIdentificadores = {};
 
