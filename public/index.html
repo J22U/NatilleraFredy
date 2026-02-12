@@ -125,6 +125,9 @@
                             </div>
                             <button onclick="cargarTodo()" class="bg-indigo-50 text-indigo-600 p-3 rounded-xl hover:bg-indigo-100 transition-colors"><i class="fas fa-sync-alt"></i></button>
                         </div>
+                        <button onclick="verListaRapidaDeudores()" class="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold shadow-lg hover:bg-amber-600 transition-all">
+    <i class="fas fa-hand-holding-usd"></i> Lista de Cobro
+</button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left">
@@ -800,6 +803,96 @@ async function cargarPrestamosEnSelector(idPersona) {
         });
     } catch (error) {
         console.error("Error al cargar préstamos:", error);
+    }
+}
+
+async function verListaRapidaDeudores() {
+    try {
+        const res = await fetch('/listar-miembros');
+        const miembros = await res.json();
+
+        // Filtramos y ordenamos: el que más debe va arriba
+        const deudores = miembros
+            .filter(m => parseFloat(m.deudaTotal || 0) > 0)
+            .sort((a, b) => b.deudaTotal - a.deudaTotal);
+
+        if (deudores.length === 0) {
+            return Swal.fire({
+                title: '¡Cuentas Limpias!',
+                text: 'No hay saldos pendientes. ¡Buen trabajo!',
+                icon: 'success',
+                confirmButtonColor: '#10b981'
+            });
+        }
+
+        const totalCartera = deudores.reduce((sum, m) => sum + parseFloat(m.deudaTotal), 0);
+
+        let htmlDeudores = `
+            <div class="recaudo-container text-left font-sans">
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="bg-indigo-600 p-4 rounded-2xl text-white shadow-md">
+                        <p class="text-[10px] uppercase opacity-80 font-bold">Por Recoger</p>
+                        <p class="text-xl font-black">$${totalCartera.toLocaleString()}</p>
+                    </div>
+                    <div class="bg-white border-2 border-slate-100 p-4 rounded-2xl shadow-sm">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold">Personas</p>
+                        <p class="text-xl font-black text-slate-700">${deudores.length}</p>
+                    </div>
+                </div>
+
+                <p class="text-xs font-black text-slate-400 uppercase mb-3 tracking-widest px-1">Ranking de Deuda</p>
+                
+                <div class="space-y-3 max-h-[450px] overflow-y-auto pr-2 custom-scroll">
+                    ${deudores.map((d, index) => {
+                        // Color según el monto (más de 1M es crítico)
+                        const esCritico = d.deudaTotal > 1000000;
+                        return `
+                        <div class="group bg-white border-2 border-slate-50 hover:border-indigo-100 p-4 rounded-2xl transition-all shadow-sm">
+                            <div class="flex justify-between items-start">
+                                <div class="flex gap-3">
+                                    <div class="flex flex-col items-center justify-center bg-slate-100 rounded-xl h-12 w-10 font-black text-slate-400">
+                                        <span class="text-[10px]">#</span>${index + 1}
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 leading-tight">${d.nombre}</h4>
+                                        <span class="inline-block mt-1 text-[9px] px-2 py-0.5 rounded-lg font-bold ${d.tipo === 'SOCIO' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}">
+                                            ${d.tipo}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-lg font-black ${esCritico ? 'text-rose-600' : 'text-indigo-600'}">
+                                        $${Number(d.deudaTotal).toLocaleString()}
+                                    </p>
+                                    <button onclick="verHistorialFechas(${d.id}, '${d.nombre}')" class="text-[10px] font-bold text-indigo-400 hover:text-indigo-600 uppercase tracking-tighter">
+                                        Ver Detalles <i class="fas fa-chevron-right ml-1"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+
+                <button onclick="window.print()" class="w-full mt-6 py-4 bg-slate-800 text-white rounded-2xl font-bold text-sm hover:bg-black transition-all shadow-lg">
+                    <i class="fas fa-print mr-2"></i> IMPRIMIR LISTA DE CORTE
+                </button>
+            </div>
+        `;
+
+        Swal.fire({
+            html: htmlDeudores,
+            width: '500px',
+            showConfirmButton: false,
+            showCloseButton: true,
+            background: '#ffffff',
+            customClass: {
+                popup: 'rounded-[2.5rem] shadow-2xl p-4',
+            }
+        });
+
+    } catch (err) {
+        Swal.fire('Error', 'No se pudo conectar con los deudores', 'error');
     }
 }
     </script>
