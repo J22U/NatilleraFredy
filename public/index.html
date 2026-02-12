@@ -178,28 +178,29 @@ function cerrarSesion() {
             } catch (err) { console.error(err); }
         }
 
-        async function listarMiembros() {
+        // DECLARACIÓN GLOBAL (Afuera de cualquier función)
+let miembrosGlobal = []; 
+
+async function listarMiembros() {
     try {
         const res = await fetch('/listar-miembros');
-        const miembros = await res.json();
+        // Quitamos el 'const' para usar la variable global
+        miembrosGlobal = await res.json(); 
+        
         const tbody = document.getElementById('tabla-recientes');
         tbody.innerHTML = '';
         window.mapeoIdentificadores = {}; 
 
         let cAhorro = 0, cExtra = 0;
-        
-        // 1. Calculamos el total de miembros recibidos
-        const totalMiembros = miembros.length;
+        const totalMiembros = miembrosGlobal.length;
 
-        // 2. Usamos .reverse() para que el último de la DB salga primero en la lista
-        miembros.reverse().forEach((m, index) => {
-            
-            // 3. LÓGICA DE NUMERACIÓN:
-            // Si hay 10 miembros, el primero de la lista (el más nuevo) será: 10 - 0 = #10
-            // El segundo será: 10 - 1 = #9 ... y así sucesivamente.
+        // Clonamos y volteamos para no dañar el array original
+        [...miembrosGlobal].reverse().forEach((m, index) => {
             const numPantalla = totalMiembros - index;
-
+            
+            // Guardamos el ID real vinculado al número que ve el usuario
             window.mapeoIdentificadores[numPantalla] = m.id; 
+
             const esSocioReal = (m.tipo === 'SOCIO'); 
             esSocioReal ? cAhorro++ : cExtra++;
 
@@ -893,6 +894,42 @@ async function verListaRapidaDeudores() {
 
     } catch (err) {
         Swal.fire('Error', 'No se pudo conectar con los deudores', 'error');
+    }
+}
+
+async function toggleDeudas() {
+    const numPantalla = document.getElementById('mov_id').value; // El # de la fila
+    const tipo = document.getElementById('mov_tipo').value;
+    const select = document.getElementById('mov_prestamo_id');
+    const divSelector = document.getElementById('div_selector_deuda');
+
+    // 1. Usamos el mapeo que creaste en listarMiembros
+    const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
+
+    if (tipo === 'deuda' && idReal) {
+        try {
+            console.log("Buscando deudas para Socio ID Real:", idReal);
+            const res = await fetch(`/prestamos-activos/${idReal}`);
+            const deudas = await res.json();
+
+            if (deudas.length > 0) {
+                // Llenamos el select con el saldo que viene del servidor
+                select.innerHTML = deudas.map(d => `
+                    <option value="${d.ID_Prestamo}">
+                        Préstamo #${d.ID_Prestamo} - Saldo: $${d.SaldoActual.toLocaleString()}
+                    </option>
+                `).join('');
+                divSelector.classList.remove('hidden');
+            } else {
+                select.innerHTML = '<option value="">Este socio no tiene deudas activas</option>';
+                divSelector.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error("Error al cargar deudas:", error);
+        }
+    } else {
+        // Si no es tipo deuda o no hay ID, ocultamos el selector
+        divSelector.classList.add('hidden');
     }
 }
     </script>
