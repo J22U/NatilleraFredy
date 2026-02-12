@@ -176,52 +176,55 @@ function cerrarSesion() {
         }
 
         async function listarMiembros() {
-            try {
-                const res = await fetch('/listar-miembros');
-                const miembros = await res.json();
-                const tbody = document.getElementById('tabla-recientes');
-                tbody.innerHTML = '';
-                window.mapeoIdentificadores = {}; 
+    try {
+        const res = await fetch('/listar-miembros');
+        const miembros = await res.json();
+        const tbody = document.getElementById('tabla-recientes');
+        tbody.innerHTML = '';
+        window.mapeoIdentificadores = {}; 
 
-                let cAhorro = 0, cExtra = 0;
-                
-                miembros.reverse().forEach((m, index) => {
-                    const numPantalla = index + 1;
-                    window.mapeoIdentificadores[numPantalla] = m.id; 
-                    const esSocioReal = (m.tipo === 'SOCIO'); 
-                    esSocioReal ? cAhorro++ : cExtra++;
+        let cAhorro = 0, cExtra = 0;
+        
+        // 1. Calculamos el total de miembros recibidos
+        const totalMiembros = miembros.length;
 
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-slate-50 transition-colors item-socio">
-                            <td class="px-8 py-5 font-black text-indigo-500 text-xl">#${numPantalla}</td>
-                            <td class="px-8 py-5">
-                                <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
-                                <div class="text-[10px] text-slate-400 uppercase tracking-tighter">
-                                    DOC: ${m.cedula} | 
-                                    <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
-                                        ${m.tipo}
-                                    </span>
-                                </div>
-                            </td>
-                            <td class="px-8 py-5 text-center">
-                                <div class="flex justify-center gap-3">
-                                    <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
-                                    <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
-                                    <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2"><i class="fas fa-trash"></i></button>
-                                </div>
-                            </td>
-                        </tr>`;
-                });
-                document.getElementById('count-ahorradores').innerText = `${cAhorro} Ahorradores`;
-                document.getElementById('count-prestamos').innerText = `${cExtra} Externos`;
-            } catch (err) { console.error(err); }
-        }
+        // 2. Usamos .reverse() para que el último de la DB salga primero en la lista
+        miembros.reverse().forEach((m, index) => {
+            
+            // 3. LÓGICA DE NUMERACIÓN:
+            // Si hay 10 miembros, el primero de la lista (el más nuevo) será: 10 - 0 = #10
+            // El segundo será: 10 - 1 = #9 ... y así sucesivamente.
+            const numPantalla = totalMiembros - index;
 
-        function toggleDeudas() {
-            const div = document.getElementById('div_selector_deuda');
-            const tipo = document.getElementById('mov_tipo').value;
-            div.classList.toggle('hidden', tipo !== 'deuda');
-        }
+            window.mapeoIdentificadores[numPantalla] = m.id; 
+            const esSocioReal = (m.tipo === 'SOCIO'); 
+            esSocioReal ? cAhorro++ : cExtra++;
+
+            tbody.innerHTML += `
+                <tr class="hover:bg-slate-50 transition-colors item-socio">
+                    <td class="px-8 py-5 font-black text-indigo-500 text-xl">#${numPantalla}</td>
+                    <td class="px-8 py-5">
+                        <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
+                        <div class="text-[10px] text-slate-400 uppercase tracking-tighter">
+                            DOC: ${m.cedula} | 
+                            <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
+                                ${m.tipo}
+                            </span>
+                        </div>
+                    </td>
+                    <td class="px-8 py-5 text-center">
+                        <div class="flex justify-center gap-3">
+                            <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
+                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
+                            <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+        document.getElementById('count-ahorradores').innerText = `${cAhorro} Ahorradores`;
+        document.getElementById('count-prestamos').innerText = `${cExtra} Externos`;
+    } catch (err) { console.error(err); }
+}
 
         async function actualizarListaDeudas() {
     const numPantalla = document.getElementById('mov_id').value;
