@@ -348,4 +348,54 @@ app.post('/login', (req, res) => {
     }
 });
 
+app.post('/procesar-cruce', async (req, res) => {
+    try {
+        const { idPersona, idPrestamo, monto } = req.body;
+        const pool = await poolPromise;
+        
+        // Iniciamos una transacción para que si algo falla, no se descuente el ahorro sin pagar la deuda
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
+            // 1. Restar de los ahorros (Insertamos un ahorro negativo para balancear)
+            await transaction.request()
+                .input('id', sql.Int, idPersona)
+                .input('m', sql.Decimal(18,2), -monto) // Monto negativo
+                .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha) VALUES (@id, @m, GETDATE())");
+
+            // 2. Aplicar el pago al préstamo (Lógica similar a tu procesar-movimiento)
+            await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .input('m', sql.Decimal(18,2), monto)
+                .query(`
+                    UPDATE Prestamos 
+                    SET MontoPagado = ISNULL(MontoPagado, 0) + @m,
+                        SaldoActual = SaldoActual - @m,
+                        Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END
+                    WHERE ID_Prestamo = @idP
+                `);
+
+            // 3. Registrar en Historial
+            await transaction.request()
+                .input('idPers', sql.Int, idPersona)
+                .input('idPre', sql.Int, idPrestamo)
+                .input('monto', sql.Decimal(18,2), monto)
+                .query(`
+                    INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento) 
+                    VALUES (@idPers, @idPre, @monto, GETDATE(), 'Cruce de Ahorros')
+                `);
+
+            await transaction.commit();
+            res.json({ success: true });
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 app.listen(3000, () => console.log('🚀 SERVIDOR FULL COMPATIBLE CON TU INDEX.HTML'));

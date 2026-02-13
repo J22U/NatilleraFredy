@@ -102,6 +102,9 @@
                             </div>
 
                             <button onclick="registrarMovimiento()" class="w-full bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition-all shadow-md">Procesar Movimiento</button>
+                            <button onclick="ejecutarCruceCuentas()" class="w-full mt-3 bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-md flex items-center justify-center gap-2">
+    <i class="fas fa-exchange-alt"></i> Saldar con Ahorros
+</button>
                         </div>
                         <button onclick="modalPrestamoRapido()" class="w-full py-4 border-2 border-dashed border-blue-200 rounded-2xl text-blue-600 font-bold hover:bg-blue-50 transition-all flex items-center justify-center gap-2"><i class="fas fa-plus"></i> Nuevo Préstamo</button>
                     </div>
@@ -930,6 +933,73 @@ async function toggleDeudas() {
     } else {
         // Si no es tipo deuda o no hay ID, ocultamos el selector
         divSelector.classList.add('hidden');
+    }
+}
+
+async function ejecutarCruceCuentas() {
+    const numPantalla = document.getElementById('mov_id').value;
+    const idReal = window.mapeoIdentificadores[numPantalla];
+
+    if (!idReal) return Swal.fire('Error', 'Ingresa un ID de pantalla válido (#1, #2...)', 'warning');
+
+    try {
+        // Consultar estado y deudas en paralelo
+        const [resEstado, resDeuda] = await Promise.all([
+            fetch(`/estado-cuenta/${idReal}`),
+            fetch(`/detalle-prestamo/${idReal}`) // Usamos detalle-prestamo que es más completo
+        ]);
+
+        const estado = await resEstado.json();
+        const deudas = await resDeuda.json();
+
+        // Filtrar solo préstamos que tengan saldo pendiente real
+        const prestamosActivos = deudas.filter(p => Number(p.SaldoActual) > 0);
+
+        if (estado.totalAhorrado <= 0) return Swal.fire('Sin fondos', 'El socio no tiene ahorros', 'info');
+        if (prestamosActivos.length === 0) return Swal.fire('Sin deuda', 'El socio no tiene deudas pendientes', 'info');
+
+        // Tomamos el primer préstamo con deuda
+        const prestamo = prestamosActivos[0];
+        const saldoDeuda = Number(prestamo.SaldoActual);
+        const montoACruzar = Math.min(estado.totalAhorrado, saldoDeuda);
+
+        const { isConfirmed } = await Swal.fire({
+            title: '¿Confirmar Cruce de Cuentas?',
+            html: `
+                <div class="text-center space-y-2">
+                    <p>Ahorros: <b class="text-emerald-600">$${Number(estado.totalAhorrado).toLocaleString()}</b></p>
+                    <p>Deuda actual: <b class="text-rose-600">$${saldoDeuda.toLocaleString()}</b></p>
+                    <div class="bg-slate-100 p-3 rounded-xl mt-4">
+                        <span class="text-xs uppercase font-bold text-slate-500">Se aplicará un pago de:</span><br>
+                        <span class="text-2xl font-black text-indigo-600">$${montoACruzar.toLocaleString()}</span>
+                    </div>
+                </div>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, aplicar cruce',
+            confirmButtonColor: '#059669'
+        });
+
+        if (isConfirmed) {
+            const res = await fetch('/procesar-cruce', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    idPersona: idReal,
+                    idPrestamo: prestamo.ID_Prestamo,
+                    monto: montoACruzar
+                })
+            });
+
+            const r = await res.json();
+            if (r.success) {
+                Swal.fire('Éxito', 'Cruce procesado correctamente', 'success');
+                cargarTodo(); // Recarga dashboard y tabla
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
     }
 }
     </script>
