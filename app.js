@@ -8,6 +8,11 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    next();
+});
+
 // 2. Servir archivos estáticos (CSS, JS, Imágenes)
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
@@ -378,20 +383,6 @@ app.get('/obtener-totales', async (req, res) => {
     } catch (err) { res.status(500).send(err.message); }
 });
 
-// RUTA DE LOGIN (Credenciales fijas)
-app.post('/login', (req, res) => {
-    const { user, pass } = req.body;
-    
-    // AQUÍ defines tu usuario y contraseña
-    const USUARIO_MASTER = "admin";
-    const CLAVE_MASTER = "natillera2026"; 
-
-    if (user === USUARIO_MASTER && pass === CLAVE_MASTER) {
-        res.json({ success: true });
-    } else {
-        res.json({ success: false, message: "Datos incorrectos" });
-    }
-});
 
 app.post('/procesar-cruce', async (req, res) => {
     try {

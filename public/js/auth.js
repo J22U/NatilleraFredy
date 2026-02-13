@@ -21,7 +21,7 @@ function cerrarModal() {
 // Función que realmente lo saca del sistema
 function confirmarSalida() {
     // Como no tenemos cookies/sesiones complejas aún, solo redirigimos
-    window.location.href = '/';
+    window.location.replace('/');
 }
 
 // Verificar sesión (Corregido: minúscula obligatoria)
