@@ -30,12 +30,21 @@ app.post('/login', (req, res) => {
 });
 
 // 4. RUTAS DE NAVEGACIÓN
-app.get('/login', (req, res) => {
+
+// Cuando alguien entre a la URL limpia (ej: natillera.onrender.com),
+// lo mandamos SIEMPRE al login primero.
+app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-app.get('/', (req, res) => {
+// Esta ruta la usaremos para redireccionar después de que el login sea exitoso
+app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Por si alguien escribe /login manualmente
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 
@@ -444,4 +453,7 @@ app.post('/procesar-cruce', async (req, res) => {
     }
 });
 
-app.listen(3000, () => console.log('🚀 SERVIDOR FULL COMPATIBLE CON TU INDEX.HTML'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🚀 SERVIDOR CORRIENDO EN PUERTO ${PORT}`);
+});
