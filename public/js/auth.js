@@ -38,7 +38,7 @@ if (loginForm) {
     
     // REDIRECCIÓN FORZADA (Prueba con la ruta completa)
     setTimeout(() => {
-        window.location.href = '/index.html'; 
+        window.location.href = '/dashboard.html'; 
     }, 800);
             } else {
                 const err = document.getElementById('errorMsg');
