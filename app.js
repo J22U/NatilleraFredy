@@ -3,8 +3,43 @@ const path = require('path');
 const { sql, poolPromise } = require('./db');
 
 const app = express();
+
+// 1. Configuraciones básicas
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// 2. Servir archivos estáticos (CSS, JS, Imágenes)
 app.use(express.static(path.join(__dirname, 'public')));
+
+app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    next();
+});
+
+// 3. RUTA DE LOGIN (POST) - Déjala aquí arriba
+app.post('/login', (req, res) => {
+    const { user, pass } = req.body;
+    const USUARIO_MASTER = "admin";
+    const CLAVE_MASTER = "natillera2026"; 
+
+    if (user === USUARIO_MASTER && pass === CLAVE_MASTER) {
+        res.json({ success: true });
+    } else {
+        res.json({ success: false, message: "Datos incorrectos" });
+    }
+});
+
+// 4. RUTAS DE NAVEGACIÓN
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+
+// ... Aquí siguen todas tus rutas de base de datos (/reporte-general, etc.)
 
 app.get('/reporte-general', async (req, res) => {
     try {

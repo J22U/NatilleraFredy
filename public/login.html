@@ -111,33 +111,6 @@
         </div>
     </div>
 
-    <script>
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const user = document.getElementById('username').value;
-            const pass = document.getElementById('password').value;
-
-            try {
-                const res = await fetch('/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user, pass })
-                });
-
-                const data = await res.json();
-                if (data.success) {
-                    localStorage.setItem('isLogged', 'true');
-                    document.body.style.filter = 'blur(20px)';
-                    document.body.style.opacity = '0';
-                    document.body.style.transition = 'all 0.8s ease';
-                    setTimeout(() => window.location.href = '/', 800);
-                } else {
-                    const err = document.getElementById('errorMsg');
-                    err.style.opacity = '1';
-                    setTimeout(() => err.style.opacity = '0', 3000);
-                }
-            } catch (err) { console.error("Error"); }
-        });
-    </script>
+    <script src="/js/auth.js"></script>
 </body>
 </html>
