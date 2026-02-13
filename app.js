@@ -11,28 +11,29 @@ app.get('/reporte-general', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT 
-                -- 1. TOTAL EN CAJA (Disponible real):
-                -- Es: (Todos los Ahorros que han entrado) 
-                -- MENOS (El Capital que salió y aún está en la calle)
+                -- 1. TOTAL AHORRADO (Caja Real): 
+                -- Es todo el dinero que ha entrado por ahorros (neto) 
+                -- MENOS el capital que está prestado actualmente ("en la calle").
                 (
                     (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) - 
                     (SELECT ISNULL(SUM(MontoPrestado - (MontoPagado - InteresesPagados)), 0) FROM Prestamos WHERE Estado = 'Activo')
                 ) as TotalAhorrado,
 
-                -- 2. CAPITAL PRESTADO (Dinero en la calle):
-                -- Es el capital base que los socios aún deben (Sin intereses)
+                -- 2. CAPITAL PRESTADO (Lo que nos deben):
+                -- Solo el saldo de capital base que falta por cobrar (sin contar intereses).
                 (SELECT ISNULL(SUM(MontoPrestado - (MontoPagado - InteresesPagados)), 0) 
                  FROM Prestamos 
                  WHERE Estado = 'Activo') as CapitalPrestado,
                 
-                -- 3. GANANCIAS BRUTAS:
-                -- Los intereses que ya se cobraron y están físicamente en la caja
+                -- 3. GANANCIAS BRUTAS (Utilidad):
+                -- La suma de todos los intereses que ya han sido pagados efectivamente.
                 (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas
         `);
+        
         res.json(result.recordset[0]);
-    } catch (err) { 
-        console.error("Error en reporte:", err.message);
-        res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0 }); 
+    } catch (err) {
+        console.error("Error en reporte:", err);
+        res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0 });
     }
 });
 
@@ -352,38 +353,49 @@ app.post('/procesar-cruce', async (req, res) => {
     try {
         const { idPersona, idPrestamo, monto } = req.body;
         const pool = await poolPromise;
+        const m = parseFloat(monto);
         
-        // Iniciamos una transacción para que si algo falla, no se descuente el ahorro sin pagar la deuda
         const transaction = new sql.Transaction(pool);
         await transaction.begin();
 
         try {
-            // 1. Restar de los ahorros (Insertamos un ahorro negativo para balancear)
+            // 1. Obtener datos del préstamo para saber cuánto es capital
+            const pRes = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query("SELECT MontoPrestado, MontoPagado FROM Prestamos WHERE ID_Prestamo = @idP");
+            
+            const p = pRes.recordset[0];
+            const capOriginal = parseFloat(p.MontoPrestado);
+            const pagadoAntes = parseFloat(p.MontoPagado || 0);
+
+            // 2. LÓGICA DE INTERÉS: ¿Cuánto de este pago es ganancia?
+            const faltanteCap = capOriginal - pagadoAntes;
+            let paraInteres = 0;
+
+            if (faltanteCap <= 0) {
+                paraInteres = m; // Todo es ganancia si ya pagó el capital
+            } else if (m > faltanteCap) {
+                paraInteres = m - faltanteCap; // El excedente es ganancia
+            }
+
+            // 3. Registrar el "retiro" de ahorros (Monto negativo)
             await transaction.request()
                 .input('id', sql.Int, idPersona)
-                .input('m', sql.Decimal(18,2), -monto) // Monto negativo
+                .input('m', sql.Decimal(18,2), -m)
                 .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha) VALUES (@id, @m, GETDATE())");
 
-            // 2. Aplicar el pago al préstamo (Lógica similar a tu procesar-movimiento)
+            // 4. Actualizar el préstamo sumando la ganancia
             await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
-                .input('m', sql.Decimal(18,2), monto)
+                .input('m', sql.Decimal(18,2), m)
+                .input('gan', sql.Decimal(18,2), paraInteres)
                 .query(`
                     UPDATE Prestamos 
                     SET MontoPagado = ISNULL(MontoPagado, 0) + @m,
-                        SaldoActual = SaldoActual - @m,
+                        InteresesPagados = ISNULL(InteresesPagados, 0) + @gan,
+                        SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
                         Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END
                     WHERE ID_Prestamo = @idP
-                `);
-
-            // 3. Registrar en Historial
-            await transaction.request()
-                .input('idPers', sql.Int, idPersona)
-                .input('idPre', sql.Int, idPrestamo)
-                .input('monto', sql.Decimal(18,2), monto)
-                .query(`
-                    INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento) 
-                    VALUES (@idPers, @idPre, @monto, GETDATE(), 'Cruce de Ahorros')
                 `);
 
             await transaction.commit();
@@ -393,7 +405,6 @@ app.post('/procesar-cruce', async (req, res) => {
             throw err;
         }
     } catch (err) {
-        console.error(err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
