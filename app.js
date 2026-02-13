@@ -39,7 +39,7 @@ app.get('/', (req, res) => {
 
 // Esta ruta la usaremos para redireccionar después de que el login sea exitoso
 app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
 // Por si alguien escribe /login manualmente
