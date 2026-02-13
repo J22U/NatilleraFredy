@@ -1,7 +1,27 @@
+// Función para mostrar el modal cuando hagan clic en el botón de salir
 function cerrarSesion() {
-    localStorage.removeItem('isLogged');
-    // .replace impide que el usuario regrese a esta página dándole "atrás"
-    window.location.replace('/login');
+    const modal = document.getElementById('logoutModal');
+    const content = document.getElementById('modalContent');
+    
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    content.classList.remove('scale-90');
+    content.classList.add('scale-100');
+}
+
+// Función para ocultar el modal si se arrepiente
+function cerrarModal() {
+    const modal = document.getElementById('logoutModal');
+    const content = document.getElementById('modalContent');
+    
+    modal.classList.add('opacity-0', 'pointer-events-none');
+    content.classList.remove('scale-100');
+    content.classList.add('scale-90');
+}
+
+// Función que realmente lo saca del sistema
+function confirmarSalida() {
+    // Como no tenemos cookies/sesiones complejas aún, solo redirigimos
+    window.location.href = '/';
 }
 
 // Verificar sesión (Corregido: minúscula obligatoria)
