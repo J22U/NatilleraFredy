@@ -1,0 +1,255 @@
+:root {
+    --nat-green: #00b894;
+    --nat-blue: #0984e3;
+    --nat-purple: #6c5ce7;
+    --nat-dark: #1e272e;
+    --nat-bg: #f4f7f6;
+    --white: #ffffff;
+    --shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    background-color: var(--nat-bg);
+    font-family: 'Inter', sans-serif;
+    color: var(--nat-dark);
+    margin: 0; padding: 15px;
+}
+
+.app-container { max-width: 1200px; margin: 0 auto; }
+
+/* HEADER */
+.main-header {
+    background: var(--white);
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    border-left: 6px solid var(--nat-blue);
+    margin-bottom: 25px;
+}
+
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.title-group { display: flex; align-items: center; gap: 10px; }
+.title-group h1 { font-size: 1.1rem; margin: 0; font-weight: 800; }
+.logo-icon { color: var(--nat-blue); font-size: 1.3rem; }
+
+/* ESTILO UNIFICADO DE BOTONES */
+.btn-add {
+    background-color: var(--nat-blue);
+    color: white; 
+    border: none; 
+    padding: 10px 16px;
+    border-radius: 10px; 
+    font-weight: 700; 
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(9, 132, 227, 0.15);
+    text-decoration: none;
+}
+
+.btn-add:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(9, 132, 227, 0.25);
+    filter: brightness(1.1);
+}
+
+/* Variación sutil para el botón atrás (opcional: puedes dejarlo azul igual) */
+.btn-back {
+    background-color: var(--nat-purple);
+    box-shadow: 0 4px 6px rgba(108, 92, 231, 0.15);
+}
+
+/* BANNER RESPONSIVE */
+.rifa-info-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: #f8fafc;
+    padding: 15px;
+    border-radius: 12px;
+}
+
+.info-details {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+}
+
+@media (min-width: 768px) {
+    .info-details { grid-template-columns: repeat(3, 1fr); }
+}
+
+.info-field label {
+    font-size: 10px; font-weight: 800; color: var(--nat-blue);
+    text-transform: uppercase; display: block; margin-bottom: 4px;
+}
+
+.info-field input {
+    width: 100%; padding: 10px; border: 1px solid #e2e8f0;
+    border-radius: 8px; font-size: 13px; outline: none;
+}
+
+/* GRILLA DE NÚMEROS */
+.rifa-card {
+    background: var(--white); border-radius: 15px;
+    padding: 20px; box-shadow: var(--shadow); margin-top: 25px;
+}
+
+.numeros-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 12px;
+}
+
+@media (min-width: 600px) {
+    .numeros-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+
+/* Media query para móviles: esconde texto en botones si hay poco espacio */
+@media (max-width: 400px) {
+    .btn-add span { display: none; }
+    .btn-add { padding: 10px; }
+}
+
+.n-slot {
+    background: #fff; border: 1px solid #edf2f7; border-radius: 12px;
+    padding: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+
+.n-number { font-size: 16px; font-weight: 800; color: var(--nat-blue); }
+.n-name { width: 100%; border: 1px solid #f1f5f9; background: #f8fafc; padding: 6px; border-radius: 6px; font-size: 11px; }
+
+/* ESTADOS */
+.n-slot.reserved { border: 2px solid #fdcb6e; background: #fffdf5; }
+.n-slot.paid { border: 2px solid var(--nat-green); background: #f0fff4; }
+.n-slot.paid .n-number { color: var(--nat-green); }
+
+/* Badge para el número de tabla */
+.tabla-badge {
+    background-color: var(--nat-blue);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    display: inline-block;
+    box-shadow: 0 2px 5px rgba(9, 132, 227, 0.2);
+}
+
+/* Opcional: un efecto sutil al header de la card */
+.rifa-card-header {
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 12px;
+}
+
+/* Buscador */
+.search-container { margin-top: 15px; }
+.search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.search-icon {
+    position: absolute;
+    left: 15px;
+    color: var(--nat-blue);
+}
+.search-box input {
+    width: 100%;
+    padding: 12px 12px 12px 40px;
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+    outline: none;
+    font-size: 14px;
+    transition: 0.3s;
+}
+.search-box input:focus { border-color: var(--nat-blue); box-shadow: 0 0 10px rgba(9, 132, 227, 0.1); }
+
+/* Panel de Resultados */
+.search-results-panel {
+    background: white;
+    border-radius: 15px;
+    margin-top: 15px;
+    padding: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border: 2px solid var(--nat-purple);
+}
+.results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.results-header h3 { margin: 0; font-size: 1rem; color: var(--nat-dark); }
+.btn-close-search { background: none; border: none; font-size: 24px; cursor: pointer; color: #94a3b8; }
+
+/* Tabla de resultados interna */
+.res-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.res-table th { text-align: left; padding: 10px; border-bottom: 2px solid #f1f5f9; color: var(--nat-blue); }
+.res-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+.status-debt { color: #e74c3c; font-weight: bold; }
+.status-paid { color: var(--nat-green); font-weight: bold; }
+
+/* Estilo para los grupos (Acordeones) */
+.search-group {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.search-group-header {
+    background: #f8fafc;
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.search-group-header:hover {
+    background: #f1f5f9;
+}
+
+.search-group-header b {
+    color: var(--nat-blue);
+    font-size: 0.9rem;
+}
+
+.search-group-content {
+    padding: 10px 15px;
+    display: none; /* Escondido por defecto */
+    background: white;
+    border-top: 1px solid #f1f5f9;
+}
+
+.search-item-detail {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px dashed #edf2f7;
+    font-size: 0.85rem;
+}
+
+.search-item-detail:last-child { border: none; }
+
+.badge-count {
+    background: var(--nat-purple);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+}

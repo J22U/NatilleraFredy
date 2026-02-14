@@ -12,3 +12,41 @@
         .historial-box { max-height: 150px; overflow-y: auto; border-radius: 16px; padding: 10px; border: 1px solid #f1f5f9; background: #fafafa; }
         .historial-box::-webkit-scrollbar { width: 4px; }
         .historial-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        /* Estilo específico para el botón de rifas en el Dashboard */
+.btn-rifas-dashboard {
+    /* COLOR AZUL PERMANENTE */
+    background-color: #0984e3 !important; /* Forzamos el azul de tu natillera */
+    color: #ffffff !important;
+    
+    /* ALINEACIÓN Y CENTRADO */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 15px auto; /* Centra horizontalmente y da espacio arriba/abajo */
+    
+    /* DIMENSIONES (Ajusta según tus otros botones) */
+    width: 90%; 
+    max-width: 300px;
+    padding: 12px 20px;
+    
+    /* ESTILO VISUAL */
+    border: none;
+    border-radius: 12px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(9, 132, 227, 0.2);
+    transition: transform 0.2s ease;
+}
+
+/* Solo añadimos un pequeño efecto de presión, el color NO cambia */
+.btn-rifas-dashboard:active {
+    transform: scale(0.96);
+}
+
+/* Aseguramos que el icono tenga buen tamaño */
+.btn-rifas-dashboard i {
+    font-size: 1.1rem;
+}

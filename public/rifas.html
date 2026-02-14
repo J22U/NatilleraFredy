@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Rifas - Natillera</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/rifas.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="main-header">
+            <div class="header-top">
+                <button onclick="window.location.href='dashboard.html'" class="btn-add btn-back">
+                    <i class="fas fa-chevron-left"></i> <span>Atrás</span>
+                </button>
+                
+                <div class="title-group">
+                    <i class="fas fa-ticket-alt logo-icon"></i>
+                    <h1>Control de Rifas</h1>
+                </div>
+
+                <button id="btnNuevaTabla" class="btn-add">
+                    <i class="fas fa-plus-circle"></i> <span>Nueva Tabla</span>
+                </button>
+            </div>
+
+            <div class="rifa-info-banner">
+                <div class="info-field title-field">
+                    <label>Nombre de la Rifa</label>
+                    <input type="text" id="rifaName" placeholder="Ej: Gran Rifa Pro-Fondos">
+                </div>
+                <div class="search-container">
+    <div class="search-box">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" id="searchInput" placeholder="Buscar cliente por nombre..." oninput="buscarCliente()">
+    </div>
+</div>
+
+<div id="searchResults" class="search-results-panel" style="display: none;">
+    <div class="results-header">
+        <h3><i class="fas fa-list-check"></i> Resumen de Búsqueda</h3>
+        <button onclick="cerrarBusqueda()" class="btn-close-search">&times;</button>
+    </div>
+    <div id="resultsContent"></div>
+</div>
+                <div class="info-details">
+                    <div class="info-field">
+                        <label>Premio Principal</label>
+                        <input type="text" id="rifaPrize" placeholder="¿Qué se gana?">
+                    </div>
+                    <div class="info-field">
+                        <label>Valor Puesto</label>
+                        <input type="text" id="rifaCost" placeholder="$ 0.00">
+                    </div>
+                    <div class="info-field">
+                        <label>Fecha Sorteo</label>
+                        <input type="date" id="rifaDate">
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main id="rifasContainer"></main>
+    </div>
+    <script src="js/rifas.js"></script>
+</body>
+</html>
