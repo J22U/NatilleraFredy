@@ -144,28 +144,51 @@ async function verHistorialFechas(id, nombre) {
         };
 
         const renderPrestamos = (data) => {
-            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
-            return data.map((m, index) => {
-                const saldo = Number(m.SaldoActual || 0);
-                const estaPago = saldo <= 0 || m.Estado === 'Pagado';
-                return `
-                <div class="p-2 mb-2 rounded-xl border ${estaPago ? 'bg-emerald-100 border-emerald-200' : 'bg-blue-50 border-blue-100'}">
-                    <div class="flex justify-between items-center text-[11px]">
-                        <span class="font-black text-indigo-600">PRÉSTAMO #${index + 1}</span>
-                        <span class="${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
-                            ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaPrestamo || 'S/F')}
-                        </span>
-                    </div>
-                    <div class="flex justify-between items-end mt-2">
-                         <div class="flex flex-col text-left">
-                            <span class="text-[8px] uppercase font-black text-slate-400">Total a devolver</span>
-                            <span class="text-[12px] font-black text-slate-700">$${(Number(m.MontoPrestado)+Number(m.MontoInteres)).toLocaleString()}</span>
-                         </div>
-                        ${!estaPago ? `<div class="text-right"><span class="text-[8px] text-rose-500 font-black uppercase tracking-tighter">Saldo Pendiente</span><div class="text-[14px] text-rose-600 font-black leading-none">$${saldo.toLocaleString()}</div></div>` : ''}
-                    </div>
-                </div>`;
-            }).join('');
-        };
+    if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
+    
+    return data.map((m, index) => {
+        const saldo = Number(m.SaldoActual || 0);
+        const capital = Number(m.MontoPrestado || 0);
+        const interes = Number(m.MontoInteres || 0);
+        const tasa = m.TasaInteres || 0;
+        const cuotas = m.Cuotas || 0;
+        const estaPago = saldo <= 0 || m.Estado === 'Pagado';
+        const totalDevolver = capital + interes;
+
+        return `
+        <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-100'} shadow-sm">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
+                <span class="text-[10px] ${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
+                    ${estaPago ? '✅ TOTALMENTE PAGADO' : '📅 ' + (m.FechaPrestamo || 'S/F')}
+                </span>
+            </div>
+
+            <div class="flex gap-2 mb-3">
+                <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
+                    <i class="fas fa-percentage mr-1 text-indigo-400"></i>Tasa: ${tasa}%
+                </span>
+                <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
+                    <i class="fas fa-calendar-check mr-1 text-indigo-400"></i>${cuotas} Cuotas
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 border-t border-slate-200/50 pt-2">
+                <div class="flex flex-col text-left">
+                    <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Monto Total</span>
+                    <span class="text-[13px] font-black text-slate-800">$${totalDevolver.toLocaleString()}</span>
+                    <span class="text-[7px] text-slate-500 font-medium">Cap: $${capital.toLocaleString()} | Int: $${interes.toLocaleString()}</span>
+                </div>
+                
+                ${!estaPago ? `
+                <div class="flex flex-col text-right">
+                    <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Pendiente</span>
+                    <span class="text-[15px] font-black text-rose-600 tracking-tighter">$${saldo.toLocaleString()}</span>
+                </div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+};
 
         const renderAbonosDetallados = (data) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos</p>';
