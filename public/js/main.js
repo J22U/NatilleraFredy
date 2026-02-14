@@ -573,41 +573,59 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 10, cellPadding: 3 }
     });
 
-    // --- LÓGICA DE ORDENAMIENTO CRONOLÓGICO (Ascendente: el más nuevo abajo) ---
-    // Ordenamos ahorros y retiros mezclados por fecha y hora
-    const movimientosAhorro = [...ahorros].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
-    const abonosOrdenados = [...abonos].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
+    // --- CORRECCIÓN DE ORDENAMIENTO ---
+    // Usamos el ID como segundo criterio de desempate por si la fecha es idéntica
+    const movimientosAhorro = [...ahorros].sort((a, b) => {
+        const fechaA = new Date(a.FechaRaw || a.Fecha || a.FechaAporte);
+        const fechaB = new Date(b.FechaRaw || b.Fecha || b.FechaAporte);
+        if (fechaA - fechaB !== 0) return fechaA - fechaB;
+        return a.ID_Ahorro - b.ID_Ahorro; // Si la hora es igual, el ID define el orden
+    });
 
-    // 3. TABLA DE AHORROS Y RETIROS (Estilo Bancario)
+    const abonosOrdenados = [...abonos].sort((a, b) => {
+        const fechaA = new Date(a.FechaRaw || a.Fecha || a.FechaPago);
+        const fechaB = new Date(b.FechaRaw || b.Fecha || b.FechaPago);
+        return fechaA - fechaB;
+    });
+
+    // 3. TABLA DE MOVIMIENTOS (Estilo Bancario con Saldo)
     doc.setFontSize(12);
     doc.setTextColor(16, 185, 129);
     doc.text("1. DETALLE DE MOVIMIENTOS DE AHORRO", 14, doc.lastAutoTable.finalY + 12);
     
+    let saldoAcumulado = 0;
+
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['#', 'Fecha / Hora', 'Descripción', 'Monto']],
+        head: [['#', 'Fecha', 'Descripción', 'Monto', 'Saldo']],
         body: movimientosAhorro.map((item, index) => {
-            const esRetiro = Number(item.Monto) < 0;
+            const monto = Number(item.Monto);
+            saldoAcumulado += monto;
+            const esRetiro = monto < 0;
+
             return [
                 index + 1,
-                item.FechaFormateada || 'S/F',
+                item.FechaFormateada || new Date(item.FechaAporte).toLocaleDateString(),
                 esRetiro ? 'RETIRO DE AHORRO' : 'APORTE DE AHORRO',
-                esRetiro 
-                    ? `$ ${Number(item.Monto).toLocaleString()}` 
-                    : `$ ${Number(item.Monto).toLocaleString()}`
+                `$ ${monto.toLocaleString()}`,
+                `$ ${saldoAcumulado.toLocaleString()}`
             ];
         }),
         headStyles: { fillStyle: [16, 185, 129] },
-        styles: { fontSize: 9 },
+        styles: { fontSize: 8 },
         didParseCell: function(data) {
-            // Si es la columna de Monto y el valor es de un retiro, pintar toda la fila o la celda de rojo
-            if (data.section === 'body' && data.row.cells[2].text[0].includes('RETIRO')) {
-                data.cell.styles.textColor = [220, 38, 38]; // Rojo bancario
+            // Pintar de rojo si la descripción es RETIRO
+            if (data.section === 'body') {
+                const fila = data.row.raw;
+                if (fila[2] === 'RETIRO DE AHORRO') {
+                    data.cell.styles.textColor = [220, 38, 38];
+                }
             }
         }
     });
 
-    // 4. TABLA DE PRÉSTAMOS (Azul)
+    // [Resto del código de préstamos y abonos igual...]
+    // 4. TABLA DE PRÉSTAMOS
     doc.setFontSize(12);
     doc.setTextColor(59, 130, 246);
     doc.text("2. DETALLE DE PRÉSTAMOS", 14, doc.lastAutoTable.finalY + 12);
@@ -615,49 +633,37 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
         head: [['ID', 'Fecha', 'Tasa', 'Cuotas', 'Monto Total', 'Saldo Pendiente', 'Estado']],
-        body: prestamos.map((item, index) => {
-            const total = Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0);
-            return [
-                `#${index + 1}`,
-                item.FechaPrestamo || 'S/F',
-                `${item.TasaInteres || 5}%`,
-                item.Cuotas || 1,
-                `$ ${total.toLocaleString()}`,
-                `$ ${Number(item.SaldoActual || 0).toLocaleString()}`,
-                item.Estado.toUpperCase()
-            ];
-        }),
+        body: prestamos.map((item, index) => [
+            `#${item.ID_Prestamo || index + 1}`,
+            item.FechaPrestamo || 'S/F',
+            `${item.TasaInteres || 5}%`,
+            item.Cuotas || 1,
+            `$ ${(Number(item.MontoPrestado) + Number(item.MontoInteres)).toLocaleString()}`,
+            `$ ${Number(item.SaldoActual || 0).toLocaleString()}`,
+            item.Estado.toUpperCase()
+        ]),
         headStyles: { fillStyle: [59, 130, 246] },
         styles: { fontSize: 8 }
     });
 
-    // 5. TABLA DE ABONOS (Rojo/Rosa)
+    // 5. TABLA DE PAGOS
     doc.setFontSize(12);
     doc.setTextColor(244, 63, 94);
     doc.text("3. HISTORIAL DE PAGOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['Fecha de Pago', 'Valor del Abono', 'Referencia del Préstamo']],
-        body: abonosOrdenados.map(i => {
-            const ref = i.PrestamoRef || i.PrestamoOriginal || 0;
-            return [
-                i.FechaFormateada, 
-                `$ ${Number(i.Monto_Abonado).toLocaleString()}`,
-                `Aplicado a préstamo de $${Number(ref).toLocaleString()}`
-            ];
-        }),
+        head: [['Fecha', 'Valor Abono', 'Referencia']],
+        body: abonosOrdenados.map(i => [
+            i.FechaFormateada || new Date(i.FechaPago).toLocaleDateString(), 
+            `$ ${Number(i.Monto_Abonado || i.MontoPagado).toLocaleString()}`,
+            `Préstamo #${i.ID_Prestamo}`
+        ]),
         headStyles: { fillStyle: [244, 63, 94] }, 
         styles: { fontSize: 9 }
     });
 
-    // PIE DE PÁGINA
-    const finalY = doc.lastAutoTable.finalY + 20;
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    doc.text("Este documento es un extracto informativo generado por Natillera.", 14, finalY);
-    
-    doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}_${fechaDoc.replace(/\//g, '-')}.pdf`);
+    doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}.pdf`);
 }
 
 async function verListaRapidaDeudores() {
