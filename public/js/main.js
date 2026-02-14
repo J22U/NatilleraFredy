@@ -573,18 +573,15 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 10, cellPadding: 3 }
     });
 
-    // --- LÓGICA DE ORDENAMIENTO POR ID (Para que el retiro salga abajo) ---
+    // --- LÓGICA DE ORDENAMIENTO POR ID ---
     const movimientosAhorro = [...ahorros].sort((a, b) => {
-        // Primero intentamos por fecha
         const fechaA = new Date(a.FechaRaw || a.Fecha || a.FechaAporte);
         const fechaB = new Date(b.FechaRaw || b.Fecha || b.FechaAporte);
         if (fechaA - fechaB !== 0) return fechaA - fechaB;
-        
-        // Si la fecha es igual, el ID define: el retiro (ID más alto) va abajo
         return (a.ID_Ahorro || a.id) - (b.ID_Ahorro || b.id);
     });
 
-    // 3. TABLA DE MOVIMIENTOS (Solo 4 columnas, sin cálculos)
+    // 3. TABLA DE MOVIMIENTOS
     doc.setFontSize(12);
     doc.setTextColor(16, 185, 129);
     doc.text("1. DETALLE DE MOVIMIENTOS DE AHORRO", 14, doc.lastAutoTable.finalY + 12);
@@ -595,7 +592,6 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         body: movimientosAhorro.map((item, index) => {
             const monto = Number(item.Monto);
             const esRetiro = monto < 0;
-
             return [
                 index + 1,
                 item.FechaFormateada || new Date(item.FechaAporte || item.Fecha).toLocaleDateString(),
@@ -607,37 +603,38 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 9 },
         didParseCell: function(data) {
             if (data.section === 'body') {
-                // Si la columna Descripción (index 2) dice RETIRO, pintamos el Monto (index 3) de rojo
                 const rowData = data.row.raw;
                 if (rowData[2] === 'RETIRO DE AHORRO') {
-                    data.cell.styles.textColor = [220, 38, 38]; // Rojo para toda la fila del retiro
+                    data.cell.styles.textColor = [220, 38, 38];
                 }
             }
         }
     });
 
-    // 4. TABLA DE PRÉSTAMOS (Igual que antes)
+    // 4. TABLA DE PRÉSTAMOS (Actualizada con Capital Prestado)
     doc.setFontSize(12);
     doc.setTextColor(59, 130, 246);
     doc.text("2. DETALLE DE PRÉSTAMOS", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['ID', 'Fecha', 'Tasa', 'Cuotas', 'Monto Total', 'Saldo Pendiente', 'Estado']],
+        // Agregamos "Capital" y "Total con Int."
+        head: [['ID', 'Fecha', 'Tasa', 'Cuotas', 'Capital', 'Total con Int.', 'Saldo Act.', 'Estado']],
         body: prestamos.map((item, index) => [
             `#${item.ID_Prestamo || index + 1}`,
             item.FechaPrestamo || 'S/F',
             `${item.TasaInteres || 5}%`,
             item.Cuotas || 1,
-            `$ ${(Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0)).toLocaleString()}`,
+            `$ ${Number(item.MontoPrestado || 0).toLocaleString()}`, // Capital puro
+            `$ ${(Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0)).toLocaleString()}`, // Total
             `$ ${Number(item.SaldoActual || 0).toLocaleString()}`,
             (item.Estado || 'Activo').toUpperCase()
         ]),
         headStyles: { fillStyle: [59, 130, 246] },
-        styles: { fontSize: 8 }
+        styles: { fontSize: 7.5 } // Bajé un poco el tamaño para que quepan las nuevas columnas
     });
 
-    // 5. TABLA DE ABONOS A DEUDA (Se mantiene igual)
+    // 5. TABLA DE ABONOS A DEUDA
     doc.setFontSize(12);
     doc.setTextColor(244, 63, 94);
     doc.text("3. HISTORIAL DE PAGOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
