@@ -20,27 +20,46 @@ function crearTabla(datosCargados = null) {
     const numeroTabla = document.querySelectorAll('.rifa-card').length + 1;
 
     const card = document.createElement('div');
-    card.className = 'rifa-card';
+    card.className = 'rifa-card collapsed'; // Empezamos cerradas para ahorrar espacio
     card.id = `rifa-${id}`;
     
     card.innerHTML = `
-        <div class="rifa-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <div style="display:flex; align-items:center; gap:10px;">
+        <div class="rifa-card-header" onclick="toggleTabla('${id}')" style="cursor:pointer;">
+            <div style="display:flex; align-items:center; gap:10px; flex:1;">
+                <i class="fas fa-chevron-right arrow-icon" id="arrow-${id}"></i>
                 <span class="tabla-badge">#${numeroTabla}</span>
                 <input type="text" class="input-table-title" 
                        value="${datosCargados ? datosCargados.titulo : 'Nueva Tabla'}" 
+                       onclick="event.stopPropagation()" 
                        onchange="guardarTodo()" 
                        style="border:none; font-weight:bold; outline:none; font-size:1.1rem; background:transparent;">
             </div>
-            <button onclick="eliminarTabla('${id}')" style="background:none; border:none; color:#ff7675; cursor:pointer; font-size:1.2rem;">
+            <button onclick="event.stopPropagation(); eliminarTabla('${id}')" class="btn-delete">
                 <i class="fas fa-trash-alt"></i>
             </button>
         </div>
-        <div class="numeros-grid">
-            ${generarCeldas(id, datosCargados)}
+        <div class="rifa-card-body" id="body-${id}">
+            <div class="numeros-grid">
+                ${generarCeldas(id, datosCargados)}
+            </div>
         </div>
     `;
     container.appendChild(card);
+}
+
+function toggleTabla(id) {
+    const card = document.getElementById(`rifa-${id}`);
+    const arrow = document.getElementById(`arrow-${id}`);
+    
+    // Alternamos la clase 'active'
+    card.classList.toggle('active');
+    
+    // Rotamos la flecha visualmente
+    if (card.classList.contains('active')) {
+        arrow.style.transform = 'rotate(90deg)';
+    } else {
+        arrow.style.transform = 'rotate(0deg)';
+    }
 }
 
 function generarCeldas(tableId, datos) {

@@ -271,3 +271,118 @@ body {
 .btn-excel:hover {
     background-color: #219150;
 }
+
+/* Ocultar el cuerpo por defecto */
+.rifa-card-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, padding 0.3s ease;
+    padding: 0 15px;
+}
+
+/* Mostrar cuando esté activa */
+.rifa-card.active .rifa-card-body {
+    max-height: 2500px; /* Un valor grande para que quepan los 100 números */
+    padding: 15px;
+    border-top: 1px solid #eee;
+}
+
+/* Estilo para la flecha */
+.arrow-icon {
+    transition: transform 0.3s ease;
+    color: #0984e3;
+    font-size: 0.9rem;
+}
+
+.rifa-card-header {
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    border-radius: 12px;
+}
+
+/* Efecto de sombra al estar abierta */
+.rifa-card.active {
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+
+/* BOTÓN ELIMINAR (Corregido: Estilo premium) */
+.btn-delete-card {
+    background-color: var(--nat-red);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 10px; /* Bordes más suaves */
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(255, 118, 117, 0.3);
+}
+
+.btn-delete-card:hover {
+    background-color: var(--nat-red-hover);
+    transform: scale(1.1) rotate(5deg); /* Efecto sutil de rotación y escala */
+    box-shadow: 0 6px 15px rgba(214, 48, 49, 0.4);
+}
+
+.btn-delete-card:active {
+    transform: scale(0.9); /* Efecto de pulsación al hacer clic */
+}
+
+/* ESTO CAMBIA EL COLOR SÍ O SÍ (Ataca todas las versiones) */
+.btn-delete, 
+.btn-delete-card, 
+[onclick*="eliminarTabla"] {
+    background-color: #ff7675 !important;
+    color: white !important;
+    border: none !important;
+    padding: 8px 12px !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 10px rgba(255, 118, 117, 0.3) !important;
+}
+
+/* Para que el icono del basurero sea blanco */
+.btn-delete i, 
+.btn-delete-card i, 
+[onclick*="eliminarTabla"] i {
+    color: white !important;
+}
+
+/* Hacer que el contenedor del header sea flexible */
+.header-top {
+    display: flex;
+    flex-wrap: wrap; /* Permite que los botones bajen si no caben */
+    gap: 10px;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Ajuste para el botón de Excel en móviles */
+@media (max-width: 600px) {
+    .btn-excel {
+        flex: 1; /* El botón se estira para ocupar espacio */
+        justify-content: center;
+        padding: 12px;
+        font-size: 12px;
+    }
+    
+    /* Si quieres que solo se vea el icono en pantallas muy pequeñas */
+    .btn-excel span {
+        display: none; 
+    }
+    
+    .btn-excel::after {
+        content: 'Reporte'; /* Texto más corto para móvil */
+        display: inline-block;
+    }
+}
