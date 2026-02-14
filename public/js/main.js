@@ -573,34 +573,36 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 10, cellPadding: 3 }
     });
 
-    // --- LÓGICA DE ORDENAMIENTO ASCENDENTE (Lo más reciente abajo) ---
-    // Ordenamos de menor a mayor: a - b
-    const ahorrosOrdenados = [...ahorros].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
+    // --- LÓGICA DE ORDENAMIENTO CRONOLÓGICO (Ascendente: el más nuevo abajo) ---
+    // Ordenamos ahorros y retiros mezclados por fecha y hora
+    const movimientosAhorro = [...ahorros].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
     const abonosOrdenados = [...abonos].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
 
-    // 3. TABLA DE AHORROS (Verde)
+    // 3. TABLA DE AHORROS Y RETIROS (Estilo Bancario)
     doc.setFontSize(12);
     doc.setTextColor(16, 185, 129);
-    doc.text("1. DETALLE DE AHORROS", 14, doc.lastAutoTable.finalY + 12);
+    doc.text("1. DETALLE DE MOVIMIENTOS DE AHORRO", 14, doc.lastAutoTable.finalY + 12);
     
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['#', 'Fecha', 'Monto']],
-        body: ahorrosOrdenados.map((item, index) => {
+        head: [['#', 'Fecha / Hora', 'Descripción', 'Monto']],
+        body: movimientosAhorro.map((item, index) => {
             const esRetiro = Number(item.Monto) < 0;
             return [
-                index + 1, // El #1 es el primero en la historia
+                index + 1,
                 item.FechaFormateada || 'S/F',
+                esRetiro ? 'RETIRO DE AHORRO' : 'APORTE DE AHORRO',
                 esRetiro 
-                    ? `$ ${Number(item.Monto).toLocaleString()} (RETIRO)` 
+                    ? `$ ${Number(item.Monto).toLocaleString()}` 
                     : `$ ${Number(item.Monto).toLocaleString()}`
             ];
         }),
         headStyles: { fillStyle: [16, 185, 129] },
         styles: { fontSize: 9 },
         didParseCell: function(data) {
-            if (data.section === 'body' && data.column.index === 2 && data.cell.raw.includes('RETIRO')) {
-                data.cell.styles.textColor = [220, 38, 38]; 
+            // Si es la columna de Monto y el valor es de un retiro, pintar toda la fila o la celda de rojo
+            if (data.section === 'body' && data.row.cells[2].text[0].includes('RETIRO')) {
+                data.cell.styles.textColor = [220, 38, 38]; // Rojo bancario
             }
         }
     });
@@ -656,33 +658,6 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.text("Este documento es un extracto informativo generado por Natillera.", 14, finalY);
     
     doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}_${fechaDoc.replace(/\//g, '-')}.pdf`);
-}
-
-async function cargarPrestamosEnSelector(idPersona) {
-    const selector = document.getElementById('tu_id_del_selector_de_prestamos'); // Ajusta el ID
-    selector.innerHTML = '<option value="">Cargando préstamos...</option>';
-
-    try {
-        const res = await fetch(`/prestamos-activos/${idPersona}`);
-        const prestamos = await res.json();
-
-        selector.innerHTML = '<option value="">Seleccione un préstamo</option>';
-        
-        if (prestamos.length === 0) {
-            selector.innerHTML = '<option value="">Sin préstamos activos</option>';
-            return;
-        }
-
-        prestamos.forEach(p => {
-            const option = document.createElement('option');
-            option.value = p.ID_Prestamo;
-            // Esto hará que se vea como en tu foto: "Préstamo #21 (Saldo: $200.000)"
-            option.textContent = `Préstamo #${p.ID_Prestamo} (Saldo: $${p.SaldoActual.toLocaleString()})`;
-            selector.appendChild(option);
-        });
-    } catch (error) {
-        console.error("Error al cargar préstamos:", error);
-    }
 }
 
 async function verListaRapidaDeudores() {
