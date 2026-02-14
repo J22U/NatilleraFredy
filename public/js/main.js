@@ -611,27 +611,26 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         }
     });
 
-    // 4. TABLA DE PRÉSTAMOS (Actualizada con Capital Prestado)
+    // 4. TABLA DE PRÉSTAMOS (CORREGIDO EL ID VISUAL)
     doc.setFontSize(12);
     doc.setTextColor(59, 130, 246);
     doc.text("2. DETALLE DE PRÉSTAMOS", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        // Agregamos "Capital" y "Total con Int."
         head: [['ID', 'Fecha', 'Tasa', 'Cuotas', 'Capital', 'Total con Int.', 'Saldo Act.', 'Estado']],
         body: prestamos.map((item, index) => [
-            `#${item.ID_Prestamo || index + 1}`,
+            `#${index + 1}`, // Cambiado para que muestre el orden secuencial (1, 2, 3...)
             item.FechaPrestamo || 'S/F',
             `${item.TasaInteres || 5}%`,
             item.Cuotas || 1,
-            `$ ${Number(item.MontoPrestado || 0).toLocaleString()}`, // Capital puro
-            `$ ${(Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0)).toLocaleString()}`, // Total
+            `$ ${Number(item.MontoPrestado || 0).toLocaleString()}`,
+            `$ ${(Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0)).toLocaleString()}`,
             `$ ${Number(item.SaldoActual || 0).toLocaleString()}`,
             (item.Estado || 'Activo').toUpperCase()
         ]),
         headStyles: { fillStyle: [59, 130, 246] },
-        styles: { fontSize: 7.5 } // Bajé un poco el tamaño para que quepan las nuevas columnas
+        styles: { fontSize: 7.5 }
     });
 
     // 5. TABLA DE ABONOS A DEUDA
