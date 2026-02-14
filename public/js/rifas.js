@@ -158,9 +158,9 @@ async function cargarRifas() {
     container.innerHTML = '<div class="loading-spinner">Sincronizando con la nube...</div>';
 
     try {
-        const response = await fetch('ObtenerRifas.aspx/CargarTodoFull', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+        const response = await fetch('GuardarRifas.aspx/CargarTodoFull', { // <--- Cambia ObtenerRifas por GuardarRifas
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
         });
         
         const result = await response.json();
