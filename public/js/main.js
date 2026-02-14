@@ -574,24 +574,35 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 10, cellPadding: 3 }
     });
 
-    // 3. TABLA DE AHORROS (Verde)
+    // 3. TABLA DE AHORROS (Verde) - Ajustada para detectar Retiros
     doc.setFontSize(12);
     doc.setTextColor(16, 185, 129);
     doc.text("1. DETALLE DE AHORROS", 14, doc.lastAutoTable.finalY + 12);
     
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['#', 'Fecha de Aporte', 'Monto Ahorrado']],
-        body: ahorros.map((item, index) => [
-            index + 1,
-            item.FechaFormateada || 'S/F',
-            `$ ${Number(item.Monto).toLocaleString()}`
-        ]),
+        head: [['#', 'Fecha de Aporte', 'Monto']],
+        body: ahorros.map((item, index) => {
+            const esRetiro = Number(item.Monto) < 0;
+            return [
+                index + 1,
+                item.FechaFormateada || 'S/F',
+                esRetiro 
+                    ? `$ ${Number(item.Monto).toLocaleString()} (RETIRO)` 
+                    : `$ ${Number(item.Monto).toLocaleString()}`
+            ];
+        }),
         headStyles: { fillStyle: [16, 185, 129] },
-        styles: { fontSize: 9 }
+        styles: { fontSize: 9 },
+        didParseCell: function(data) {
+            // Si la celda contiene la palabra RETIRO, la ponemos en rojo
+            if (data.section === 'body' && data.column.index === 2 && data.cell.raw.includes('RETIRO')) {
+                data.cell.styles.textColor = [220, 38, 38]; // Rojo
+            }
+        }
     });
 
-    // 4. TABLA DE PRÉSTAMOS (Azul) - Incluye Tasa y Cuotas
+    // 4. TABLA DE PRÉSTAMOS (Azul)
     doc.setFontSize(12);
     doc.setTextColor(59, 130, 246);
     doc.text("2. DETALLE DE PRÉSTAMOS", 14, doc.lastAutoTable.finalY + 12);
@@ -619,7 +630,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 8 }
     });
 
-    // 5. TABLA DE ABONOS (Rojo/Rosa) - Con referencia corregida
+    // 5. TABLA DE ABONOS (Rojo/Rosa)
     doc.setFontSize(12);
     doc.setTextColor(244, 63, 94);
     doc.text("3. HISTORIAL DE PAGOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
@@ -628,7 +639,6 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         startY: doc.lastAutoTable.finalY + 15,
         head: [['Fecha de Pago', 'Valor del Abono', 'Referencia del Préstamo']],
         body: abonos.map(i => {
-            // Usamos PrestamoRef o PrestamoOriginal dependiendo de lo que envíe tu servidor
             const ref = i.PrestamoRef || i.PrestamoOriginal || 0;
             return [
                 i.FechaFormateada, 
