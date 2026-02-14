@@ -317,6 +317,52 @@ app.get('/prestamos-activos/:idPersona', async (req, res) => {
     } catch (err) { res.status(500).json([]); }
 });
 
+app.post('/api/retirar-ahorro', async (req, res) => {
+    const { id, tipo, monto } = req.body;
+    
+    try {
+        const pool = await poolPromise;
+
+        // 1. Obtener el saldo actual del socio
+        const resultSaldo = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT ISNULL(SUM(Monto), 0) as SaldoTotal FROM Ahorros WHERE ID_Persona = @id');
+        
+        const saldoActual = resultSaldo.recordset[0].SaldoTotal;
+
+        // 2. Determinar el monto final a retirar
+        let montoARetirar = (tipo === 'total') ? saldoActual : parseFloat(monto);
+
+        // 3. VALIDACIÓN: ¿Tiene suficiente dinero?
+        if (montoARetirar > saldoActual) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Saldo insuficiente. Máximo disponible: $${saldoActual.toLocaleString()}` 
+            });
+        }
+
+        if (montoARetirar <= 0) {
+            return res.status(400).json({ success: false, message: "El monto debe ser mayor a 0." });
+        }
+
+        // 4. Insertar el retiro (Monto en NEGATIVO)
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('monto', sql.Decimal(18, 2), montoARetirar * -1)
+            .input('fecha', sql.DateTime, new Date())
+            .query(`
+                INSERT INTO Ahorros (ID_Persona, Monto, Fecha) 
+                VALUES (@id, @monto, @fecha)
+            `);
+
+        res.json({ success: true, message: 'Retiro procesado con éxito' });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: 'Error en el servidor' });
+    }
+});
+
 // --- 7. ACTUALIZAR SOCIO ---
 // --- ACTUALIZAR SOCIO ---
 // Nota: Cambié la ruta a 'editar-socio' para que coincida con lo que busca tu frontend

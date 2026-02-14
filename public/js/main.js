@@ -56,16 +56,72 @@ async function cargarDashboard() {
                     </td>
                     <td class="px-8 py-5 text-center">
                         <div class="flex justify-center gap-3">
-                            <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
-                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
-                            <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2"><i class="fas fa-trash"></i></button>
-                        </div>
+    <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
+    
+    <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-2">
+        <i class="fas fa-hand-holding-usd"></i> Retirar
+    </button>
+
+    <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
+    <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2"><i class="fas fa-trash"></i></button>
+</div>
                     </td>
                 </tr>`;
         });
         document.getElementById('count-ahorradores').innerText = `${cAhorro} Ahorradores`;
         document.getElementById('count-prestamos').innerText = `${cExtra} Externos`;
     } catch (err) { console.error(err); }
+}
+
+async function abrirModalRetiro(id, nombre) {
+    const { value: formValues } = await Swal.fire({
+        title: `<span class="text-sm font-black">RETIRAR AHORROS: ${nombre}</span>`,
+        html: `
+            <div class="p-4 text-left">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Opción de retiro</label>
+                <select id="tipoRetiro" class="w-full p-3 bg-slate-100 rounded-xl mb-4 text-sm font-bold" 
+                    onchange="document.getElementById('montoCont').style.display = (this.value === 'parcial' ? 'block' : 'none')">
+                    <option value="parcial">RETIRO PARCIAL</option>
+                    <option value="total">RETIRO TOTAL (TODO)</option>
+                </select>
+                
+                <div id="montoCont">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Monto a retirar ($)</label>
+                    <input id="montoRetiro" type="number" class="w-full p-3 bg-slate-100 rounded-xl font-mono" placeholder="Ej: 50000">
+                </div>
+            </div>
+        `,
+        confirmButtonText: 'PROCESAR RETIRO',
+        confirmButtonColor: '#f59e0b',
+        showCancelButton: true,
+        preConfirm: () => {
+            const tipo = document.getElementById('tipoRetiro').value;
+            const monto = document.getElementById('montoRetiro').value;
+            return { tipo, monto };
+        }
+    });
+
+    if (formValues) {
+        try {
+            const response = await fetch('/api/retirar-ahorro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, ...formValues })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                Swal.fire('¡Éxito!', data.message, 'success');
+                cargarTodo(); // Recarga la tabla y los contadores del dashboard
+            } else {
+                // Aquí se muestra el error de "Saldo insuficiente" que viene del servidor
+                Swal.fire('Atención', data.message, 'warning');
+            }
+        } catch (error) {
+            Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
+        }
+    }
 }
 
 async function actualizarListaDeudas() {
