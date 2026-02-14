@@ -21,7 +21,9 @@ const config = {
 
 // --- RUTA PRINCIPAL: Forzar el inicio en login.html ---
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'login.html'));
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));;
+    console.log("Buscando login en:", loginPath); // Esto saldrá en los logs de Render
+    res.sendFile(loginPath);
 });
 
 // --- RUTA PARA CARGAR TODO ---
