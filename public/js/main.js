@@ -547,21 +547,20 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const doc = new jsPDF();
     const fechaDoc = new Date().toLocaleDateString();
 
-    // 1. ENCABEZADO ELEGANTE
-    doc.setFillColor(99, 102, 241); // Color Indigo
+    // 1. ENCABEZADO
+    doc.setFillColor(99, 102, 241); 
     doc.rect(0, 0, 210, 40, 'F');
     doc.setFontSize(22);
     doc.setTextColor(255, 255, 255);
     doc.text("EXTRACTO DE CUENTA", 14, 20);
     doc.setFontSize(10);
-    doc.text("SISTEMA DE GESTIÓN NATILLERA PRO", 14, 28);
+    doc.text("SISTEMA DE GESTIÓN NATILLERA", 14, 28);
 
     doc.setFontSize(12);
-    doc.setTextColor(255, 255, 255);
     doc.text(`CLIENTE: ${nombre.toUpperCase()}`, 120, 20);
     doc.text(`FECHA: ${fechaDoc}`, 120, 28);
 
-    // 2. RESUMEN DE TOTALES (Caja de impacto)
+    // 2. RESUMEN DE TOTALES
     doc.autoTable({
         startY: 45,
         head: [['RESUMEN GENERAL', 'VALOR TOTAL']],
@@ -574,18 +573,23 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 10, cellPadding: 3 }
     });
 
-    // 3. TABLA DE AHORROS (Verde) - Ajustada para detectar Retiros
+    // --- LÓGICA DE ORDENAMIENTO ASCENDENTE (Lo más reciente abajo) ---
+    // Ordenamos de menor a mayor: a - b
+    const ahorrosOrdenados = [...ahorros].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
+    const abonosOrdenados = [...abonos].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
+
+    // 3. TABLA DE AHORROS (Verde)
     doc.setFontSize(12);
     doc.setTextColor(16, 185, 129);
     doc.text("1. DETALLE DE AHORROS", 14, doc.lastAutoTable.finalY + 12);
     
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['#', 'Fecha de Aporte', 'Monto']],
-        body: ahorros.map((item, index) => {
+        head: [['#', 'Fecha', 'Monto']],
+        body: ahorrosOrdenados.map((item, index) => {
             const esRetiro = Number(item.Monto) < 0;
             return [
-                index + 1,
+                index + 1, // El #1 es el primero en la historia
                 item.FechaFormateada || 'S/F',
                 esRetiro 
                     ? `$ ${Number(item.Monto).toLocaleString()} (RETIRO)` 
@@ -595,9 +599,8 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         headStyles: { fillStyle: [16, 185, 129] },
         styles: { fontSize: 9 },
         didParseCell: function(data) {
-            // Si la celda contiene la palabra RETIRO, la ponemos en rojo
             if (data.section === 'body' && data.column.index === 2 && data.cell.raw.includes('RETIRO')) {
-                data.cell.styles.textColor = [220, 38, 38]; // Rojo
+                data.cell.styles.textColor = [220, 38, 38]; 
             }
         }
     });
@@ -611,18 +614,14 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         startY: doc.lastAutoTable.finalY + 15,
         head: [['ID', 'Fecha', 'Tasa', 'Cuotas', 'Monto Total', 'Saldo Pendiente', 'Estado']],
         body: prestamos.map((item, index) => {
-            const capital = Number(item.MontoPrestado || 0);
-            const interes = Number(item.MontoInteres || 0);
-            const totalConInteres = capital + interes;
-            const saldo = Number(item.SaldoActual || 0);
-
+            const total = Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0);
             return [
                 `#${index + 1}`,
                 item.FechaPrestamo || 'S/F',
                 `${item.TasaInteres || 5}%`,
                 item.Cuotas || 1,
-                `$ ${totalConInteres.toLocaleString()}`,
-                `$ ${saldo.toLocaleString()}`,
+                `$ ${total.toLocaleString()}`,
+                `$ ${Number(item.SaldoActual || 0).toLocaleString()}`,
                 item.Estado.toUpperCase()
             ];
         }),
@@ -638,7 +637,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
         head: [['Fecha de Pago', 'Valor del Abono', 'Referencia del Préstamo']],
-        body: abonos.map(i => {
+        body: abonosOrdenados.map(i => {
             const ref = i.PrestamoRef || i.PrestamoOriginal || 0;
             return [
                 i.FechaFormateada, 
@@ -654,10 +653,8 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const finalY = doc.lastAutoTable.finalY + 20;
     doc.setFontSize(8);
     doc.setTextColor(150);
-    doc.text("Este documento es un extracto informativo generado por Natillera Pro.", 14, finalY);
-    doc.text("Verifique sus movimientos periódicamente.", 14, finalY + 4);
-
-    // Guardar el archivo
+    doc.text("Este documento es un extracto informativo generado por Natillera.", 14, finalY);
+    
     doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}_${fechaDoc.replace(/\//g, '-')}.pdf`);
 }
 
