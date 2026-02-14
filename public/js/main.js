@@ -560,7 +560,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.text(`CLIENTE: ${nombre.toUpperCase()}`, 120, 20);
     doc.text(`FECHA: ${fechaDoc}`, 120, 28);
 
-    // 2. RESUMEN DE TOTALES
+    // 2. RESUMEN DE TOTALES (Se mantiene igual)
     doc.autoTable({
         startY: 45,
         head: [['RESUMEN GENERAL', 'VALOR TOTAL']],
@@ -573,59 +573,50 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 10, cellPadding: 3 }
     });
 
-    // --- CORRECCIÓN DE ORDENAMIENTO ---
-    // Usamos el ID como segundo criterio de desempate por si la fecha es idéntica
+    // --- LÓGICA DE ORDENAMIENTO POR ID (Para que el retiro salga abajo) ---
     const movimientosAhorro = [...ahorros].sort((a, b) => {
+        // Primero intentamos por fecha
         const fechaA = new Date(a.FechaRaw || a.Fecha || a.FechaAporte);
         const fechaB = new Date(b.FechaRaw || b.Fecha || b.FechaAporte);
         if (fechaA - fechaB !== 0) return fechaA - fechaB;
-        return a.ID_Ahorro - b.ID_Ahorro; // Si la hora es igual, el ID define el orden
+        
+        // Si la fecha es igual, el ID define: el retiro (ID más alto) va abajo
+        return (a.ID_Ahorro || a.id) - (b.ID_Ahorro || b.id);
     });
 
-    const abonosOrdenados = [...abonos].sort((a, b) => {
-        const fechaA = new Date(a.FechaRaw || a.Fecha || a.FechaPago);
-        const fechaB = new Date(b.FechaRaw || b.Fecha || b.FechaPago);
-        return fechaA - fechaB;
-    });
-
-    // 3. TABLA DE MOVIMIENTOS (Estilo Bancario con Saldo)
+    // 3. TABLA DE MOVIMIENTOS (Solo 4 columnas, sin cálculos)
     doc.setFontSize(12);
     doc.setTextColor(16, 185, 129);
     doc.text("1. DETALLE DE MOVIMIENTOS DE AHORRO", 14, doc.lastAutoTable.finalY + 12);
     
-    let saldoAcumulado = 0;
-
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['#', 'Fecha', 'Descripción', 'Monto', 'Saldo']],
+        head: [['#', 'Fecha', 'Descripción', 'Monto']],
         body: movimientosAhorro.map((item, index) => {
             const monto = Number(item.Monto);
-            saldoAcumulado += monto;
             const esRetiro = monto < 0;
 
             return [
                 index + 1,
-                item.FechaFormateada || new Date(item.FechaAporte).toLocaleDateString(),
+                item.FechaFormateada || new Date(item.FechaAporte || item.Fecha).toLocaleDateString(),
                 esRetiro ? 'RETIRO DE AHORRO' : 'APORTE DE AHORRO',
-                `$ ${monto.toLocaleString()}`,
-                `$ ${saldoAcumulado.toLocaleString()}`
+                `$ ${monto.toLocaleString()}`
             ];
         }),
         headStyles: { fillStyle: [16, 185, 129] },
-        styles: { fontSize: 8 },
+        styles: { fontSize: 9 },
         didParseCell: function(data) {
-            // Pintar de rojo si la descripción es RETIRO
             if (data.section === 'body') {
-                const fila = data.row.raw;
-                if (fila[2] === 'RETIRO DE AHORRO') {
-                    data.cell.styles.textColor = [220, 38, 38];
+                // Si la columna Descripción (index 2) dice RETIRO, pintamos el Monto (index 3) de rojo
+                const rowData = data.row.raw;
+                if (rowData[2] === 'RETIRO DE AHORRO') {
+                    data.cell.styles.textColor = [220, 38, 38]; // Rojo para toda la fila del retiro
                 }
             }
         }
     });
 
-    // [Resto del código de préstamos y abonos igual...]
-    // 4. TABLA DE PRÉSTAMOS
+    // 4. TABLA DE PRÉSTAMOS (Igual que antes)
     doc.setFontSize(12);
     doc.setTextColor(59, 130, 246);
     doc.text("2. DETALLE DE PRÉSTAMOS", 14, doc.lastAutoTable.finalY + 12);
@@ -638,26 +629,28 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
             item.FechaPrestamo || 'S/F',
             `${item.TasaInteres || 5}%`,
             item.Cuotas || 1,
-            `$ ${(Number(item.MontoPrestado) + Number(item.MontoInteres)).toLocaleString()}`,
+            `$ ${(Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0)).toLocaleString()}`,
             `$ ${Number(item.SaldoActual || 0).toLocaleString()}`,
-            item.Estado.toUpperCase()
+            (item.Estado || 'Activo').toUpperCase()
         ]),
         headStyles: { fillStyle: [59, 130, 246] },
         styles: { fontSize: 8 }
     });
 
-    // 5. TABLA DE PAGOS
+    // 5. TABLA DE ABONOS A DEUDA (Se mantiene igual)
     doc.setFontSize(12);
     doc.setTextColor(244, 63, 94);
     doc.text("3. HISTORIAL DE PAGOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
+
+    const abonosOrdenados = [...abonos].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
         head: [['Fecha', 'Valor Abono', 'Referencia']],
         body: abonosOrdenados.map(i => [
-            i.FechaFormateada || new Date(i.FechaPago).toLocaleDateString(), 
-            `$ ${Number(i.Monto_Abonado || i.MontoPagado).toLocaleString()}`,
-            `Préstamo #${i.ID_Prestamo}`
+            i.FechaFormateada || 'S/F', 
+            `$ ${Number(i.Monto_Abonado || 0).toLocaleString()}`,
+            `Préstamo #${i.ID_Prestamo || 'S/R'}`
         ]),
         headStyles: { fillStyle: [244, 63, 94] }, 
         styles: { fontSize: 9 }
