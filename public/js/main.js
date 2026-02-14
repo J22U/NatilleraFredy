@@ -620,7 +620,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         startY: doc.lastAutoTable.finalY + 15,
         head: [['ID', 'Fecha', 'Tasa', 'Cuotas', 'Capital', 'Total con Int.', 'Saldo Act.', 'Estado']],
         body: prestamos.map((item, index) => [
-            `#${index + 1}`,
+            `#${index + 1}`, // Aquí se genera el #1 que se ve en pantalla
             item.FechaPrestamo || 'S/F',
             `${item.TasaInteres || 5}%`,
             item.Cuotas || 1,
@@ -633,7 +633,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 7.5 }
     });
 
-    // 5. TABLA DE ABONOS A DEUDA (CORREGIDA REFERENCIA)
+    // 5. TABLA DE ABONOS A DEUDA (CON REFERENCIA VISUAL COINCIDENTE)
     doc.setFontSize(12);
     doc.setTextColor(244, 63, 94);
     doc.text("3. HISTORIAL DE PAGOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
@@ -644,14 +644,14 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         startY: doc.lastAutoTable.finalY + 15,
         head: [['Fecha', 'Valor Abono', 'Referencia']],
         body: abonosOrdenados.map(i => {
-            // Buscamos si el abono tiene un ID_Prestamo que coincida con la lista de préstamos
-            // Si no lo encuentra, por defecto pondrá #1 ya que es el préstamo activo.
-            const refID = i.ID_Prestamo || (prestamos.length > 0 ? prestamos[0].ID_Prestamo : '1');
+            // Buscamos la posición del préstamo en el arreglo original para que coincida con el #1, #2, etc.
+            const indexPrestamo = prestamos.findIndex(p => p.ID_Prestamo === i.ID_Prestamo);
+            const numeroVisual = indexPrestamo !== -1 ? indexPrestamo + 1 : 1;
             
             return [
                 i.FechaFormateada || 'S/F', 
                 `$ ${Number(i.Monto_Abonado || i.Monto_Pagado || 0).toLocaleString()}`,
-                `Abono a Préstamo #${refID}`
+                `Abono a Préstamo #${numeroVisual}` // Ahora dirá #1 si es el primer préstamo de la lista
             ];
         }),
         headStyles: { fillStyle: [244, 63, 94] }, 
