@@ -1,0 +1,113 @@
+const sql = require('mssql');
+const express = require('express');
+const app = express();
+const path = require('path');
+
+app.use(express.json());
+app.use(express.static('.')); // Esto sirve tu index.html y rifas.js desde Render
+
+const config = {
+    user: 'Fredy123_SQLLogin_1',
+    password: '5j8k6lvrkl',
+    server: 'NatilleraDB.mssql.somee.com', 
+    database: 'NatilleraDB',
+    options: {
+        encrypt: true, 
+        trustServerCertificate: true 
+    }
+};
+
+// --- 1. RUTA PARA CARGAR TODO ---
+app.get('/api/cargar-rifas', async (req, res) => {
+    try {
+        let pool = await sql.connect(config);
+        
+        // Traer configuración
+        const configRes = await pool.request().query("SELECT * FROM Rifas_Config WHERE Id = 1");
+        // Traer todos los puestos
+        const detallesRes = await pool.request().query("SELECT * FROM Rifas_Detalle");
+
+        if (configRes.recordset.length === 0) {
+            return res.json({ info: {}, tablas: [] });
+        }
+
+        const info = configRes.recordset[0];
+        
+        // Agrupar puestos por TablaId para el frontend
+        const tablasMap = {};
+        detallesRes.recordset.forEach(row => {
+            if (!tablasMap[row.TablaId]) {
+                tablasMap[row.TablaId] = { 
+                    id: row.TablaId, 
+                    titulo: row.TituloTabla, 
+                    participantes: {} 
+                };
+            }
+            tablasMap[row.TablaId].participantes[row.Numero] = {
+                nombre: row.NombreParticipante,
+                pago: row.EstadoPago
+            };
+        });
+
+        res.json({
+            info: {
+                nombre: info.NombreRifa,
+                premio: info.Premio,
+                valor: info.ValorPuesto,
+                fecha: info.FechaSorteo ? info.FechaSorteo.toISOString().split('T')[0] : ''
+            },
+            tablas: Object.values(tablasMap)
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- 2. RUTA PARA GUARDAR TODO ---
+app.post('/api/guardar-rifa', async (req, res) => {
+    try {
+        let pool = await sql.connect(config);
+        const { info, tablas } = req.body;
+
+        // Guardar Info General
+        await pool.request()
+            .input('nr', sql.VarChar, info.nombre)
+            .input('pr', sql.VarChar, info.premio)
+            .input('vp', sql.Decimal(18, 2), info.valor)
+            .input('fs', sql.Date, info.fecha)
+            .query(`IF EXISTS (SELECT 1 FROM Rifas_Config WHERE Id = 1)
+                    UPDATE Rifas_Config SET NombreRifa=@nr, Premio=@pr, ValorPuesto=@vp, FechaSorteo=@fs WHERE Id = 1
+                    ELSE
+                    INSERT INTO Rifas_Config (NombreRifa, Premio, ValorPuesto, FechaSorteo) VALUES (@nr, @pr, @vp, @fs)`);
+
+        // Guardar cada puesto de cada tabla
+        for (const tabla of tablas) {
+            for (const [numero, data] of Object.entries(tabla.participantes)) {
+                // Solo guardamos si tiene nombre o está pagado para no llenar la BD de basura
+                if (data.nombre.trim() !== '' || data.pago) {
+                    await pool.request()
+                        .input('tid', sql.BigInt, tabla.id)
+                        .input('num', sql.Char(2), numero)
+                        .input('nom', sql.VarChar, data.nombre)
+                        .input('pago', sql.Bit, data.pago)
+                        .input('tit', sql.VarChar, tabla.titulo)
+                        .query(`MERGE INTO Rifas_Detalle AS target
+                                USING (SELECT @tid as tid, @num as num) AS source
+                                ON (target.TablaId = source.tid AND target.Numero = source.num)
+                                WHEN MATCHED THEN 
+                                    UPDATE SET NombreParticipante = @nom, EstadoPago = @pago, TituloTabla = @tit
+                                WHEN NOT MATCHED THEN
+                                    INSERT (TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla)
+                                    VALUES (@tid, @num, @nom, @pago, @tit);`);
+                }
+            }
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
