@@ -253,3 +253,21 @@ body {
     border-radius: 20px;
     font-size: 0.75rem;
 }
+
+.btn-excel {
+    background-color: #27ae60; /* Verde Excel */
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.3s;
+}
+
+.btn-excel:hover {
+    background-color: #219150;
+}
