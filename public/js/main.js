@@ -560,7 +560,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.text(`CLIENTE: ${nombre.toUpperCase()}`, 120, 20);
     doc.text(`FECHA: ${fechaDoc}`, 120, 28);
 
-    // 2. RESUMEN DE TOTALES (Se mantiene igual)
+    // 2. RESUMEN DE TOTALES
     doc.autoTable({
         startY: 45,
         head: [['RESUMEN GENERAL', 'VALOR TOTAL']],
@@ -611,7 +611,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         }
     });
 
-    // 4. TABLA DE PRÉSTAMOS (CORREGIDO EL ID VISUAL)
+    // 4. TABLA DE PRÉSTAMOS
     doc.setFontSize(12);
     doc.setTextColor(59, 130, 246);
     doc.text("2. DETALLE DE PRÉSTAMOS", 14, doc.lastAutoTable.finalY + 12);
@@ -620,7 +620,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         startY: doc.lastAutoTable.finalY + 15,
         head: [['ID', 'Fecha', 'Tasa', 'Cuotas', 'Capital', 'Total con Int.', 'Saldo Act.', 'Estado']],
         body: prestamos.map((item, index) => [
-            `#${index + 1}`, // Cambiado para que muestre el orden secuencial (1, 2, 3...)
+            `#${index + 1}`,
             item.FechaPrestamo || 'S/F',
             `${item.TasaInteres || 5}%`,
             item.Cuotas || 1,
@@ -633,7 +633,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 7.5 }
     });
 
-    // 5. TABLA DE ABONOS A DEUDA
+    // 5. TABLA DE ABONOS A DEUDA (CORREGIDA REFERENCIA)
     doc.setFontSize(12);
     doc.setTextColor(244, 63, 94);
     doc.text("3. HISTORIAL DE PAGOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
@@ -643,11 +643,17 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
         head: [['Fecha', 'Valor Abono', 'Referencia']],
-        body: abonosOrdenados.map(i => [
-            i.FechaFormateada || 'S/F', 
-            `$ ${Number(i.Monto_Abonado || 0).toLocaleString()}`,
-            `Préstamo #${i.ID_Prestamo || 'S/R'}`
-        ]),
+        body: abonosOrdenados.map(i => {
+            // Buscamos si el abono tiene un ID_Prestamo que coincida con la lista de préstamos
+            // Si no lo encuentra, por defecto pondrá #1 ya que es el préstamo activo.
+            const refID = i.ID_Prestamo || (prestamos.length > 0 ? prestamos[0].ID_Prestamo : '1');
+            
+            return [
+                i.FechaFormateada || 'S/F', 
+                `$ ${Number(i.Monto_Abonado || i.Monto_Pagado || 0).toLocaleString()}`,
+                `Abono a Préstamo #${refID}`
+            ];
+        }),
         headStyles: { fillStyle: [244, 63, 94] }, 
         styles: { fontSize: 9 }
     });
