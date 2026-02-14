@@ -113,7 +113,6 @@ async function actualizarListaDeudas() {
 }
 
 async function verHistorialFechas(id, nombre) {
-    // 1. Mostrar carga inicial
     Swal.fire({
         title: 'Cargando datos...',
         allowOutsideClick: false,
@@ -121,7 +120,6 @@ async function verHistorialFechas(id, nombre) {
     });
 
     try {
-        // 2. Peticiones al servidor
         const [resA, resP, resAb, resTotales] = await Promise.all([
             fetch(`/historial-ahorros/${id}`),
             fetch(`/detalle-prestamo/${id}`),
@@ -134,7 +132,7 @@ async function verHistorialFechas(id, nombre) {
         const ab = await resAb.json();
         const totales = await resTotales.json();
 
-        // 3. Definir los Renders (deben estar DENTRO para usar las variables)
+        // Renders auxiliares
         const renderSimple = (data, key, color) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin movimientos</p>';
             return data.map(m => `
@@ -146,69 +144,43 @@ async function verHistorialFechas(id, nombre) {
         };
 
         const renderPrestamos = (data) => {
-    if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
-    
-    return data.map((m, index) => {
-        const saldo = Number(m.SaldoActual || 0);
-        const interes = Number(m.MontoInteres || 0);
-        const capital = Number(m.MontoPrestado || 0);
-        const tasa = m.TasaInteres || 5; // Por defecto 5% si no existe
-        const cuotas = m.Cuotas || 1;
-        
-        // El monto total es Capital + Interés
-        const montoTotal = capital + interes;
-        const estaPago = saldo <= 0 || m.Estado === 'Pagado';
-        
-        return `
-        <div class="p-2 mb-2 rounded-xl border ${estaPago ? 'bg-emerald-100 border-emerald-200' : 'bg-blue-50 border-blue-100'}">
-            <div class="flex justify-between items-center text-[11px]">
-                <span class="font-black text-indigo-600">PRÉSTAMO #${index + 1}</span>
-                <span class="${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
-                    ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaPrestamo || 'S/F')}
-                </span>
-            </div>
+            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
+            return data.map((m, index) => {
+                const saldo = Number(m.SaldoActual || 0);
+                const estaPago = saldo <= 0 || m.Estado === 'Pagado';
+                return `
+                <div class="p-2 mb-2 rounded-xl border ${estaPago ? 'bg-emerald-100 border-emerald-200' : 'bg-blue-50 border-blue-100'}">
+                    <div class="flex justify-between items-center text-[11px]">
+                        <span class="font-black text-indigo-600">PRÉSTAMO #${index + 1}</span>
+                        <span class="${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
+                            ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaPrestamo || 'S/F')}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-end mt-2">
+                         <div class="flex flex-col text-left">
+                            <span class="text-[8px] uppercase font-black text-slate-400">Total a devolver</span>
+                            <span class="text-[12px] font-black text-slate-700">$${(Number(m.MontoPrestado)+Number(m.MontoInteres)).toLocaleString()}</span>
+                         </div>
+                        ${!estaPago ? `<div class="text-right"><span class="text-[8px] text-rose-500 font-black uppercase tracking-tighter">Saldo Pendiente</span><div class="text-[14px] text-rose-600 font-black leading-none">$${saldo.toLocaleString()}</div></div>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        };
 
-            <div class="flex gap-2 my-1">
-                <span class="bg-white/60 px-2 py-0.5 rounded text-[9px] font-bold text-slate-500 border border-slate-200">
-                    <i class="fas fa-percentage mr-1"></i>Tasa: ${tasa}%
-                </span>
-                <span class="bg-white/60 px-2 py-0.5 rounded text-[9px] font-bold text-slate-500 border border-slate-200">
-                    <i class="fas fa-calendar-alt mr-1"></i>Plazo: ${cuotas} cuota(s)
-                </span>
-            </div>
+        const renderAbonosDetallados = (data) => {
+            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos</p>';
+            return data.map(m => `
+                <div class="p-2 border-b border-white/50 text-[11px]">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 font-medium">${m.FechaFormateada}</span>
+                        <span class="font-bold text-rose-600">+$${Number(m.Monto_Abonado).toLocaleString()}</span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 italic">Aplicado a: $${Number(m.PrestamoRef || 0).toLocaleString()}</div>
+                </div>
+            `).join('');
+        };
 
-            <div class="flex justify-between items-end mt-2">
-                 <div class="flex flex-col">
-                    <span class="text-[8px] uppercase font-black text-slate-400">Total a devolver</span>
-                    <span class="text-[12px] font-black text-slate-700">$${montoTotal.toLocaleString()}</span>
-                    <span class="text-[8px] text-slate-400">(Cap: $${capital.toLocaleString()} + Int: $${interes.toLocaleString()})</span>
-                 </div>
-                ${!estaPago ? `
-                    <div class="text-right">
-                        <span class="text-[8px] text-rose-500 font-black uppercase">Saldo Pendiente</span>
-                        <div class="text-[14px] text-rose-600 font-black leading-none">$${saldo.toLocaleString()}</div>
-                    </div>` : ''}
-            </div>
-        </div>`;
-    }).join('');
-};
-
-const renderAbonosDetallados = (data) => {
-    if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos</p>';
-    return data.map(m => `
-        <div class="p-2 border-b border-white/50 text-[11px]">
-            <div class="flex justify-between">
-                <span class="text-slate-500 font-medium">${m.FechaFormateada}</span>
-                <span class="font-bold text-rose-600">+$${Number(m.Monto_Abonado).toLocaleString()}</span>
-            </div>
-            <div class="text-[9px] text-slate-400 italic">
-                Aplicado a préstamo de: $${Number(m.PrestamoRef || 0).toLocaleString()}
-            </div>
-        </div>
-    `).join('');
-};
-
-Swal.fire({
+        Swal.fire({
             title: `<span class="text-xl font-black">${nombre}</span>`,
             html: `
                 <div class="grid grid-cols-2 gap-2 mb-4">
@@ -221,90 +193,74 @@ Swal.fire({
                         <p class="font-black text-rose-700 text-sm">$${Number(totales.deudaTotal || 0).toLocaleString()}</p>
                     </div>
                 </div>
-                <div class="text-left space-y-4 max-h-[50vh] overflow-y-auto pr-1">
-                    <div>
-                        <h5 class="text-[9px] font-black uppercase text-emerald-500 mb-1 ml-1">💰 Historial de Ahorros</h5>
-                        <div class="rounded-xl bg-emerald-50/50 p-1">${renderSimple(a, 'Monto', 'emerald')}</div>
+
+                <div class="text-left space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                    
+                    <div class="border border-slate-100 rounded-2xl overflow-hidden">
+                        <button onclick="toggleAcordeon('acc-ahorros', this)" class="w-full flex justify-between items-center p-4 bg-slate-50 hover:bg-emerald-50 transition-colors">
+                            <span class="text-[10px] font-black uppercase text-emerald-600"><i class="fas fa-piggy-bank mr-2"></i> Historial de Ahorros</span>
+                            <i class="fas fa-chevron-down text-emerald-400 transition-transform duration-300"></i>
+                        </button>
+                        <div id="acc-ahorros" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-white">
+                            <div class="p-3 bg-emerald-50/30">${renderSimple(a, 'Monto', 'emerald')}</div>
+                        </div>
                     </div>
-                    <div>
-                        <h5 class="text-[9px] font-black uppercase text-blue-500 mb-1 ml-1">🚀 Préstamos Detallados</h5>
-                        <div class="rounded-xl bg-slate-50 p-1">${renderPrestamos(p)}</div>
+
+                    <div class="border border-slate-100 rounded-2xl overflow-hidden">
+                        <button onclick="toggleAcordeon('acc-prestamos', this)" class="w-full flex justify-between items-center p-4 bg-slate-50 hover:bg-blue-50 transition-colors">
+                            <span class="text-[10px] font-black uppercase text-blue-600"><i class="fas fa-hand-holding-dollar mr-2"></i> Préstamos Detallados</span>
+                            <i class="fas fa-chevron-down text-blue-400 transition-transform duration-300"></i>
+                        </button>
+                        <div id="acc-prestamos" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-white">
+                            <div class="p-3 bg-blue-50/20">${renderPrestamos(p)}</div>
+                        </div>
                     </div>
-                    <div>
-                        <h5 class="text-[9px] font-black uppercase text-rose-500 mb-1 ml-1">📉 Abonos realizados</h5>
-                        <div class="rounded-xl bg-rose-50/50 p-1">${renderAbonosDetallados(ab)}</div>
+
+                    <div class="border border-slate-100 rounded-2xl overflow-hidden">
+                        <button onclick="toggleAcordeon('acc-abonos', this)" class="w-full flex justify-between items-center p-4 bg-slate-50 hover:bg-rose-50 transition-colors">
+                            <span class="text-[10px] font-black uppercase text-rose-600"><i class="fas fa-receipt mr-2"></i> Abonos Realizados</span>
+                            <i class="fas fa-chevron-down text-rose-400 transition-transform duration-300"></i>
+                        </button>
+                        <div id="acc-abonos" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-white">
+                            <div class="p-3 bg-rose-50/30">${renderAbonosDetallados(ab)}</div>
+                        </div>
                     </div>
+
                 </div>`,
             showDenyButton: true,
             confirmButtonText: 'Cerrar',
             denyButtonText: '📥 Descargar PDF',
             denyButtonColor: '#059669',
-            confirmButtonColor: '#64748b'
+            confirmButtonColor: '#64748b',
+            customClass: { popup: 'rounded-[2.5rem]' }
         }).then((result) => {
-            if (result.isDenied) {
-                generarPDFMovimientos(nombre, a, p, ab, totales);
-            }
+            if (result.isDenied) generarPDFMovimientos(nombre, a, p, ab, totales);
         });
 
     } catch (e) {
-        console.error("Error en el historial:", e);
-        Swal.fire('Error', 'No se pudo cargar la información. Verifica la consola.', 'error');
+        console.error(e);
+        Swal.fire('Error', 'No se pudo cargar la información', 'error');
     }
 }
 
-const renderAbonosDetallados = (data) => {
-            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos</p>';
-            return data.map(m => `
-                <div class="p-2 border-b border-white/50 text-[11px]">
-                    <div class="flex justify-between">
-                        <span class="text-slate-500 font-medium">${m.FechaFormateada}</span>
-                        <span class="font-bold text-rose-600">+$${Number(m.Monto_Abonado).toLocaleString()}</span>
-                    </div>
-                    <div class="text-[9px] text-slate-400 italic">
-                        Aplicado a préstamo de: $${Number(m.PrestamoOriginal || 0).toLocaleString()}
-                    </div>
-                </div>
-            `).join('');
-        };
+function toggleAcordeon(id, btn) {
+    const content = document.getElementById(id);
+    const icon = btn.querySelector('.fa-chevron-down');
+    
+    // Si ya está abierto, lo cerramos
+    if (content.style.maxHeight && content.style.maxHeight !== '0px') {
+        content.style.maxHeight = '0px';
+        icon.style.transform = 'rotate(0deg)';
+    } else {
+        // Cerramos otros por si acaso (opcional)
+        document.querySelectorAll('[id^="acc-"]').forEach(el => el.style.maxHeight = '0px');
+        document.querySelectorAll('.fa-chevron-down').forEach(i => i.style.transform = 'rotate(0deg)');
 
-        // 5. Mostrar el Modal
-        Swal.fire({
-            title: `<span class="text-xl font-black">${nombre}</span>`,
-            html: `
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <div class="bg-emerald-50 p-2 rounded-xl text-center border border-emerald-100">
-                        <p class="text-[8px] uppercase font-bold text-emerald-600 leading-tight">Total Ahorrado</p>
-                        <p class="font-black text-emerald-700 text-sm">$${Number(totales.totalAhorrado).toLocaleString()}</p>
-                    </div>
-                    <div class="bg-rose-50 p-2 rounded-xl text-center border border-rose-100">
-                        <p class="text-[8px] uppercase font-bold text-rose-600 leading-tight">Deuda Total</p>
-                        <p class="font-black text-rose-700 text-sm">$${Number(totales.deudaTotal).toLocaleString()}</p>
-                    </div>
-                </div>
-                <div class="text-left space-y-4 max-h-[50vh] overflow-y-auto pr-1">
-                    <div>
-                        <h5 class="text-[9px] font-black uppercase text-emerald-500 mb-1 ml-1">💰 Historial de Ahorros</h5>
-                        <div class="rounded-xl bg-emerald-50/50 p-1">${renderSimple(a, 'Monto', 'emerald')}</div>
-                    </div>
-                    <div>
-                        <h5 class="text-[9px] font-black uppercase text-blue-500 mb-1 ml-1">🚀 Préstamos Detallados</h5>
-                        <div class="rounded-xl bg-slate-50 p-1">${renderPrestamos(p)}</div>
-                    </div>
-                    <div>
-                        <h5 class="text-[9px] font-black uppercase text-rose-500 mb-1 ml-1">📉 Abonos realizados</h5>
-                        <div class="rounded-xl bg-rose-50/50 p-1">${renderAbonosDetallados(ab)}</div>
-                    </div>
-                </div>`,
-            showDenyButton: true,
-            confirmButtonText: 'Cerrar',
-            denyButtonText: '📥 Descargar PDF',
-            denyButtonColor: '#059669',
-            confirmButtonColor: '#64748b'
-        }).then((result) => {
-            if (result.isDenied) {
-                generarPDFMovimientos(nombre, a, p, ab, totales);
-            }
-        });
+        // Abrimos el actual
+        content.style.maxHeight = content.scrollHeight + "px";
+        icon.style.transform = 'rotate(180deg)';
+    }
+}
 
         async function registrarMovimiento() {
     const numPantalla = document.getElementById('mov_id').value;
