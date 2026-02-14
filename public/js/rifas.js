@@ -20,7 +20,7 @@ function crearTabla(datosCargados = null) {
     const numeroTabla = document.querySelectorAll('.rifa-card').length + 1;
 
     const card = document.createElement('div');
-    card.className = 'rifa-card collapsed'; // Empezamos cerradas para ahorrar espacio
+    card.className = 'rifa-card collapsed'; 
     card.id = `rifa-${id}`;
     
     card.innerHTML = `
@@ -51,10 +51,8 @@ function toggleTabla(id) {
     const card = document.getElementById(`rifa-${id}`);
     const arrow = document.getElementById(`arrow-${id}`);
     
-    // Alternamos la clase 'active'
     card.classList.toggle('active');
     
-    // Rotamos la flecha visualmente
     if (card.classList.contains('active')) {
         arrow.style.transform = 'rotate(90deg)';
     } else {
@@ -74,10 +72,11 @@ function generarCeldas(tableId, datos) {
                 <div class="n-header">
                     <span class="n-number">${n}</span>
                     <input type="checkbox" class="pay-check" ${info.pago ? 'checked' : ''} 
-                           onchange="actualizarEstado('${tableId}', '${n}')">
+                           onchange="actualizarEstado('${tableId}', '${n}'); guardarCambioIndividual('${tableId}', '${n}', this.checked, 'pago')">
                 </div>
                 <input type="text" class="n-name" placeholder="Nombre..." value="${info.nombre || ''}" 
-                       oninput="actualizarColor('${tableId}', '${n}')" onchange="guardarTodo()">
+                       oninput="actualizarColor('${tableId}', '${n}')" 
+                       onchange="guardarTodo(); guardarCambioIndividual('${tableId}', '${n}', this.value, 'nombre')">
             </div>`;
     }
     return html;
@@ -134,7 +133,6 @@ function guardarTodo() {
 
     localStorage.setItem('mis_rifas', JSON.stringify(todasLasTablas));
 
-    // SINCRONIZACIÓN CON SOMEE
     clearTimeout(syncTimeout);
     syncTimeout = setTimeout(() => {
         sincronizarConSomee({ info: infoGeneral, tablas: todasLasTablas });
@@ -157,67 +155,40 @@ async function sincronizarConSomee(datos) {
 
 async function cargarRifas() {
     const container = document.getElementById('rifasContainer');
-    container.innerHTML = '<p id="loading-msg">Cargando desde la base de datos...</p>';
+    container.innerHTML = '<div class="loading-spinner">Sincronizando con la nube...</div>';
 
     try {
-        // 1. Llamada al servidor Somee
-        const response = await fetch('ObtenerRifas.aspx/CargarDatos', {
+        const response = await fetch('ObtenerRifas.aspx/CargarTodoFull', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
+        
         const result = await response.json();
         const datos = result.d;
 
         if (datos && !datos.error) {
-            // Llenar Banner
             document.getElementById('rifaName').value = datos.info.n || '';
             document.getElementById('rifaPrize').value = datos.info.p || '';
             document.getElementById('rifaCost').value = datos.info.c || '';
             document.getElementById('rifaDate').value = datos.info.f || '';
 
-            container.innerHTML = ''; // Limpiar mensaje de carga
+            container.innerHTML = ''; 
 
-            // Llenar Tablas
-            if (datos.tablas.length > 0) {
-                for (let t of datos.tablas) {
-                    // Pedir los participantes de esta tabla específica
-                    const respP = await fetch('ObtenerRifas.aspx/ObtenerParticipantes', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ tablaId: t.id })
-                    });
-                    const resP = await respP.json();
-                    
+            if (datos.tablas && datos.tablas.length > 0) {
+                datos.tablas.forEach(t => {
                     crearTabla({
                         id: t.id,
                         titulo: t.titulo,
-                        participantes: resP.d
+                        participantes: t.participantes 
                     });
-                }
+                });
             } else {
-                crearTabla(); // Si no hay tablas en BD, crear una vacía
+                crearTabla(); 
             }
             return;
         }
     } catch (error) {
-        console.error("Error cargando de Somee, usando copia local:", error);
-    }
-
-    // --- RESPALDO: Si falla Somee, cargar de LocalStorage ---
-    const infoG = JSON.parse(localStorage.getItem('info_gral_rifa'));
-    if(infoG) {
-        document.getElementById('rifaName').value = infoG.n || '';
-        document.getElementById('rifaPrize').value = infoG.p || '';
-        document.getElementById('rifaCost').value = infoG.c || '';
-        document.getElementById('rifaDate').value = infoG.f || '';
-    }
-
-    const backup = JSON.parse(localStorage.getItem('mis_rifas'));
-    container.innerHTML = '';
-    if (backup && backup.length > 0) {
-        backup.forEach(rifa => crearTabla(rifa));
-    } else {
-        crearTabla();
+        console.error("Error de conexión con Somee:", error);
     }
 }
 
@@ -226,10 +197,7 @@ async function cargarRifas() {
 async function eliminarTabla(id) {
     if(confirm('¿Eliminar esta tabla permanentemente? Esta acción borrará los datos de Somee también.')) {
         try {
-            // Eliminar en Somee
             const respuesta = await fetch(`EliminarRifa.aspx?id=${id}`, { method: 'DELETE' });
-            
-            // Eliminar localmente
             const elemento = document.getElementById(`rifa-${id}`);
             if (elemento) elemento.remove();
             
@@ -253,7 +221,7 @@ function reenumerarTablas() {
     });
 }
 
-// --- BÚSQUEDA Y DESPLEGABLES ---
+// --- BÚSQUEDA ---
 
 function buscarCliente() {
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -349,7 +317,6 @@ function exportarAExcel() {
                 <th>Estado de Pago</th>
             </tr>`;
 
-    // Recorremos cada una de las tarjetas de rifa en pantalla
     document.querySelectorAll('.rifa-card').forEach((card, index) => {
         const tituloTabla = card.querySelector('.input-table-title').value || `Tabla #${index + 1}`;
         const badge = card.querySelector('.tabla-badge').innerText;
@@ -359,7 +326,6 @@ function exportarAExcel() {
             const numero = slot.querySelector('.n-number').innerText;
             const pagado = slot.querySelector('.pay-check').checked;
 
-            // Solo agregamos a la lista los números que ya tienen dueño
             if (nombre !== "") {
                 contenidoFinal += `
                     <tr>
@@ -374,20 +340,32 @@ function exportarAExcel() {
 
     contenidoFinal += "</table>";
 
-    // Crear el enlace de descarga
     const dataType = 'application/vnd.ms-excel';
     const filename = 'Reporte_Rifas_Natillera.xls';
     const downloadLink = document.createElement("a");
-
     document.body.appendChild(downloadLink);
-    
-    // El "Blob" es lo que permite que el navegador entienda que esto es un archivo
     const blob = new Blob(['\ufeff', contenidoFinal], { type: dataType });
     const url = URL.createObjectURL(blob);
-    
     downloadLink.href = url;
     downloadLink.download = filename;
     downloadLink.click();
-    
     document.body.removeChild(downloadLink);
+}
+
+async function guardarCambioIndividual(tablaId, numero, valor, tipo) {
+    try {
+        await fetch('GuardarRifas.aspx/ActualizarDato', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                tablaId: tablaId, 
+                num: numero, 
+                valor: valor, 
+                tipo: tipo 
+            })
+        });
+        console.log("Sincronizado correctamente");
+    } catch (e) {
+        console.log("Guardado localmente (sin internet)");
+    }
 }
