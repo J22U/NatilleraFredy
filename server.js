@@ -4,7 +4,9 @@ const app = express();
 const path = require('path');
 
 app.use(express.json());
-app.use(express.static('.')); // Esto sirve tu index.html y rifas.js desde Render
+
+// 1. Servir archivos estáticos (CSS, JS, imágenes)
+app.use(express.static(path.join(__dirname, '.')));
 
 const config = {
     user: 'Fredy123_SQLLogin_1',
@@ -17,14 +19,16 @@ const config = {
     }
 };
 
-// --- 1. RUTA PARA CARGAR TODO ---
+// --- RUTA PRINCIPAL: Forzar el inicio en login.html ---
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+// --- RUTA PARA CARGAR TODO ---
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
         let pool = await sql.connect(config);
-        
-        // Traer configuración
         const configRes = await pool.request().query("SELECT * FROM Rifas_Config WHERE Id = 1");
-        // Traer todos los puestos
         const detallesRes = await pool.request().query("SELECT * FROM Rifas_Detalle");
 
         if (configRes.recordset.length === 0) {
@@ -32,9 +36,8 @@ app.get('/api/cargar-rifas', async (req, res) => {
         }
 
         const info = configRes.recordset[0];
-        
-        // Agrupar puestos por TablaId para el frontend
         const tablasMap = {};
+
         detallesRes.recordset.forEach(row => {
             if (!tablasMap[row.TablaId]) {
                 tablasMap[row.TablaId] = { 
@@ -63,13 +66,12 @@ app.get('/api/cargar-rifas', async (req, res) => {
     }
 });
 
-// --- 2. RUTA PARA GUARDAR TODO ---
+// --- RUTA PARA GUARDAR TODO ---
 app.post('/api/guardar-rifa', async (req, res) => {
     try {
         let pool = await sql.connect(config);
         const { info, tablas } = req.body;
 
-        // Guardar Info General
         await pool.request()
             .input('nr', sql.VarChar, info.nombre)
             .input('pr', sql.VarChar, info.premio)
@@ -80,10 +82,8 @@ app.post('/api/guardar-rifa', async (req, res) => {
                     ELSE
                     INSERT INTO Rifas_Config (NombreRifa, Premio, ValorPuesto, FechaSorteo) VALUES (@nr, @pr, @vp, @fs)`);
 
-        // Guardar cada puesto de cada tabla
         for (const tabla of tablas) {
             for (const [numero, data] of Object.entries(tabla.participantes)) {
-                // Solo guardamos si tiene nombre o está pagado para no llenar la BD de basura
                 if (data.nombre.trim() !== '' || data.pago) {
                     await pool.request()
                         .input('tid', sql.BigInt, tabla.id)
