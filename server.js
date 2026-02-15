@@ -306,11 +306,14 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     FORMAT(Fecha, 'dd/MM/yyyy') as FechaPrestamo 
                 FROM Prestamos 
                 WHERE ID_Persona = @id 
-                -- NO FILTRAR POR ESTADO 'ACTIVO' AQUÍ, para poder ver el historial completo
                 ORDER BY Fecha ASC
             `);
-        res.json(result.recordset);
+        
+        // CORRECCIÓN MENOR: Enviamos result.recordset o un array vacío si es null
+        res.json(result.recordset || []); 
+
     } catch (err) {
+        console.error("Error en detalle-prestamo:", err);
         res.status(500).json([]);
     }
 });
