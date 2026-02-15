@@ -11,8 +11,8 @@ function crearTabla(t = {}) {
 
     // 1. Creamos la estructura del Acordeón (rifa-card)
     const card = document.createElement('div');
-    // Importante: 'active' hace que la tabla nazca abierta.
-    card.className = 'rifa-card active'; 
+card.id = `rifa-${idTabla}`; // Esto es vital para que toggleTabla funcione
+card.className = 'rifa-card active'; 
 
     // 2. Cabecera de la tarjeta
     const header = document.createElement('div');
@@ -327,15 +327,10 @@ window.onbeforeunload = function (e) {
 function buscarCliente() {
     const texto = document.getElementById('searchInput').value.toLowerCase().trim();
     const panel = document.getElementById('searchResults');
-    // Obtenemos el valor de cada puesto del input general
     const valorPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
     
     panel.innerHTML = ''; 
-
-    if (texto.length < 2) {
-        panel.style.display = 'none';
-        return;
-    }
+    if (texto.length < 2) { panel.style.display = 'none'; return; }
 
     let resultados = {};
 
@@ -345,13 +340,14 @@ function buscarCliente() {
         const slots = card.querySelectorAll('.n-slot');
 
         slots.forEach(slot => {
-            const nombre = slot.querySelector('.n-name').value.toLowerCase().trim();
+            // CAMBIO AQUÍ: Usamos textContent porque es un DIV, no un INPUT
+            const nombre = slot.querySelector('.n-name').textContent.toLowerCase().trim();
             const numero = slot.querySelector('.n-number').innerText;
-            const pagado = slot.querySelector('.pay-check').checked;
+            // CAMBIO AQUÍ: Verificamos la clase CSS en lugar de un checkbox
+            const pagado = slot.classList.contains('paid');
 
             if (nombre.includes(texto)) {
                 if (!resultados[nombre]) {
-                    // Inicializamos al cliente con total de deuda en 0
                     resultados[nombre] = { tablas: {}, totalDeudaGlobal: 0, totalPuestosDebe: 0 };
                 }
                 
@@ -366,7 +362,6 @@ function buscarCliente() {
                 
                 resultados[nombre].tablas[card.id].numeros.push({ num: numero, pago: pagado });
                 
-                // Si no ha pagado, sumamos al contador global del cliente
                 if (!pagado) {
                     resultados[nombre].totalPuestosDebe++;
                     resultados[nombre].totalDeudaGlobal += valorPuesto;
@@ -604,33 +599,39 @@ function reordenarBadges() {
  * para guardarlos en el LocalStorage y enviarlos al servidor.
  */
 function recolectarDatosPantalla() {
-    const tablas = [];
-    document.querySelectorAll('.rifa-card').forEach(card => {
-        const id = card.id.replace('rifa-', '');
-        const titulo = card.querySelector('.input-table-title')?.value || '';
-        const numeros = [];
-
-        card.querySelectorAll('.n-slot').forEach(slot => {
-            numeros.push({
-                n: slot.querySelector('.n-number')?.textContent || '',
-                nombre: slot.querySelector('.n-name')?.value || '',
-                estado: slot.classList.contains('paid') ? 'paid' : 
-                        slot.classList.contains('reserved') ? 'reserved' : 'free'
-            });
-        });
-        tablas.push({ id, titulo, numeros });
-    });
-
-    // --- CORRECCIÓN AQUÍ ---
-    // Agrupamos en "info" para que coincida con lo que el servidor lee y guarda
-    return {
+    const datosParaEnviar = {
         info: {
             nombre: document.getElementById('rifaName')?.value || '',
             premio: document.getElementById('rifaPrize')?.value || '',
             valor: document.getElementById('rifaCost')?.value || '',
             fecha: document.getElementById('rifaDate')?.value || ''
-        },
-        tablas: tablas
+        }
     };
+
+    document.querySelectorAll('.rifa-card').forEach((card, index) => {
+        const i = index + 1; // Tabla 1, 2, 3...
+        const titulo = card.querySelector('.input-table-title')?.value || `Tabla ${i}`;
+        const participantes = {};
+
+        card.querySelectorAll('.n-slot').forEach(slot => {
+            const numero = slot.querySelector('.n-number')?.textContent || '';
+            const nombre = slot.querySelector('.n-name')?.textContent || '';
+            
+            if (nombre.trim() !== "") {
+                participantes[numero] = {
+                    nombre: nombre,
+                    pago: slot.classList.contains('paid')
+                };
+            }
+        });
+
+        // IMPORTANTE: Guardamos como tabla1, tabla2, etc. para que cargarRifas los vea
+        datosParaEnviar[`tabla${i}`] = {
+            titulo: titulo,
+            participantes: participantes
+        };
+    });
+
+    return datosParaEnviar;
 }
 // ... (Las funciones de búsqueda y excel se mantienen igual)
