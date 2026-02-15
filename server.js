@@ -5,7 +5,9 @@ const path = require('path');
 
 app.use(express.json());
 
-// 1. Servir archivos estáticos (CSS, JS, imágenes)
+// 1. Servir archivos estáticos: Priorizamos la carpeta 'public'
+// Si tus archivos (index.html, rifas.js, css) están dentro de /public, esto los servirá.
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, '.')));
 
 const config = {
@@ -21,9 +23,17 @@ const config = {
 
 // --- RUTA PRINCIPAL: Forzar el inicio en login.html ---
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));;
-    console.log("Buscando login en:", loginPath); // Esto saldrá en los logs de Render
-    res.sendFile(loginPath);
+    // Definimos la ruta correctamente para evitar el error de "loginPath is not defined"
+    const loginPath = path.join(__dirname, 'public', 'login.html');
+    
+    console.log("Intentando cargar login desde:", loginPath);
+    
+    res.sendFile(loginPath, (err) => {
+        if (err) {
+            console.error("Error al cargar login.html:", err.message);
+            res.status(404).send("No se encontró el archivo login.html en la carpeta public.");
+        }
+    });
 });
 
 // --- RUTA PARA CARGAR TODO ---
@@ -64,6 +74,7 @@ app.get('/api/cargar-rifas', async (req, res) => {
             tablas: Object.values(tablasMap)
         });
     } catch (err) {
+        console.error("Error en cargar-rifas:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -86,7 +97,7 @@ app.post('/api/guardar-rifa', async (req, res) => {
 
         for (const tabla of tablas) {
             for (const [numero, data] of Object.entries(tabla.participantes)) {
-                if (data.nombre.trim() !== '' || data.pago) {
+                if (data.nombre && (data.nombre.trim() !== '' || data.pago)) {
                     await pool.request()
                         .input('tid', sql.BigInt, tabla.id)
                         .input('num', sql.Char(2), numero)
@@ -106,10 +117,11 @@ app.post('/api/guardar-rifa', async (req, res) => {
         }
         res.json({ success: true });
     } catch (err) {
-        console.error(err);
+        console.error("Error en guardar-rifa:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
+// Render usa el puerto que ellos asignan, por eso process.env.PORT es vital
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
