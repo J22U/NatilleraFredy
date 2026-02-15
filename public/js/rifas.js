@@ -11,40 +11,47 @@ function crearTabla(t = {}) {
 
     // 1. Creamos la estructura del Acordeón (rifa-card)
     const card = document.createElement('div');
-    card.className = 'rifa-card active'; // "active" para que se vea desplegada de una vez
+    // Importante: 'active' hace que la tabla nazca abierta.
+    card.className = 'rifa-card active'; 
 
     // 2. Cabecera de la tarjeta
     const header = document.createElement('div');
     header.className = 'rifa-card-header';
+    header.style.cursor = 'pointer'; // Para que sepa que es un botón
     header.innerHTML = `
         <div>
             <span class="tabla-badge">${idTabla}</span>
-            <input type="text" class="input-table-title" value="${t.nombre || t.titulo || 'Tabla ' + idTabla}">
+            <input type="text" class="input-table-title" 
+                   value="${t.nombre || t.titulo || 'Tabla ' + idTabla}" 
+                   onclick="event.stopPropagation()">
         </div>
         <i class="fas fa-chevron-down arrow-icon"></i>
     `;
-    card.appendChild(header);
+
+    // --- LÓGICA PARA DESPLEGAR/CONTRAER ---
+    header.onclick = () => {
+        card.classList.toggle('active');
+    };
 
     // 3. Cuerpo de la tarjeta
     const body = document.createElement('div');
     body.className = 'rifa-card-body';
     
-    // 4. LA GRILLA (Usando tu clase .numeros-grid)
+    // 4. LA GRILLA
     const grid = document.createElement('div');
     grid.className = 'numeros-grid';
 
-    // 5. Generar los 100 slots (Usando tu clase .n-slot)
+    // 5. Generar los 100 slots
     for (let i = 0; i < 100; i++) {
         const numStr = i.toString().padStart(2, '0');
         const slot = document.createElement('div');
         slot.className = 'n-slot';
-        slot.id = `t${idTabla}-${numStr}`; // ID Único para que no se borren
+        slot.id = `t${idTabla}-${numStr}`;
 
-        // Verificamos si tiene dueño en la base de datos
         const p = participantes[numStr];
         if (p) {
-            if (p.pago) slot.classList.add('paid'); // Clase verde de tu CSS
-            else slot.classList.add('reserved');    // Clase amarilla de tu CSS
+            if (p.pago) slot.classList.add('paid');
+            else slot.classList.add('reserved');
             
             slot.innerHTML = `
                 <span class="n-number">${numStr}</span>
@@ -58,12 +65,16 @@ function crearTabla(t = {}) {
         }
 
         // Evento para abrir el modal
-        slot.onclick = () => abrirModalCompra(idTabla, numStr);
+        slot.onclick = (e) => {
+            e.stopPropagation(); // IMPORTANTE: evita que al elegir número se cierre la tabla
+            abrirModalCompra(idTabla, numStr);
+        };
         
         grid.appendChild(slot);
     }
 
     body.appendChild(grid);
+    card.appendChild(header);
     card.appendChild(body);
     container.appendChild(card);
 }
@@ -249,7 +260,7 @@ async function cargarRifas() {
         const datos = await response.json();
 
         if (datos && !datos.error) {
-            // 1. Llenar inputs de información general (Rifa Name, Premio, etc.)
+            // 1. Llenar inputs de información general
             if(datos.info) {
                 document.getElementById('rifaName').value = datos.info.nombre || '';
                 document.getElementById('rifaPrize').value = datos.info.premio || '';
@@ -257,24 +268,27 @@ async function cargarRifas() {
                 document.getElementById('rifaDate').value = datos.info.fecha || '';
             }
 
-            // 2. Limpiar el contenedor
+            // 2. Limpiar el contenedor UNA SOLA VEZ antes de dibujar
             container.innerHTML = ''; 
 
-            // 3. CAMBIO CLAVE: Leer la propiedad "tablas" que está en tu JSON
-            // Según tu imagen, los datos están en datos.tablas
-            if (datos.tablas && Array.isArray(datos.tablas)) {
+            // 3. CAMBIO CRÍTICO: Buscar tabla1, tabla2... en lugar de datos.tablas
+            let tablasEncontradas = false;
+
+            for (let i = 1; i <= 4; i++) {
+                const llaveTabla = `tabla${i}`;
                 
-                datos.tablas.forEach((t, index) => {
-                    // Aseguramos que la tabla tenga un nombre para que no salga undefined
-                    // Usamos el 'titulo' que ya tienes en la DB ("TABLA 1", etc.)
-                    t.nombre = t.titulo || `Tabla ${index + 1}`;
-                    t.idTabla = index + 1; 
-
+                // Si la tabla existe en la base de datos, la dibujamos con sus datos
+                if (datos[llaveTabla]) {
+                    const t = datos[llaveTabla];
+                    t.idTabla = i;
+                    t.nombre = t.titulo || `Tabla ${i}`;
                     crearTabla(t);
-                });
+                    tablasEncontradas = true;
+                }
+            }
 
-            } else {
-                // Si por alguna razón no hay tablas, creamos las 4 vacías
+            // 4. Si la base de datos está totalmente vacía, creamos las 4 iniciales
+            if (!tablasEncontradas) {
                 for(let i = 1; i <= 4; i++) { 
                     crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} }); 
                 }
