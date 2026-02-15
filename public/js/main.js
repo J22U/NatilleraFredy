@@ -760,30 +760,51 @@ async function toggleDeudas() {
     // 1. Usamos el mapeo que creaste en listarMiembros
     const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
 
+    // Si el tipo es deuda pero no hay ID escrito, avisamos y ocultamos
+    if (tipo === 'deuda' && !numPantalla) {
+        divSelector.classList.add('hidden');
+        return;
+    }
+
     if (tipo === 'deuda' && idReal) {
         try {
             console.log("Buscando deudas para Socio ID Real:", idReal);
-            const res = await fetch(`/prestamos-activos/${idReal}`);
+            
+            // CORRECCIÓN: Agregamos /api/ para que coincida con la ruta del servidor
+            const res = await fetch(`/api/prestamos-activos/${idReal}`);
+            
+            // Si el servidor no responde bien, lanzamos error para caer en el catch
+            if (!res.ok) throw new Error("Error en la respuesta del servidor");
+            
             const deudas = await res.json();
 
-            if (deudas.length > 0) {
-                // Llenamos el select con el saldo que viene del servidor
+            if (deudas && deudas.length > 0) {
+                // Llenamos el select con los préstamos encontrados
                 select.innerHTML = deudas.map(d => `
                     <option value="${d.ID_Prestamo}">
-                        Préstamo #${d.ID_Prestamo} - Saldo: $${d.SaldoActual.toLocaleString()}
+                        Préstamo #${d.ID_Prestamo} - Saldo: $${Number(d.SaldoActual).toLocaleString()}
                     </option>
                 `).join('');
                 divSelector.classList.remove('hidden');
             } else {
-                select.innerHTML = '<option value="">Este socio no tiene deudas activas</option>';
-                divSelector.classList.remove('hidden');
+                // Si el socio no tiene deudas, informamos y regresamos a "Ahorro"
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Sin deudas',
+                    text: 'Este socio no tiene préstamos activos actualmente.',
+                    confirmButtonColor: '#3b82f6'
+                });
+                document.getElementById('mov_tipo').value = 'ahorro';
+                divSelector.classList.add('hidden');
             }
         } catch (error) {
             console.error("Error al cargar deudas:", error);
+            divSelector.classList.add('hidden');
         }
     } else {
-        // Si no es tipo deuda o no hay ID, ocultamos el selector
+        // Si no es tipo deuda, ocultamos el selector
         divSelector.classList.add('hidden');
+        select.innerHTML = ''; 
     }
 }
 
@@ -889,3 +910,4 @@ async function verificarTipoMovimiento() {
         grupoPrestamos.style.display = 'none'; // Es ahorro, escondemos el select
     }
 }
+
