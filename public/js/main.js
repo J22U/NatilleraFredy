@@ -248,18 +248,23 @@ async function verHistorialFechas(id, nombre) {
 
         // 3. Render de Abonos (Corregido para mostrar el monto real y ID de préstamo)
         const renderAbonosDetallados = (data, listaPrestamos) => {
+    // VALIDACIÓN DE SEGURIDAD: Si no hay datos o la lista no es un arreglo, evitamos el error
     if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos realizados</p>';
     
-    // Ordenamos los préstamos de la misma forma (Antiguo a Nuevo) para calcular el número correcto
-    const prestamosOrdenados = [...listaPrestamos].sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
+    // Aseguramos que listaPrestamos sea un array antes de usarlo
+    const prestamosSeguros = Array.isArray(listaPrestamos) ? listaPrestamos : [];
+
+    // Ordenamos los préstamos de la misma forma (Antiguo a Nuevo)
+    const prestamosOrdenados = [...prestamosSeguros].sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
 
     return data.map(m => {
-        // Buscamos a qué número de préstamo corresponde este abono
+        // Buscamos el índice en la lista ordenada
         const indicePrestamo = prestamosOrdenados.findIndex(p => p.ID_Prestamo === m.ID_Prestamo);
-        const numeroAmigable = indicePrestamo !== -1 ? indicePrestamo + 1 : 'N/A';
         
-        // Buscamos el capital original de ese préstamo para mostrarlo
-        const prestamoInfo = prestamosOrdenados.find(p => p.ID_Prestamo === m.ID_Prestamo);
+        // Si no lo encuentra (porque es un abono viejo o error), ponemos 'N/A'
+        const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'N/A';
+        
+        const prestamoInfo = prestamosSeguros.find(p => p.ID_Prestamo === m.ID_Prestamo);
         const capitalRef = prestamoInfo ? Number(prestamoInfo.MontoPrestado).toLocaleString() : '---';
 
         return `
@@ -273,7 +278,7 @@ async function verHistorialFechas(id, nombre) {
                     </div>
                     <div class="text-right">
                         <span class="font-bold text-rose-600">-$${Number(m.Monto_Abonado || m.Monto || 0).toLocaleString()}</span>
-                        <p class="text-[8px] text-slate-400 italic">Capital ref: $${capitalRef}</p>
+                        <p class="text-[8px] text-slate-400 italic">Cap. Ref: $${capitalRef}</p>
                     </div>
                 </div>
             </div>
