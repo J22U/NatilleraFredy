@@ -23,15 +23,19 @@
     <div id="sync-status" class="sync-idle" title="Estado de sincronización"></div>
 </div>
 
-                <button id="btnNuevaTabla" class="btn-add">
-                    <i class="fas fa-plus-circle"></i> <span>Nueva Tabla</span>
-                </button>
-                <button class="btn-excel" onclick="exportarAExcel()">
+                <button id="btnNuevaTabla" class="btn-add" onclick="agregarNuevaTabla()">
+    <i class="fas fa-plus-circle"></i> 
+    <span>Nueva Tabla</span>
+</button>
+
+<button class="btn-excel" onclick="exportarAExcel()">
     <i class="fas fa-file-excel"></i> 
     <span>Exportar Reporte</span>
-    <button onclick="generarPDF()" class="btn-add" style="background-color: #e74c3c;">
-    <i class="fas fa-file-pdf"></i> <span>Descargar PDF</span>
 </button>
+
+<button class="btn-add" onclick="generarPDF()" style="background-color: #e74c3c; border: none;">
+    <i class="fas fa-file-pdf"></i> 
+    <span>Descargar PDF</span>
 </button>
             </div>
 
