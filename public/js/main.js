@@ -188,120 +188,122 @@ async function verHistorialFechas(id, nombre) {
         const ab = await resAb.json();
         const totales = await resTotales.json();
 
-        // Renders auxiliares
+        // 1. Render de Ahorros (Corregido para manejar FechaFormateada)
         const renderSimple = (data, key, color) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin movimientos</p>';
             return data.map(m => `
-                <div class="flex justify-between p-2 border-b border-white/50 text-[11px]">
-                    <span class="text-slate-500 font-medium">${m.FechaFormateada || m.FechaPrestamo || 'S/F'}</span>
+                <div class="flex justify-between p-2 border-b border-slate-100 text-[11px]">
+                    <span class="text-slate-500 font-medium">${m.FechaFormateada || m.Fecha || 'S/F'}</span>
                     <span class="font-bold text-${color}-600">$${Number(m[key] || 0).toLocaleString()}</span>
                 </div>
             `).join('');
         };
 
+        // 2. Render de Préstamos (Corregido para separar Capital de Interés)
         const renderPrestamos = (data) => {
-    if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
-    
-    return data.map((m, index) => {
-        const saldo = Number(m.SaldoActual || 0);
-        const capital = Number(m.MontoPrestado || 0);
-        const interes = Number(m.MontoInteres || 0);
-        const tasa = m.TasaInteres || 0;
-        const cuotas = m.Cuotas || 0;
-        const estaPago = saldo <= 0 || m.Estado === 'Pagado';
-        const totalDevolver = capital + interes;
+            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
+            
+            return data.map((m, index) => {
+                const saldo = Number(m.SaldoActual || 0);
+                const capitalOriginal = Number(m.MontoPrestado || 0);
+                const montoInteres = Number(m.MontoInteres || 0);
+                const cuotas = m.Cuotas || 1; // Si es 0 o null, mostrar 1
+                const estaPago = m.Estado === 'Pagado' || saldo <= 0;
 
-        return `
-        <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-100'} shadow-sm">
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
-                <span class="text-[10px] ${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
-                    ${estaPago ? '✅ TOTALMENTE PAGADO' : '📅 ' + (m.FechaPrestamo || 'S/F')}
-                </span>
-            </div>
-
-            <div class="flex gap-2 mb-3">
-                <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
-                    <i class="fas fa-percentage mr-1 text-indigo-400"></i>Tasa: ${tasa}%
-                </span>
-                <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
-                    <i class="fas fa-calendar-check mr-1 text-indigo-400"></i>${cuotas} Cuotas
-                </span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 border-t border-slate-200/50 pt-2">
-                <div class="flex flex-col text-left">
-                    <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Monto Total</span>
-                    <span class="text-[13px] font-black text-slate-800">$${totalDevolver.toLocaleString()}</span>
-                    <span class="text-[7px] text-slate-500 font-medium">Cap: $${capital.toLocaleString()} | Int: $${interes.toLocaleString()}</span>
-                </div>
-                
-                ${!estaPago ? `
-                <div class="flex flex-col text-right">
-                    <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Pendiente</span>
-                    <span class="text-[15px] font-black text-rose-600 tracking-tighter">$${saldo.toLocaleString()}</span>
-                </div>` : ''}
-            </div>
-        </div>`;
-    }).join('');
-};
-
-        const renderAbonosDetallados = (data) => {
-            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos</p>';
-            return data.map(m => `
-                <div class="p-2 border-b border-white/50 text-[11px]">
-                    <div class="flex justify-between">
-                        <span class="text-slate-500 font-medium">${m.FechaFormateada}</span>
-                        <span class="font-bold text-rose-600">+$${Number(m.Monto_Abonado).toLocaleString()}</span>
+                return `
+                <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-100'} shadow-sm">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
+                        <span class="text-[10px] ${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
+                            ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaPrestamo || 'S/F')}
+                        </span>
                     </div>
-                    <div class="text-[9px] text-slate-400 italic">Aplicado a: $${Number(m.PrestamoRef || 0).toLocaleString()}</div>
+
+                    <div class="flex gap-2 mb-3">
+                        <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
+                            <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}%
+                        </span>
+                        <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
+                            <i class="fas fa-calendar-check mr-1 text-indigo-400"></i>${cuotas} Cuotas
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 border-t border-slate-200/50 pt-2">
+                        <div class="flex flex-col text-left">
+                            <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Capital Inicial</span>
+                            <span class="text-[13px] font-black text-slate-800">$${capitalOriginal.toLocaleString()}</span>
+                            <span class="text-[7px] text-slate-400">Interés: $${montoInteres.toLocaleString()}</span>
+                        </div>
+                        
+                        ${!estaPago ? `
+                        <div class="flex flex-col text-right">
+                            <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Pendiente</span>
+                            <span class="text-[15px] font-black text-rose-600 tracking-tighter">$${saldo.toLocaleString()}</span>
+                        </div>` : `
+                        <div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO</div>`}
+                    </div>
+                </div>`;
+            }).join('');
+        };
+
+        // 3. Render de Abonos (Corregido para mostrar el monto real y ID de préstamo)
+        const renderAbonosDetallados = (data) => {
+            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos realizados</p>';
+            return data.map(m => `
+                <div class="p-2 border-b border-slate-100 text-[11px]">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
+                        <span class="font-bold text-rose-600">-$${Number(m.Monto_Abonado || m.Monto || 0).toLocaleString()}</span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 italic">Aplicado al Préstamo #${m.ID_Prestamo || 'N/A'}</div>
                 </div>
             `).join('');
         };
 
+        // --- VENTANA EMERGENTE (MODAL) ---
         Swal.fire({
             title: `<span class="text-xl font-black">${nombre}</span>`,
             html: `
                 <div class="grid grid-cols-2 gap-2 mb-4">
-                    <div class="bg-emerald-50 p-2 rounded-xl text-center border border-emerald-100">
+                    <div class="bg-emerald-50 p-2 rounded-xl text-center border border-emerald-100 shadow-sm">
                         <p class="text-[8px] uppercase font-bold text-emerald-600">Total Ahorrado</p>
                         <p class="font-black text-emerald-700 text-sm">$${Number(totales.totalAhorrado || 0).toLocaleString()}</p>
                     </div>
-                    <div class="bg-rose-50 p-2 rounded-xl text-center border border-rose-100">
-                        <p class="text-[8px] uppercase font-bold text-rose-600">Deuda Total</p>
+                    <div class="bg-rose-50 p-2 rounded-xl text-center border border-rose-100 shadow-sm">
+                        <p class="text-[8px] uppercase font-bold text-rose-600">Deuda (Solo Capital)</p>
                         <p class="font-black text-rose-700 text-sm">$${Number(totales.deudaTotal || 0).toLocaleString()}</p>
                     </div>
                 </div>
 
                 <div class="text-left space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                     
-                    <div class="border border-slate-100 rounded-2xl overflow-hidden">
-                        <button onclick="toggleAcordeon('acc-ahorros', this)" class="w-full flex justify-between items-center p-4 bg-slate-50 hover:bg-emerald-50 transition-colors">
+                    <div class="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                        <button onclick="toggleAcordeon('acc-ahorros', this)" class="w-full flex justify-between items-center p-4 bg-white hover:bg-emerald-50 transition-colors">
                             <span class="text-[10px] font-black uppercase text-emerald-600"><i class="fas fa-piggy-bank mr-2"></i> Historial de Ahorros</span>
                             <i class="fas fa-chevron-down text-emerald-400 transition-transform duration-300"></i>
                         </button>
-                        <div id="acc-ahorros" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-white">
-                            <div class="p-3 bg-emerald-50/30">${renderSimple(a, 'Monto', 'emerald')}</div>
+                        <div id="acc-ahorros" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out">
+                            <div class="p-3 border-t border-slate-50">${renderSimple(a, 'Monto', 'emerald')}</div>
                         </div>
                     </div>
 
-                    <div class="border border-slate-100 rounded-2xl overflow-hidden">
-                        <button onclick="toggleAcordeon('acc-prestamos', this)" class="w-full flex justify-between items-center p-4 bg-slate-50 hover:bg-blue-50 transition-colors">
+                    <div class="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                        <button onclick="toggleAcordeon('acc-prestamos', this)" class="w-full flex justify-between items-center p-4 bg-white hover:bg-blue-50 transition-colors">
                             <span class="text-[10px] font-black uppercase text-blue-600"><i class="fas fa-hand-holding-dollar mr-2"></i> Préstamos Detallados</span>
                             <i class="fas fa-chevron-down text-blue-400 transition-transform duration-300"></i>
                         </button>
-                        <div id="acc-prestamos" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-white">
-                            <div class="p-3 bg-blue-50/20">${renderPrestamos(p)}</div>
+                        <div id="acc-prestamos" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out">
+                            <div class="p-3 border-t border-slate-50 bg-slate-50/30">${renderPrestamos(p)}</div>
                         </div>
                     </div>
 
-                    <div class="border border-slate-100 rounded-2xl overflow-hidden">
-                        <button onclick="toggleAcordeon('acc-abonos', this)" class="w-full flex justify-between items-center p-4 bg-slate-50 hover:bg-rose-50 transition-colors">
-                            <span class="text-[10px] font-black uppercase text-rose-600"><i class="fas fa-receipt mr-2"></i> Abonos Realizados</span>
+                    <div class="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                        <button onclick="toggleAcordeon('acc-abonos', this)" class="w-full flex justify-between items-center p-4 bg-white hover:bg-rose-50 transition-colors">
+                            <span class="text-[10px] font-black uppercase text-rose-600"><i class="fas fa-receipt mr-2"></i> Abonos a Préstamos</span>
                             <i class="fas fa-chevron-down text-rose-400 transition-transform duration-300"></i>
                         </button>
-                        <div id="acc-abonos" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out bg-white">
-                            <div class="p-3 bg-rose-50/30">${renderAbonosDetallados(ab)}</div>
+                        <div id="acc-abonos" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out">
+                            <div class="p-3 border-t border-slate-50">${renderAbonosDetallados(ab)}</div>
                         </div>
                     </div>
 
@@ -317,8 +319,8 @@ async function verHistorialFechas(id, nombre) {
         });
 
     } catch (e) {
-        console.error(e);
-        Swal.fire('Error', 'No se pudo cargar la información', 'error');
+        console.error("Error cargando historial:", e);
+        Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
     }
 }
 
