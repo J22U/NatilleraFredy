@@ -426,4 +426,26 @@ setTimeout(() => status.classList.remove('sync-refresh'), 500);
 document.addEventListener('DOMContentLoaded', () => {
     iniciarAutoRefresco();
 });
+
+function generarPDF() {
+    const elemento = document.getElementById('app-container'); // O el ID de tu contenedor principal
+    
+    // Configuramos el diseño del PDF
+    const opciones = {
+        margin:       10,
+        filename:     `Rifa_${document.getElementById('rifaName').value || 'General'}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    // Añadimos una clase temporal para optimizar el diseño en el PDF
+    elemento.classList.add('pdf-mode');
+
+    // Generar el PDF
+    html2pdf().set(opciones).from(elemento).save().then(() => {
+        // Quitamos la clase al terminar
+        elemento.classList.remove('pdf-mode');
+    });
+}
 // ... (Las funciones de búsqueda y excel se mantienen igual)

@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/rifas.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -28,6 +29,9 @@
                 <button class="btn-excel" onclick="exportarAExcel()">
     <i class="fas fa-file-excel"></i> 
     <span>Exportar Reporte</span>
+    <button onclick="generarPDF()" class="btn-add" style="background-color: #e74c3c;">
+    <i class="fas fa-file-pdf"></i> <span>Descargar PDF</span>
+</button>
 </button>
             </div>
 

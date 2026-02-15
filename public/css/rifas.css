@@ -427,3 +427,28 @@ body {
     50% { background-color: var(--nat-blue); transform: scale(1.5); }
     100% { background-color: #bdc3c7; }
 }
+
+/* Estilos especiales que solo se activan al generar el PDF */
+.pdf-mode .btn-add, 
+.pdf-mode .btn-excel, 
+.pdf-mode .search-container, 
+.pdf-mode .btn-delete,
+.pdf-mode .arrow-icon {
+    display: none !important; /* Ocultamos botones y buscador en el PDF */
+}
+
+.pdf-mode .rifa-card-body {
+    max-height: none !important; /* Forzamos a que todas las tablas salgan abiertas */
+    display: block !important;
+}
+
+.pdf-mode .rifa-card {
+    break-inside: avoid; /* Evita que una tabla se corte a la mitad entre dos páginas */
+    margin-bottom: 20px;
+    box-shadow: none;
+    border: 1px solid #eee;
+}
+
+.pdf-mode .main-header {
+    border-left: 15px solid var(--nat-blue); /* Un detalle elegante para el reporte */
+}
