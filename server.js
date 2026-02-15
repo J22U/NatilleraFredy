@@ -284,11 +284,22 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query(`SELECT ID_Prestamo, MontoPrestado, TasaInteres, SaldoActual, Estado, 
+            .query(`
+                SELECT 
+                    ID_Prestamo, 
+                    MontoPrestado, 
+                    TasaInteres,      -- El porcentaje (ej: 5%)
+                    MontoInteres,     -- El valor en dinero del interés
+                    SaldoActual, 
+                    Estado, 
                     FORMAT(Fecha, 'dd/MM/yyyy') as FechaPrestamo 
-                    FROM Prestamos WHERE ID_Persona = @id ORDER BY Fecha DESC`);
+                FROM Prestamos 
+                WHERE ID_Persona = @id 
+                ORDER BY Fecha DESC
+            `);
         res.json(result.recordset);
     } catch (err) {
+        console.error("Error en detalle-prestamo:", err);
         res.status(500).json([]);
     }
 });
