@@ -34,13 +34,35 @@ body {
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 15px;
     margin-bottom: 20px;
 }
 
-.title-group { display: flex; align-items: center; gap: 10px; }
+.title-group { 
+    display: flex; 
+    flex-direction: column;
+    align-items: flex-start; 
+    gap: 5px; 
+    flex: 1;
+    min-width: 200px;
+}
+
+.title-group > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .title-group h1 { font-size: 1.1rem; margin: 0; font-weight: 800; }
 .logo-icon { color: var(--nat-blue); font-size: 1.3rem; }
+
+/* Contenedor de Botones Superior */
+.header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
 
 /* ESTILO UNIFICADO DE BOTONES */
 .btn-add {
@@ -87,8 +109,9 @@ body {
 
 /* BUSCADOR PREMIUM */
 .search-container {
-    margin-top: 20px;
-    margin-bottom: 10px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    width: 100%;
 }
 
 .search-box {
@@ -139,6 +162,19 @@ body {
     background: #f8fafc;
     padding: 15px;
     border-radius: 12px;
+}
+
+.info-main-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    width: 100%;
+}
+
+@media (min-width: 992px) {
+    .info-main-row {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 .info-details {
@@ -279,28 +315,36 @@ body {
 .btn-delete i { color: white !important; }
 
 /* RESPONSIVE MÓVIL */
+@media (max-width: 768px) {
+    .header-top {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .header-actions {
+        justify-content: space-between;
+    }
+    .header-actions .btn-add, .header-actions .btn-excel {
+        flex: 1;
+        justify-content: center;
+    }
+}
+
 @media (max-width: 400px) {
     .btn-add span { display: none; }
     .btn-add { padding: 10px; }
 }
 
 @media (max-width: 600px) {
-    .btn-excel {
-        flex: 1;
-        justify-content: center;
-        padding: 12px;
-        font-size: 12px;
-    }
     .btn-excel span { display: none; }
     .btn-excel::after { content: 'Reporte'; }
 }
 
 /* ESTADOS DE SINCRONIZACIÓN */
 #sync-status {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    margin-left: 8px;
+    flex-shrink: 0;
     transition: all 0.3s ease;
 }
 
@@ -342,11 +386,14 @@ body {
 
 .cliente-header {
     background: #f8fafc;
-    padding: 10px 15px;
+    padding: 12px 15px;
     font-weight: 900;
     font-size: 13px;
-    color: var(--nat-blue);
+    color: var(--nat-dark);
     border-left: 4px solid var(--nat-blue);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .tabla-item {
@@ -389,18 +436,6 @@ body {
     border: 1px solid #9ae6b4;
 }
 
-.cliente-header {
-    background: #f8fafc;
-    padding: 12px 15px;
-    font-weight: 900;
-    font-size: 13px;
-    color: var(--nat-dark);
-    border-left: 4px solid var(--nat-blue);
-    display: flex;
-    justify-content: space-between; /* Ponemos el nombre a la izquierda y el dinero a la derecha */
-    align-items: center;
-}
-
 .total-deuda-tag {
     background: #ff7675;
     color: white;
@@ -428,55 +463,37 @@ body {
     100% { background-color: #bdc3c7; }
 }
 
-/* Estilos especiales que solo se activan al generar el PDF */
+/* Estilos especiales para PDF */
 .pdf-mode .btn-add, 
 .pdf-mode .btn-excel, 
+.pdf-mode .header-actions,
 .pdf-mode .search-container, 
 .pdf-mode .btn-delete,
 .pdf-mode .arrow-icon {
-    display: none !important; /* Ocultamos botones y buscador en el PDF */
+    display: none !important;
 }
 
 .pdf-mode .rifa-card-body {
-    max-height: none !important; /* Forzamos a que todas las tablas salgan abiertas */
+    max-height: none !important;
     display: block !important;
 }
 
 .pdf-mode .rifa-card {
-    break-inside: avoid; /* Evita que una tabla se corte a la mitad entre dos páginas */
+    break-inside: avoid;
     margin-bottom: 20px;
     box-shadow: none;
     border: 1px solid #eee;
 }
 
 .pdf-mode .main-header {
-    border-left: 15px solid var(--nat-blue); /* Un detalle elegante para el reporte */
+    border-left: 15px solid var(--nat-blue);
 }
 
 @media print {
-    /* Fuerza un salto de página después de cada tarjeta de rifa */
     .rifa-card {
-        page-break-after: always; /* Para navegadores antiguos */
-        break-after: page;        /* Estándar moderno */
+        page-break-after: always;
+        break-after: page;
         margin-bottom: 0;
         border: 1px solid #eee !important;
     }
-
-    /* Evita que el encabezado principal se quede solo en una hoja si prefieres */
-    .main-header {
-        page-break-after: auto;
-    }
-}
-
-/* Si usas la librería html2pdf, añade también esta clase */
-.pdf-mode .rifa-card {
-    page-break-after: always;
-    break-after: page;
-}
-
-#sync-status {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    flex-shrink: 0; /* Para que no se aplaste si el texto es largo */
 }

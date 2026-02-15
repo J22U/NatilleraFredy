@@ -427,8 +427,12 @@ function iniciarAutoRefresco() {
 
 // Versión de carga que no borra la pantalla para que no parpadee
 async function cargarRifasSilencioso() {
-    // 1. Si hubo un cambio manual hace menos de 8 segundos, abortamos
-    if (Date.now() - ultimaSincronizacionManual < 8000) return;
+    // REGLA DE ORO: Si borramos algo hace menos de 10 segundos, no escuchamos a la nube
+    const tiempoTranscurrido = Date.now() - ultimaSincronizacionManual;
+    if (tiempoTranscurrido < 10000) { 
+        console.log("⏳ Ignorando nube: Estamos en periodo de gracia tras un borrado.");
+        return; 
+    }
 
     try {
         const response = await fetch('/api/cargar-rifas');
@@ -438,20 +442,18 @@ async function cargarRifasSilencioso() {
             const nuevoJSON = JSON.stringify(datos.tablas);
             const viejoJSON = localStorage.getItem('ultimo_snapshot_tablas');
 
-            // 2. SOLO redibujamos si el servidor trae algo REALMENTE distinto
-            // y no estamos escribiendo en ningún lado
+            // Solo si la nube trae algo REALMENTE nuevo y distinto al snapshot local
             if (nuevoJSON !== viejoJSON) {
-                const estaEditando = document.activeElement.tagName === 'INPUT' || 
-                                     document.activeElement.tagName === 'TEXTAREA';
-
+                // Verificamos que el usuario no esté escribiendo
+                const estaEditando = document.activeElement.tagName === 'INPUT';
+                
                 if (!estaEditando) {
-                    // Actualizamos el snapshot para que la próxima vez coincida
+                    console.log("🔄 Cambios reales detectados en la nube. Actualizando...");
                     localStorage.setItem('ultimo_snapshot_tablas', nuevoJSON);
                     
                     const container = document.getElementById('rifasContainer');
                     container.innerHTML = ''; 
                     datos.tablas.forEach(t => crearTabla(t));
-                    console.log("🔄 Tablas actualizadas (Cambio detectado en otro dispositivo).");
                 }
             }
         }
@@ -504,16 +506,24 @@ function generarPDF() {
 }
 
 function eliminarTabla(id) {
-    if (confirm("¿Eliminar esta tabla?")) {
-        const tabla = document.getElementById(`rifa-${id}`);
-        if (tabla) {
-            tabla.remove();
-            reordenarBadges();
-            
-            // Forzar el guardado y actualización de snapshot
-            guardarTodo(); 
-            console.log("Tabla eliminada y sincronización enviada.");
-        }
+    if (!confirm('¿Estás seguro de eliminar esta tabla?')) return;
+
+    const card = document.getElementById(`rifa-${id}`);
+    if (card) {
+        card.remove();
+        console.log("🗑️ Tabla eliminada visualmente.");
+        
+        // 1. REGISTRAMOS EL TIEMPO PARA BLOQUEAR REFRESCO
+        ultimaSincronizacionManual = Date.now(); 
+        
+        // 2. ACTUALIZAMOS EL SNAPSHOT LOCAL INMEDIATAMENTE
+        // Esto es vital: le decimos al navegador "esta es la realidad ahora"
+        const datosActuales = recolectarDatosPantalla(); 
+        localStorage.setItem('ultimo_snapshot_tablas', JSON.stringify(datosActuales.tablas));
+        
+        // 3. ENVIAMOS AL SERVIDOR
+        sincronizarConServidor(datosActuales);
+        console.log("📤 Sincronización de borrado enviada.");
     }
 }
 
