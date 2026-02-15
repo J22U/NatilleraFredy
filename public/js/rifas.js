@@ -232,6 +232,9 @@ window.onbeforeunload = function (e) {
 function buscarCliente() {
     const texto = document.getElementById('searchInput').value.toLowerCase().trim();
     const panel = document.getElementById('searchResults');
+    // Obtenemos el valor de cada puesto del input general
+    const valorPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
+    
     panel.innerHTML = ''; 
 
     if (texto.length < 2) {
@@ -239,12 +242,11 @@ function buscarCliente() {
         return;
     }
 
-    // 1. Agrupar datos por Cliente y por Tabla
-    // Estructura: { "JUAN": { "Tabla 1": { números: [], deuda: 0 }, "Tabla 2": {...} } }
     let resultados = {};
 
     document.querySelectorAll('.rifa-card').forEach(card => {
         const tituloTabla = card.querySelector('.input-table-title').value;
+        const badgeTabla = card.querySelector('.tabla-badge').innerText;
         const slots = card.querySelectorAll('.n-slot');
 
         slots.forEach(slot => {
@@ -253,38 +255,52 @@ function buscarCliente() {
             const pagado = slot.querySelector('.pay-check').checked;
 
             if (nombre.includes(texto)) {
-                if (!resultados[nombre]) resultados[nombre] = {};
-                if (!resultados[nombre][tituloTabla]) {
-                    resultados[nombre][tituloTabla] = { numeros: [], cardRef: card };
+                if (!resultados[nombre]) {
+                    // Inicializamos al cliente con total de deuda en 0
+                    resultados[nombre] = { tablas: {}, totalDeudaGlobal: 0, totalPuestosDebe: 0 };
                 }
                 
-                resultados[nombre][tituloTabla].numeros.push({
-                    num: numero,
-                    pago: pagado,
-                    slotRef: slot
-                });
+                if (!resultados[nombre].tablas[card.id]) {
+                    resultados[nombre].tablas[card.id] = { 
+                        titulo: tituloTabla, 
+                        numeroTabla: badgeTabla, 
+                        numeros: [], 
+                        cardRef: card 
+                    };
+                }
+                
+                resultados[nombre].tablas[card.id].numeros.push({ num: numero, pago: pagado });
+                
+                // Si no ha pagado, sumamos al contador global del cliente
+                if (!pagado) {
+                    resultados[nombre].totalPuestosDebe++;
+                    resultados[nombre].totalDeudaGlobal += valorPuesto;
+                }
             }
         });
     });
 
-    // 2. Generar el HTML de los resultados
     const nombresHallados = Object.keys(resultados);
     
     if (nombresHallados.length === 0) {
-        panel.innerHTML = '<div style="padding:15px; text-align:center; color:gray; font-size:13px;">No se encontró ningún cliente.</div>';
+        panel.innerHTML = '<div style="padding:15px; text-align:center; color:gray;">No se encontraron resultados.</div>';
     } else {
         nombresHallados.forEach(nombre => {
+            const cliente = resultados[nombre];
             const clienteDiv = document.createElement('div');
             clienteDiv.className = 'cliente-resumen';
             
             let tablasHTML = '';
-            for (const [tabla, data] of Object.entries(resultados[nombre])) {
+            for (const idTabla in cliente.tablas) {
+                const data = cliente.tablas[idTabla];
                 const deudas = data.numeros.filter(n => !n.pago).map(n => n.num);
                 const pagados = data.numeros.filter(n => n.pago).map(n => n.num);
                 
                 tablasHTML += `
                     <div class="tabla-item" onclick="irATabla('${data.cardRef.id}')">
-                        <div class="tabla-nombre">📍 ${tabla}</div>
+                        <div class="tabla-nombre">
+                            <span class="resumen-badge">${data.numeroTabla}</span> ${data.titulo}
+                        </div>
                         <div class="numeros-lista">
                             ${deudas.length > 0 ? `<span class="badge-debe">Debe: ${deudas.join(', ')}</span>` : ''}
                             ${pagados.length > 0 ? `<span class="badge-pago">Pagó: ${pagados.join(', ')}</span>` : ''}
@@ -293,8 +309,20 @@ function buscarCliente() {
                 `;
             }
 
+            // Formatear el dinero a moneda local
+            const totalDinero = cliente.totalDeudaGlobal.toLocaleString('es-CO', { 
+                style: 'currency', 
+                currency: 'COP', 
+                maximumFractionDigits: 0 
+            });
+
             clienteDiv.innerHTML = `
-                <div class="cliente-header">${nombre.toUpperCase()}</div>
+                <div class="cliente-header">
+                    <span>${nombre.toUpperCase()}</span>
+                    ${cliente.totalPuestosDebe > 0 
+                        ? `<span class="total-deuda-tag">DEUDA TOTAL: ${totalDinero}</span>` 
+                        : `<span class="total-pago-tag">AL DÍA ✅</span>`}
+                </div>
                 <div class="cliente-tablas">${tablasHTML}</div>
             `;
             panel.appendChild(clienteDiv);

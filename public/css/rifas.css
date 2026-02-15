@@ -388,3 +388,32 @@ body {
     font-weight: 700;
     border: 1px solid #9ae6b4;
 }
+
+.cliente-header {
+    background: #f8fafc;
+    padding: 12px 15px;
+    font-weight: 900;
+    font-size: 13px;
+    color: var(--nat-dark);
+    border-left: 4px solid var(--nat-blue);
+    display: flex;
+    justify-content: space-between; /* Ponemos el nombre a la izquierda y el dinero a la derecha */
+    align-items: center;
+}
+
+.total-deuda-tag {
+    background: #ff7675;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    box-shadow: 0 4px 8px rgba(255, 118, 117, 0.2);
+}
+
+.total-pago-tag {
+    background: var(--nat-green);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+}
