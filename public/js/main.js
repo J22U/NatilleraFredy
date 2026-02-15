@@ -929,3 +929,17 @@ async function verificarTipoMovimiento() {
     }
 }
 
+function renderizarSelectorMeses() {
+    const contenedor = document.getElementById('contenedor-meses');
+    contenedor.innerHTML = mesesDelAño.map(mes => `
+        <label class="mes-item">
+            <input type="checkbox" name="mes-ahorro" value="${mes}"> ${mes}
+        </label>
+    `).join('');
+}
+
+// Al enviar el ahorro, recolectamos los seleccionados
+function obtenerMesesSeleccionados() {
+    const checkboxes = document.querySelectorAll('input[name="mes-ahorro"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value).join(', ');
+}

@@ -226,11 +226,13 @@ app.get('/historial-ahorros/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query("SELECT Monto, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada FROM Ahorros WHERE ID_Persona = @id ORDER BY Fecha DESC");
+            .query(`SELECT Monto, 
+                           FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
+                           ISNULL(MesesCorrespondientes, 'No especificado') as Meses 
+                    FROM Ahorros 
+                    WHERE ID_Persona = @id ORDER BY Fecha DESC`);
         res.json(result.recordset);
-    } catch (err) {
-        res.status(500).json([]);
-    }
+    } catch (err) { res.status(500).json([]); }
 });
 
 // 3. Historial de Abonos a Deuda
@@ -298,6 +300,29 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
     } catch (err) {
         console.error("Error al obtener préstamos:", err);
         res.status(500).json([]);
+    }
+});
+
+app.post('/procesar-movimiento', async (req, res) => {
+    try {
+        // Añadimos 'meses' al cuerpo del request
+        const { idPersona, monto, tipoMovimiento, idPrestamo, meses } = req.body; 
+        const pool = await poolPromise;
+        const m = parseFloat(monto);
+
+        if (tipoMovimiento === 'deuda') {
+            // ... (tu código de deuda se queda igual)
+        } else {
+            // --- AJUSTE AQUÍ ---
+            await pool.request()
+                .input('id', sql.Int, idPersona)
+                .input('m', sql.Decimal(18,2), m)
+                .input('meses', sql.VarChar, meses) // Guardamos los meses seleccionados
+                .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) VALUES (@id, @m, GETDATE(), @meses)");
+        }
+        res.json({ success: true });
+    } catch (err) { 
+        res.status(500).json({ success: false }); 
     }
 });
 

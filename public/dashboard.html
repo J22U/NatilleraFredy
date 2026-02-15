@@ -85,14 +85,19 @@
                             <input type="number" id="mov_monto" placeholder="Monto $" class="w-full p-3 mb-3 rounded-xl bg-white border border-slate-200 outline-none">
                             
                             <select id="mov_tipo" onchange="toggleDeudas()" class="w-full p-3 mb-2 rounded-xl border border-slate-200 outline-none text-sm font-semibold">
-                                <option value="ahorro">💰 Abono a Ahorro</option>
-                                <option value="deuda">📉 Abono a Deuda Específica</option>
-                            </select>
+    <option value="ahorro">💰 Abono a Ahorro</option>
+    <option value="deuda">📉 Abono a Deuda Específica</option>
+</select>
 
-                            <div id="div_selector_deuda" class="hidden mb-4">
-                                <label class="text-[10px] font-bold text-indigo-500 ml-2">SELECCIONAR PRÉSTAMO:</label>
-                                <select id="mov_prestamo_id" class="w-full p-3 rounded-xl border-2 border-indigo-200 outline-none text-xs bg-white font-bold"></select>
-                            </div>
+<div id="div_selector_meses" class="mb-4 bg-white p-3 rounded-2xl border border-slate-100">
+    <label class="text-[10px] font-bold text-amber-600 ml-1 mb-2 block uppercase">Meses que está pagando:</label>
+    <div id="contenedor-meses" class="grid grid-cols-3 gap-2">
+        </div>
+</div>
+<div id="div_selector_deuda" class="hidden mb-4">
+    <label class="text-[10px] font-bold text-indigo-500 ml-2">SELECCIONAR PRÉSTAMO:</label>
+    <select id="mov_prestamo_id" class="w-full p-3 rounded-xl border-2 border-indigo-200 outline-none text-xs bg-white font-bold"></select>
+</div>
 
                             <button onclick="registrarMovimiento()" class="w-full bg-amber-500 text-white py-3 rounded-xl font-bold hover:bg-amber-600 transition-all shadow-md">Procesar Movimiento</button>
                             <button onclick="ejecutarCruceCuentas()" class="w-full mt-3 bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-md flex items-center justify-center gap-2">
