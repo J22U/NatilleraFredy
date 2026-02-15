@@ -767,16 +767,23 @@ async function toggleDeudas() {
             const deudas = await res.json();
 
             if (deudas && deudas.length > 0) {
-                // 1. Invertimos para que el más nuevo sea el primero en la lista
-                const deudasInvertidas = [...deudas].reverse();
-                const totalDeudas = deudas.length;
+                // IMPORTANTE: Ordenamos de más antiguo a más nuevo para que el índice sea correcto
+                // Si tu servidor ya los trae ordenados, no hace falta, pero esto asegura el éxito:
+                const deudasOrdenadas = deudas.sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
+                
+                const totalDeudas = deudasOrdenadas.length;
 
-                // 2. Mapeamos usando el cálculo (Total - index) para que coincida con el historial
-                select.innerHTML = deudasInvertidas.map((d, index) => {
+                // Generamos las opciones
+                // Usamos reverse() para que el préstamo más reciente (el mayor) salga primero en la lista
+                select.innerHTML = [...deudasOrdenadas].reverse().map((d, index) => {
                     const numeroConsecutivo = totalDeudas - index;
+                    
+                    // Aquí está el truco: 
+                    // value = ID real para el servidor
+                    // texto = Número amigable para ti
                     return `
                         <option value="${d.ID_Prestamo}">
-                            Préstamo #${numeroConsecutivo} (Saldo: $${Number(d.SaldoActual).toLocaleString()})
+                            Préstamo #${numeroConsecutivo} - Saldo: $${Number(d.SaldoActual).toLocaleString()}
                         </option>
                     `;
                 }).join('');
@@ -788,7 +795,7 @@ async function toggleDeudas() {
                 divSelector.classList.add('hidden');
             }
         } catch (error) {
-            console.error("Error:", error);
+            console.error("Error cargando deudas:", error);
         }
     } else {
         divSelector.classList.add('hidden');
