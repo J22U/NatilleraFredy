@@ -339,6 +339,45 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
     }
 });
 
+// 1. RUTA PARA GUARDAR (POST)
+app.post('/api/guardar-rifa', async (req, res) => {
+    try {
+        const { info, tablas } = req.body;
+        const pool = await poolPromise;
+        
+        // Aquí guardamos el JSON completo de las tablas en una columna de texto
+        // Asegúrate de tener una tabla llamada 'ConfiguracionRifas' con una columna 'DatosJSON'
+        await pool.request()
+            .input('datos', sql.NVarChar(sql.MAX), JSON.stringify({ info, tablas }))
+            .query("IF EXISTS (SELECT 1 FROM ConfiguracionRifas) " +
+                   "UPDATE ConfiguracionRifas SET DatosJSON = @datos " +
+                   "ELSE INSERT INTO ConfiguracionRifas (DatosJSON) VALUES (@datos)");
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. RUTA PARA CARGAR (GET) - ESTA ES LA QUE TE DA EL ERROR 404
+app.get('/api/cargar-rifas', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .query("SELECT DatosJSON FROM ConfiguracionRifas");
+        
+        if (result.recordset.length > 0) {
+            res.json(JSON.parse(result.recordset[0].DatosJSON));
+        } else {
+            // Si no hay nada, mandamos una estructura vacía para que no falle
+            res.json({ info: {}, tablas: [] });
+        }
+    } catch (err) {
+        res.status(500).json({ error: "Error al leer la DB" });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

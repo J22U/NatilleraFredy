@@ -175,4 +175,18 @@ async function cargarRifas() {
     }
 }
 
+function toggleTabla(id) {
+    const card = document.getElementById(`rifa-${id}`);
+    const arrow = document.getElementById(`arrow-${id}`);
+    
+    // Alternamos la clase collapsed
+    if (card.classList.contains('collapsed')) {
+        card.classList.remove('collapsed');
+        arrow.style.transform = 'rotate(90deg)'; // Rota la flecha hacia abajo
+    } else {
+        card.classList.add('collapsed');
+        arrow.style.transform = 'rotate(0deg)'; // Vuelve la flecha a la derecha
+    }
+}
+
 // ... (Las funciones de búsqueda y excel se mantienen igual)
