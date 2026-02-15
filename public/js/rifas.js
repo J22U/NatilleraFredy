@@ -86,6 +86,14 @@ function guardarTodo() {
         });
     });
 
+    // --- EL CAMBIO CLAVE AQUÍ ---
+    // Guardamos lo que estamos viendo en pantalla como la "versión más reciente"
+    // Así, el auto-refresco sabrá que NO debe sobrescribir esto con datos viejos de la nube.
+    localStorage.setItem('ultimo_snapshot_tablas', JSON.stringify(datos.tablas));
+    
+    // Registramos la hora de este guardado (útil para la pausa de seguridad)
+    ultimaSincronizacionManual = Date.now(); 
+
     sincronizarConServidor(datos);
 }
 
@@ -171,24 +179,35 @@ function guardarCambioIndividual(tablaId) {
 
 async function sincronizarConServidor(datos) {
     const status = document.getElementById('sync-status');
+    // Forzamos luz azul al empezar
+    if (status) status.className = 'sync-saving';
+
     try {
         const response = await fetch('/api/guardar-rifa', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(datos)
         });
+
+        // Verificamos si la respuesta es JSON o texto
         const result = await response.json();
         
-        if (result.success || response.ok) {
-            console.log("✅ Sincronización exitosa");
+        if (response.ok && (result.success || result.mensaje)) {
+            console.log("✅ Servidor actualizado");
             if (status) {
-                status.className = 'sync-success'; // LUZ VERDE
+                status.className = 'sync-success'; // Luz Verde
                 setTimeout(() => status.className = 'sync-idle', 2000);
             }
+        } else {
+            throw new Error("Respuesta del servidor no válida");
         }
     } catch (error) {
-        console.error("Error al guardar en el servidor:", error);
-        if (status) status.className = 'sync-error'; // Crea esta clase roja en CSS
+        console.error("❌ Error de red:", error);
+        if (status) {
+            status.className = 'sync-error'; // Luz Roja (añádela a tu CSS)
+            // Si falla, volvemos a idle tras 4 segundos para que no asuste
+            setTimeout(() => status.className = 'sync-idle', 4000);
+        }
     }
 }
 
@@ -466,40 +485,42 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function generarPDF() {
-    const elemento = document.querySelector('.app-container');
+    const elemento = document.querySelector('.app-container') || document.body; // Si no encuentra el container, usa el body
     
-    // Añadimos clase para activar los saltos de página
+    if (!elemento) return;
+
     elemento.classList.add('pdf-mode');
 
     const opciones = {
         margin: [10, 10],
-        filename: 'Rifas_Por_Hoja.pdf',
+        filename: 'Rifas.pdf',
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { scale: 2, useCORS: true }, // Añadido useCORS para imágenes externas
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        // ESTA LÍNEA ES CLAVE: indica qué elementos causan el salto
         pagebreak: { mode: ['avoid-all', 'after'], before: '.rifa-card' }
     };
 
-    html2pdf().set(opciones).from(elemento).save().then(() => {
+    // Usar try/catch para evitar que el error bloquee el resto del código
+    try {
+        html2pdf().set(opciones).from(elemento).save().then(() => {
+            elemento.classList.remove('pdf-mode');
+        });
+    } catch (err) {
+        console.error("Error al generar PDF:", err);
         elemento.classList.remove('pdf-mode');
-    });
+    }
 }
 
 function eliminarTabla(id) {
-    const mensaje = "¿Estás seguro de que deseas eliminar esta tabla?";
-    if (confirm(mensaje)) {
+    if (confirm("¿Eliminar esta tabla?")) {
         const tabla = document.getElementById(`rifa-${id}`);
         if (tabla) {
-            tabla.style.opacity = '0';
-            tabla.style.transition = 'all 0.3s ease';
-
-            setTimeout(() => {
-                tabla.remove(); // Se borra del HTML
-                reordenarBadges();
-                guardarTodo(); // AHORA SÍ: Notifica al servidor que ya no existe
-                console.log(`Tabla ${id} eliminada.`);
-            }, 500); // 500ms es suficiente, 3000ms era demasiado
+            tabla.remove();
+            reordenarBadges();
+            
+            // Forzar el guardado y actualización de snapshot
+            guardarTodo(); 
+            console.log("Tabla eliminada y sincronización enviada.");
         }
     }
 }
