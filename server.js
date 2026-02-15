@@ -69,14 +69,25 @@ app.get('/api/cargar-rifas', async (req, res) => {
 app.post('/api/guardar-rifa', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // Esta consulta busca la fila Id = 1 que acabamos de asegurar con el paso anterior
-        await pool.request()
-            .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(req.body))
-            .query("UPDATE ConfiguracionRifas SET DatosJSON = @datos, UltimaActualizacion = GETDATE() WHERE Id = 1");
         
-        res.json({ success: true });
+        // RECIBIMOS LOS DATOS (Ajusta los nombres según tu formulario)
+        const { idSocio, monto, nombreRifa, descripcion } = req.body;
+
+        // CAMBIAMOS UPDATE POR INSERT
+        // Así, cada registro es una fila nueva y NO borra la anterior
+        await pool.request()
+            .input('idSocio', sql.Int, idSocio)
+            .input('monto', sql.Decimal(18, 2), monto)
+            .input('nombre', sql.NVarChar, nombreRifa)
+            .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(req.body)) // Si aún quieres guardar el JSON
+            .query(`
+                INSERT INTO HistorialRifas (IdSocio, Monto, NombreRifa, DatosJSON, FechaRegistro)
+                VALUES (@idSocio, @monto, @nombre, @datos, GETDATE())
+            `);
+        
+        res.json({ success: true, message: "Registro guardado permanentemente" });
     } catch (err) {
-        console.error("❌ Error real en SQL:", err.message);
+        console.error("❌ Error al guardar en BD:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });

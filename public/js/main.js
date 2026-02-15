@@ -5,9 +5,10 @@ let miembrosGlobal = [];
 
 function cargarTodo() { cargarDashboard(); listarMiembros(); }
 document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('current-date').innerText = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-            cargarTodo();
-        });
+    document.getElementById('current-date').innerText = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    cargarTodo();
+    cargarMesesEnInterfaz(); // <--- AGREGA ESTA LÍNEA AQUÍ
+});
 
 async function cargarDashboard() {
             try {
@@ -377,10 +378,17 @@ function toggleAcordeon(id, btn) {
 
     if (!idReal || isNaN(monto)) return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
 
+    // --- NUEVO: CAPTURAR MESES ---
+    let mesesSeleccionados = "";
+    if (tipo === 'ahorro') {
+        const checks = document.querySelectorAll('input[name="mes-ahorro"]:checked');
+        mesesSeleccionados = Array.from(checks).map(cb => cb.value).join(', ');
+    }
+    // ----------------------------
+
     if (tipo === 'deuda') {
         if (!selectDeuda.value) return Toast.fire({ icon: 'error', title: 'Selecciona una deuda' });
         
-        // VALIDACIÓN: No permitir más del saldo actual
         const saldoMaximo = parseFloat(selectDeuda.options[selectDeuda.selectedIndex].getAttribute('data-saldo'));
         if (monto > saldoMaximo) {
             return Swal.fire({
@@ -391,10 +399,12 @@ function toggleAcordeon(id, btn) {
         }
     }
 
-        apiCall('/procesar-movimiento', { 
+    // Enviamos 'meses' en el objeto de apiCall
+    apiCall('/procesar-movimiento', { 
         idPersona: idReal, 
         monto: monto, 
         tipoMovimiento: tipo,
+        meses: mesesSeleccionados, // <-- SE AGREGA ESTO
         idPrestamo: tipo === 'deuda' ? selectDeuda.value : null
     }, "Movimiento procesado correctamente");
 
@@ -402,6 +412,9 @@ function toggleAcordeon(id, btn) {
     document.getElementById('mov_id').value = ''; 
     montoInput.value = '';
     montoInput.placeholder = "Monto $";
+    
+    // --- NUEVO: LIMPIAR LOS CHECKBOXES DESPUÉS DE GUARDAR ---
+    document.querySelectorAll('input[name="mes-ahorro"]').forEach(cb => cb.checked = false);
 }
 
 async function crearPersona() {
@@ -942,4 +955,16 @@ function renderizarSelectorMeses() {
 function obtenerMesesSeleccionados() {
     const checkboxes = document.querySelectorAll('input[name="mes-ahorro"]:checked');
     return Array.from(checkboxes).map(cb => cb.value).join(', ');
+}
+
+function cargarMesesEnInterfaz() {
+    const contenedor = document.getElementById('contenedor-meses');
+    if (!contenedor) return;
+    
+    contenedor.innerHTML = mesesDelAño.map(mes => `
+        <label class="flex items-center justify-center p-2 rounded-xl border border-slate-200 text-[10px] font-bold cursor-pointer hover:bg-amber-50 has-[:checked]:bg-amber-500 has-[:checked]:text-white transition-all shadow-sm">
+            <input type="checkbox" name="mes-ahorro" value="${mes}" class="hidden">
+            ${mes}
+        </label>
+    `).join('');
 }

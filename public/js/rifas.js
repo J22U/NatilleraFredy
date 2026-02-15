@@ -212,14 +212,13 @@ async function sincronizarConServidor(datos) {
 
 async function cargarRifas() {
     const container = document.getElementById('rifasContainer');
-    // No borramos todo de inmediato para evitar saltos visuales bruscos
     
     try {
         const response = await fetch('/api/cargar-rifas'); 
         const datos = await response.json();
 
         if (datos && !datos.error) {
-            // 1. Llenar inputs de arriba
+            // 1. Llenar inputs de información general
             if(datos.info) {
                 document.getElementById('rifaName').value = datos.info.nombre || '';
                 document.getElementById('rifaPrize').value = datos.info.premio || '';
@@ -227,18 +226,32 @@ async function cargarRifas() {
                 document.getElementById('rifaDate').value = datos.info.fecha || '';
             }
 
-            // 2. Limpiar y dibujar tablas
+            // 2. Limpiar el contenedor antes de dibujar
             container.innerHTML = ''; 
 
-            if (datos.tablas && datos.tablas.length > 0) {
-                datos.tablas.forEach(t => crearTabla(t));
+            // 3. CAMBIO CLAVE: Vamos a buscar las 4 tablas explícitamente
+            // Creamos un array con las tablas que existan en el JSON (tabla1, tabla2, tabla3, tabla4)
+            const listaDeTablas = [];
+            for (let i = 1; i <= 4; i++) {
+                if (datos[`tabla${i}`]) {
+                    // Le añadimos un ID para identificarla internamente si es necesario
+                    const tablaData = datos[`tabla${i}`];
+                    tablaData.idTabla = i; // Esto ayuda a diferenciar t1, t2, t3...
+                    listaDeTablas.push(tablaData);
+                }
+            }
+
+            // 4. Dibujar las tablas encontradas
+            if (listaDeTablas.length > 0) {
+                listaDeTablas.forEach(t => crearTabla(t));
             } else {
-                crearTabla(); // Crear una vacía por defecto
+                // Si no hay nada en la base de datos, creamos las 4 vacías por defecto
+                for(let i = 1; i <= 4; i++) { crearTabla({ idTabla: i }); }
             }
         }
     } catch (error) {
         console.error("Error al cargar:", error);
-        container.innerHTML = '<p style="padding:20px; color:red;">Error de conexión. Revisa el servidor.</p>';
+        container.innerHTML = '<p style="padding:20px; color:red;">Error de conexión.</p>';
     }
 }
 
