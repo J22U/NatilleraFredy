@@ -483,40 +483,46 @@ function iniciarAutoRefresco() {
     }, 15000); 
 }
 
-// Versión de carga que no borra la pantalla para que no parpadee
 async function cargarRifasSilencioso() {
-    // REGLA DE ORO: Si borramos algo hace menos de 10 segundos, no escuchamos a la nube
-    const tiempoTranscurrido = Date.now() - ultimaSincronizacionManual;
-    if (tiempoTranscurrido < 10000) { 
-        console.log("⏳ Ignorando nube: Estamos en periodo de gracia tras un borrado.");
-        return; 
-    }
-
     try {
         const response = await fetch('/api/cargar-rifas');
         const datos = await response.json();
 
         if (datos && !datos.error) {
-            const nuevoJSON = JSON.stringify(datos.tablas);
-            const viejoJSON = localStorage.getItem('ultimo_snapshot_tablas');
+            // RECORREMOS DEL 1 AL 4 (Estructura de tu BD)
+            for (let i = 1; i <= 4; i++) {
+                const llave = `tabla${i}`;
+                const infoTabla = datos[llave];
 
-            // Solo si la nube trae algo REALMENTE nuevo y distinto al snapshot local
-            if (nuevoJSON !== viejoJSON) {
-                // Verificamos que el usuario no esté escribiendo
-                const estaEditando = document.activeElement.tagName === 'INPUT';
-                
-                if (!estaEditando) {
-                    console.log("🔄 Cambios reales detectados en la nube. Actualizando...");
-                    localStorage.setItem('ultimo_snapshot_tablas', nuevoJSON);
-                    
-                    const container = document.getElementById('rifasContainer');
-                    container.innerHTML = ''; 
-                    datos.tablas.forEach(t => crearTabla(t));
+                if (infoTabla && infoTabla.participantes) {
+                    actualizarSoloNombres(i, infoTabla.participantes);
                 }
             }
         }
     } catch (error) {
-        console.error("Error en auto-refresco:", error);
+        console.error("Error en auto-refresco silencioso:", error);
+    }
+}
+
+// Función auxiliar para que no se refresque toda la pantalla y se cierren las tablas
+function actualizarSoloNombres(idTabla, participantes) {
+    for (let i = 0; i < 100; i++) {
+        const numStr = i.toString().padStart(2, '0');
+        const slot = document.getElementById(`t${idTabla}-${numStr}`);
+        
+        if (slot) {
+            const p = participantes[numStr];
+            const nameDiv = slot.querySelector('.n-name');
+            
+            if (p && nameDiv) {
+                nameDiv.innerText = p.nombre;
+                slot.classList.toggle('paid', p.pago);
+                slot.classList.toggle('reserved', !p.pago);
+            } else if (nameDiv) {
+                nameDiv.innerText = '';
+                slot.classList.remove('paid', 'reserved');
+            }
+        }
     }
 }
 
