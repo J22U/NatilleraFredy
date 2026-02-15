@@ -5,10 +5,9 @@ const path = require('path');
 
 app.use(express.json());
 
-// 1. Servir archivos estáticos: Priorizamos la carpeta 'public'
-// Si tus archivos (index.html, rifas.js, css) están dentro de /public, esto los servirá.
+// 1. Configuración de archivos estáticos
+// Esto permite que el navegador encuentre el CSS y el JS dentro de la carpeta public
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(path.join(__dirname, '.')));
 
 const config = {
     user: 'Fredy123_SQLLogin_1',
@@ -21,22 +20,14 @@ const config = {
     }
 };
 
-// --- RUTA PRINCIPAL: Forzar el inicio en login.html ---
+// --- RUTA PRINCIPAL: Login ---
 app.get('/', (req, res) => {
-    // Definimos la ruta correctamente para evitar el error de "loginPath is not defined"
     const loginPath = path.join(__dirname, 'public', 'login.html');
-    
-    console.log("Intentando cargar login desde:", loginPath);
-    
-    res.sendFile(loginPath, (err) => {
-        if (err) {
-            console.error("Error al cargar login.html:", err.message);
-            res.status(404).send("No se encontró el archivo login.html en la carpeta public.");
-        }
-    });
+    console.log("Serviendo login desde:", loginPath);
+    res.sendFile(loginPath);
 });
 
-// --- RUTA PARA CARGAR TODO ---
+// --- RUTA PARA CARGAR DATOS (Sincronización multidispositivo) ---
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
         let pool = await sql.connect(config);
@@ -74,17 +65,18 @@ app.get('/api/cargar-rifas', async (req, res) => {
             tablas: Object.values(tablasMap)
         });
     } catch (err) {
-        console.error("Error en cargar-rifas:", err.message);
+        console.error("Error en BD (Cargar):", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// --- RUTA PARA GUARDAR TODO ---
+// --- RUTA PARA GUARDAR DATOS ---
 app.post('/api/guardar-rifa', async (req, res) => {
     try {
         let pool = await sql.connect(config);
         const { info, tablas } = req.body;
 
+        // Guardar Info General
         await pool.request()
             .input('nr', sql.VarChar, info.nombre)
             .input('pr', sql.VarChar, info.premio)
@@ -95,6 +87,7 @@ app.post('/api/guardar-rifa', async (req, res) => {
                     ELSE
                     INSERT INTO Rifas_Config (NombreRifa, Premio, ValorPuesto, FechaSorteo) VALUES (@nr, @pr, @vp, @fs)`);
 
+        // Guardar cada puesto
         for (const tabla of tablas) {
             for (const [numero, data] of Object.entries(tabla.participantes)) {
                 if (data.nombre && (data.nombre.trim() !== '' || data.pago)) {
@@ -117,11 +110,23 @@ app.post('/api/guardar-rifa', async (req, res) => {
         }
         res.json({ success: true });
     } catch (err) {
-        console.error("Error en guardar-rifa:", err.message);
+        console.error("Error en BD (Guardar):", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// Render usa el puerto que ellos asignan, por eso process.env.PORT es vital
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+
+// --- RUTA DE AUTENTICACIÓN (Corregida para coincidir con auth.js) ---
+app.post('/login', (req, res) => {
+    // Cambiamos a 'user' y 'pass' para que coincida con lo que envía el fetch
+    const { user, pass } = req.body;
+
+    if (user === 'admin' && pass === '12345') {
+        // Importante: Asegúrate de que el archivo sea index.html o dashboard.html según tu proyecto
+        res.json({ success: true, redirect: '/dashboard.html' }); 
+    } else {
+        res.status(401).json({ success: false, message: 'Credenciales inválidas' });
+    }
+});
