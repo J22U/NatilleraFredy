@@ -156,14 +156,21 @@ function guardarProgresoDebounce() {
 }
 
 // Extrae los nombres y pagos de una tabla específica
-function obtenerParticipantesDeTabla(card) {
+function obtenerParticipantesDeTabla(tablaElemento) {
     const participantes = {};
-    card.querySelectorAll('.n-slot').forEach(slot => {
-        const numero = slot.querySelector('.n-number').innerText;
-        const nombre = slot.querySelector('.n-name').value;
-        const pago = slot.querySelector('.pay-check').checked;
-        if (nombre.trim() !== '' || pago) {
-            participantes[numero] = { nombre, pago };
+    const slots = tablaElemento.querySelectorAll('.n-slot');
+
+    slots.forEach(slot => {
+        const numero = slot.querySelector('.n-number')?.textContent;
+        // IMPORTANTE: Ahora el nombre está en un div/span, no en un input value
+        const nombre = slot.querySelector('.n-name')?.textContent.trim(); 
+
+        if (nombre && nombre !== "") {
+            participantes[numero] = {
+                nombre: nombre,
+                // CAMBIO CLAVE: En lugar de .checked, miramos si tiene la clase 'paid'
+                pago: slot.classList.contains('paid') 
+            };
         }
     });
     return participantes;
@@ -634,4 +641,69 @@ function recolectarDatosPantalla() {
 
     return datosParaEnviar;
 }
-// ... (Las funciones de búsqueda y excel se mantienen igual)
+
+function abrirModalCompra(idTabla, numero) {
+    // 1. Identificar el slot (cuadrito) que se clickeó
+    const slotId = `t${idTabla}-${numero}`;
+    const slot = document.getElementById(slotId);
+    
+    if (!slot) return;
+
+    // 2. Obtener datos actuales del slot
+    const nombreActual = slot.querySelector('.n-name')?.textContent || "";
+    const estaPagado = slot.classList.contains('paid');
+
+    // 3. Llenar los campos del modal
+    // Asegúrate de tener estos IDs en tu HTML del modal
+    document.getElementById('modalNombre').value = nombreActual;
+    document.getElementById('modalPago').checked = estaPagado;
+    
+    // Guardamos la referencia de qué estamos editando en atributos 'data' del modal
+    const modalElement = document.getElementById('modalCompra');
+    modalElement.dataset.tablaRef = idTabla;
+    modalElement.dataset.numeroRef = numero;
+
+    // 4. Mostrar el modal (depende de tu librería, si es CSS puro usa .display = 'flex')
+    modalElement.style.display = 'flex';
+    modalElement.classList.add('active');
+}
+
+function confirmarCompra() {
+    const modal = document.getElementById('modalCompra');
+    const idTabla = modal.dataset.tablaRef;
+    const numero = modal.dataset.numeroRef;
+    
+    const nuevoNombre = document.getElementById('modalNombre').value.trim().toUpperCase();
+    const pagado = document.getElementById('modalPago').checked;
+
+    // Buscamos el cuadrito en la tabla para actualizarlo visualmente
+    const slot = document.getElementById(`t${idTabla}-${numero}`);
+    
+    if (slot) {
+        const nameDiv = slot.querySelector('.n-name');
+        
+        if (nuevoNombre === "") {
+            // Si borraron el nombre, limpiamos el cuadrito
+            nameDiv.textContent = "";
+            slot.classList.remove('paid', 'reserved');
+        } else {
+            // Actualizamos nombre y colores
+            nameDiv.textContent = nuevoNombre;
+            if (pagado) {
+                slot.classList.add('paid');
+                slot.classList.remove('reserved');
+            } else {
+                slot.classList.add('reserved');
+                slot.classList.remove('paid');
+            }
+        }
+    }
+
+    // Cerramos modal y disparamos el guardado automático a la base de datos
+    cerrarModal();
+    guardarTodo(); 
+}
+
+function cerrarModal() {
+    document.getElementById('modalCompra').style.display = 'none';
+}
