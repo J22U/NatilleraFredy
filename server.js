@@ -298,8 +298,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                 SELECT 
                     ID_Prestamo, 
                     MontoPrestado, 
-                    TasaInteres,      -- El porcentaje (ej: 5%)
-                    MontoInteres,     -- El valor en dinero del interés
+                    TasaInteres, 
+                    MontoInteres,
+                    Cuotas,          -- <--- ASEGÚRATE DE QUE ESTÉ AQUÍ
                     SaldoActual, 
                     Estado, 
                     FORMAT(Fecha, 'dd/MM/yyyy') as FechaPrestamo 
