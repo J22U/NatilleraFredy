@@ -541,11 +541,13 @@ function reordenarBadges() {
  */
 function recolectarDatosPantalla() {
     const tablas = [];
+    // Buscamos todas las tarjetas de rifa en pantalla
     document.querySelectorAll('.rifa-card').forEach(card => {
         const id = card.id.replace('rifa-', '');
         const titulo = card.querySelector('.input-table-title')?.value || '';
         const numeros = [];
 
+        // Recolectamos cada número, nombre y estado
         card.querySelectorAll('.n-slot').forEach(slot => {
             numeros.push({
                 n: slot.querySelector('.n-number')?.textContent || '',
@@ -557,8 +559,9 @@ function recolectarDatosPantalla() {
         tablas.push({ id, titulo, numeros });
     });
 
+    // Retornamos el objeto completo que el servidor espera recibir
     return {
-        nombre: document.getElementById('rifaName')?.value || 'Rifa',
+        nombre: document.getElementById('rifaName')?.value || '',
         premio: document.getElementById('rifaPrize')?.value || '',
         valor: document.getElementById('rifaCost')?.value || '',
         fecha: document.getElementById('rifaDate')?.value || '',

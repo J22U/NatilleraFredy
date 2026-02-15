@@ -83,23 +83,17 @@ app.get('/api/cargar-rifas', async (req, res) => {
 
 app.post('/api/guardar-rifa', (req, res) => {
     try {
-        const nuevosDatos = req.body;
-        
-        // Usamos path.join para que funcione en Render sin importar la carpeta
+        const fs = require('fs');
+        const path = require('path');
+        // USAR RUTA ABSOLUTA ES CLAVE EN RENDER
         const rutaArchivo = path.join(__dirname, 'rifas.json');
 
-        // Escribimos el archivo de forma sincrónica para asegurar el guardado
-        fs.writeFileSync(rutaArchivo, JSON.stringify(nuevosDatos, null, 2), 'utf8');
-        
-        console.log("✅ Datos guardados con éxito en:", rutaArchivo);
-        res.json({ success: true, message: "Servidor actualizado" });
+        fs.writeFileSync(rutaArchivo, JSON.stringify(req.body, null, 2), 'utf8');
+        console.log("✅ Archivo actualizado correctamente");
+        res.json({ success: true });
     } catch (error) {
-        console.error("❌ ERROR CRÍTICO AL GUARDAR:", error);
-        res.status(500).json({ 
-            success: false, 
-            error: "El servidor no pudo escribir el archivo JSON",
-            detalles: error.message 
-        });
+        console.error("❌ Error en el servidor:", error);
+        res.status(500).json({ error: "No se pudo guardar el archivo" });
     }
 });
 
