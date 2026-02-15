@@ -304,6 +304,26 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
     }
 });
 
+// --- OBTENER PRÉSTAMOS ACTIVOS DE UN SOCIO PARA EL SELECTOR ---
+app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.idPersona)
+            .query(`
+                SELECT ID_Prestamo, 
+                       SaldoActual, 
+                       MontoPrestado,
+                       FORMAT(Fecha, 'dd/MM/yyyy') as Fecha
+                FROM Prestamos 
+                WHERE ID_Persona = @id AND Estado = 'Activo'
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json([]);
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
