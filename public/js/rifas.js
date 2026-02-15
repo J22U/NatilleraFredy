@@ -89,6 +89,23 @@ function guardarTodo() {
     sincronizarConServidor(datos);
 }
 
+let timerDebounce;
+
+function guardarProgresoDebounce() {
+    // 1. Si el usuario sigue escribiendo, cancelamos el temporizador anterior
+    clearTimeout(timerDebounce);
+
+    // 2. Mostramos visualmente que el sistema está "esperando para guardar"
+    const status = document.getElementById('sync-status');
+    if (status) status.className = 'sync-saving'; 
+
+    // 3. Programamos el guardado para dentro de 500ms (medio segundo)
+    timerDebounce = setTimeout(() => {
+        console.log("💾 Guardado automático ejecutado...");
+        guardarTodo();
+    }, 500); 
+}
+
 // Extrae los nombres y pagos de una tabla específica
 function obtenerParticipantesDeTabla(card) {
     const participantes = {};
@@ -112,12 +129,16 @@ function actualizarColor(tableId, n) {
     slot.classList.remove('paid', 'reserved');
     if (pago) slot.classList.add('paid');
     else if (nombre !== '') slot.classList.add('reserved');
+
+    // Iniciamos el temporizador de guardado inteligente
+    guardarProgresoDebounce();
 }
 
 // Se ejecuta al marcar el checkbox de pago
 function actualizarEstado(tableId, n) {
     actualizarColor(tableId, n);
-    guardarTodo(); // O puedes usar guardarCambioIndividual(tableId)
+    // Para el pago no usamos debounce, guardamos de inmediato
+    guardarTodo(); 
 }
 
 // --- ACTUALIZACIÓN Y COLORES ---
