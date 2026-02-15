@@ -5,54 +5,67 @@ let ultimaSincronizacionManual = 0;
 
 function crearTabla(t = {}) {
     const container = document.getElementById('rifasContainer');
-    // Usamos el idTabla que asignamos en cargarRifas (1, 2, 3 o 4)
+    // Si no hay idTabla, usamos el conteo de hijos + 1
     const idTabla = t.idTabla || (container.children.length + 1);
     const participantes = t.participantes || {};
 
-    const tablaDiv = document.createElement('div');
-    tablaDiv.className = 'tabla-rifa';
-    // Guardamos el índice de la tabla en el HTML para saber cuál estamos editando
-    tablaDiv.dataset.index = idTabla; 
+    // 1. Creamos la estructura del Acordeón (rifa-card)
+    const card = document.createElement('div');
+    card.className = 'rifa-card active'; // "active" para que se vea desplegada de una vez
 
-    // Título de la tabla
-    const titulo = document.createElement('h3');
-    titulo.innerText = t.nombre || `Tabla ${idTabla}`;
-    tablaDiv.appendChild(titulo);
+    // 2. Cabecera de la tarjeta
+    const header = document.createElement('div');
+    header.className = 'rifa-card-header';
+    header.innerHTML = `
+        <div>
+            <span class="tabla-badge">${idTabla}</span>
+            <input type="text" class="input-table-title" value="${t.nombre || t.titulo || 'Tabla ' + idTabla}">
+        </div>
+        <i class="fas fa-chevron-down arrow-icon"></i>
+    `;
+    card.appendChild(header);
 
+    // 3. Cuerpo de la tarjeta
+    const body = document.createElement('div');
+    body.className = 'rifa-card-body';
+    
+    // 4. LA GRILLA (Usando tu clase .numeros-grid)
     const grid = document.createElement('div');
-    grid.className = 'rifa-grid';
+    grid.className = 'numeros-grid';
 
+    // 5. Generar los 100 slots (Usando tu clase .n-slot)
     for (let i = 0; i < 100; i++) {
         const numStr = i.toString().padStart(2, '0');
-        const btn = document.createElement('div');
-        btn.className = 'numero';
-        
-        // --- CAMBIO CLAVE: ID ÚNICO POR TABLA ---
-        btn.id = `t${idTabla}-${numStr}`; 
-        
-        // Guardamos el número limpio en un atributo para usarlo al guardar
-        btn.dataset.numero = numStr; 
+        const slot = document.createElement('div');
+        slot.className = 'n-slot';
+        slot.id = `t${idTabla}-${numStr}`; // ID Único para que no se borren
 
-        // Verificamos si este número ya tiene dueño en los datos cargados
-        if (participantes[numStr]) {
-            const p = participantes[numStr];
-            btn.classList.add('ocupado');
-            if (p.pago) btn.classList.add('pagado');
+        // Verificamos si tiene dueño en la base de datos
+        const p = participantes[numStr];
+        if (p) {
+            if (p.pago) slot.classList.add('paid'); // Clase verde de tu CSS
+            else slot.classList.add('reserved');    // Clase amarilla de tu CSS
             
-            // Mostramos el nombre del participante
-            btn.innerHTML = `<strong>${numStr}</strong><br><small>${p.nombre}</small>`;
+            slot.innerHTML = `
+                <span class="n-number">${numStr}</span>
+                <div class="n-name">${p.nombre}</div>
+            `;
         } else {
-            btn.innerHTML = `<strong>${numStr}</strong>`;
+            slot.innerHTML = `
+                <span class="n-number">${numStr}</span>
+                <div class="n-name"></div>
+            `;
         }
 
-        // Evento para abrir el modal de compra
-        btn.onclick = () => abrirModalCompra(idTabla, numStr);
+        // Evento para abrir el modal
+        slot.onclick = () => abrirModalCompra(idTabla, numStr);
         
-        grid.appendChild(btn);
+        grid.appendChild(slot);
     }
 
-    tablaDiv.appendChild(grid);
-    container.appendChild(tablaDiv);
+    body.appendChild(grid);
+    card.appendChild(body);
+    container.appendChild(card);
 }
 
 function generarCeldas(tableId, datos) {
