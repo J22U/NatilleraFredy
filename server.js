@@ -314,12 +314,13 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
                 SELECT ID_Prestamo, 
                        SaldoActual, 
                        MontoPrestado,
-                       FORMAT(Fecha, 'dd/MM/yyyy') as Fecha
+                       FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada
                 FROM Prestamos 
                 WHERE ID_Persona = @id AND Estado = 'Activo'
             `);
         res.json(result.recordset);
     } catch (err) {
+        console.error("Error al obtener préstamos:", err);
         res.status(500).json([]);
     }
 });

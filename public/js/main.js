@@ -853,3 +853,39 @@ async function ejecutarCruceCuentas() {
         Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
     }
 }
+
+async function verificarTipoMovimiento() {
+    const tipo = document.getElementById('tipoMovimiento').value;
+    const grupoPrestamos = document.getElementById('grupo-prestamos');
+    const selectPrestamo = document.getElementById('selectPrestamo');
+    
+    // IMPORTANTE: Asegúrate de tener guardado el ID del socio al que le diste click
+    const idSocio = document.getElementById('idSocioMovimiento').value; 
+
+    if (tipo === 'deuda') {
+        try {
+            const response = await fetch(`/api/prestamos-activos/${idSocio}`);
+            const prestamos = await response.json();
+
+            if (prestamos.length === 0) {
+                alert("Este socio no tiene deudas activas.");
+                document.getElementById('tipoMovimiento').value = 'ahorro';
+                grupoPrestamos.style.display = 'none';
+                return;
+            }
+
+            // Llenamos el select con los préstamos encontrados
+            selectPrestamo.innerHTML = prestamos.map(p => `
+                <option value="${p.ID_Prestamo}">
+                    Prestamo: $${p.MontoPrestado} - Saldo: $${p.SaldoActual} (${p.FechaFormateada})
+                </option>
+            `).join('');
+
+            grupoPrestamos.style.display = 'block'; // Mostramos el select
+        } catch (error) {
+            console.error("Error cargando préstamos:", error);
+        }
+    } else {
+        grupoPrestamos.style.display = 'none'; // Es ahorro, escondemos el select
+    }
+}
