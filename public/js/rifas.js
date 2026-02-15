@@ -218,7 +218,7 @@ async function cargarRifas() {
         const datos = await response.json();
 
         if (datos && !datos.error) {
-            // 1. Llenar inputs de información general
+            // 1. Llenar inputs de información general (Rifa Name, Premio, etc.)
             if(datos.info) {
                 document.getElementById('rifaName').value = datos.info.nombre || '';
                 document.getElementById('rifaPrize').value = datos.info.premio || '';
@@ -226,23 +226,27 @@ async function cargarRifas() {
                 document.getElementById('rifaDate').value = datos.info.fecha || '';
             }
 
-            // 2. Limpiar el contenedor antes de dibujar
+            // 2. Limpiar el contenedor
             container.innerHTML = ''; 
 
-            // 3. PROCESAR LAS 4 TABLAS
-            // Forzamos el recorrido del 1 al 4 para asegurar que todas se dibujen
-            for (let i = 1; i <= 4; i++) {
-                // Buscamos si la tabla existe en los datos (tabla1, tabla2...), 
-                // si no existe, creamos un objeto base con participantes vacíos.
-                const tablaData = datos[`tabla${i}`] || { participantes: {} };
+            // 3. CAMBIO CLAVE: Leer la propiedad "tablas" que está en tu JSON
+            // Según tu imagen, los datos están en datos.tablas
+            if (datos.tablas && Array.isArray(datos.tablas)) {
                 
-                // ASIGNAMOS NOMBRE E ID PARA EVITAR EL 'UNDEFINED'
-                // Esto garantiza que crearTabla(t) sepa qué título poner y qué ID usar
-                tablaData.nombre = `Tabla ${i}`; 
-                tablaData.idTabla = i; 
+                datos.tablas.forEach((t, index) => {
+                    // Aseguramos que la tabla tenga un nombre para que no salga undefined
+                    // Usamos el 'titulo' que ya tienes en la DB ("TABLA 1", etc.)
+                    t.nombre = t.titulo || `Tabla ${index + 1}`;
+                    t.idTabla = index + 1; 
 
-                // 4. Dibujar la tabla inmediatamente
-                crearTabla(tablaData);
+                    crearTabla(t);
+                });
+
+            } else {
+                // Si por alguna razón no hay tablas, creamos las 4 vacías
+                for(let i = 1; i <= 4; i++) { 
+                    crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} }); 
+                }
             }
         }
     } catch (error) {
