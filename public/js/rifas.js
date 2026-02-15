@@ -541,39 +541,24 @@ function reordenarBadges() {
  */
 function recolectarDatosPantalla() {
     const tablas = [];
-    const cards = document.querySelectorAll('.rifa-card');
-
-    cards.forEach(card => {
+    document.querySelectorAll('.rifa-card').forEach(card => {
         const id = card.id.replace('rifa-', '');
         const titulo = card.querySelector('.input-table-title')?.value || '';
-        const slots = [];
+        const numeros = [];
 
-        // Recolectamos cada número de esta tabla
         card.querySelectorAll('.n-slot').forEach(slot => {
-            const numero = slot.querySelector('.n-number')?.textContent || '';
-            const nombre = slot.querySelector('.n-name')?.value || '';
-            let estado = 'free';
-            
-            if (slot.classList.contains('paid')) estado = 'paid';
-            else if (slot.classList.contains('reserved')) estado = 'reserved';
-
-            slots.push({
-                n: numero,
-                nombre: nombre,
-                estado: estado
+            numeros.push({
+                n: slot.querySelector('.n-number')?.textContent || '',
+                nombre: slot.querySelector('.n-name')?.value || '',
+                estado: slot.classList.contains('paid') ? 'paid' : 
+                        slot.classList.contains('reserved') ? 'reserved' : 'free'
             });
         });
-
-        tablas.push({
-            id: id,
-            titulo: titulo,
-            numeros: slots
-        });
+        tablas.push({ id, titulo, numeros });
     });
 
-    // Retornamos el objeto completo incluyendo la info general de la rifa
     return {
-        nombre: document.getElementById('rifaName')?.value || '',
+        nombre: document.getElementById('rifaName')?.value || 'Rifa',
         premio: document.getElementById('rifaPrize')?.value || '',
         valor: document.getElementById('rifaCost')?.value || '',
         fecha: document.getElementById('rifaDate')?.value || '',

@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
 const { sql, poolPromise } = require('./db');
 
@@ -80,42 +81,25 @@ app.get('/api/cargar-rifas', async (req, res) => {
     }
 });
 
-app.post('/api/guardar-rifa', async (req, res) => {
+app.post('/api/guardar-rifa', (req, res) => {
     try {
-        const pool = await poolPromise;
-        const { info, tablas } = req.body;
+        const nuevosDatos = req.body;
+        
+        // Usamos path.join para que funcione en Render sin importar la carpeta
+        const rutaArchivo = path.join(__dirname, 'rifas.json');
 
-        await pool.request()
-            .input('nr', sql.VarChar, info.nombre)
-            .input('pr', sql.VarChar, info.premio)
-            .input('vp', sql.Decimal(18, 2), info.valor)
-            .input('fs', sql.Date, info.fecha)
-            .query(`IF EXISTS (SELECT 1 FROM Rifas_Config WHERE Id = 1)
-                    UPDATE Rifas_Config SET NombreRifa=@nr, Premio=@pr, ValorPuesto=@vp, FechaSorteo=@fs WHERE Id = 1
-                    ELSE
-                    INSERT INTO Rifas_Config (NombreRifa, Premio, ValorPuesto, FechaSorteo) VALUES (@nr, @pr, @vp, @fs)`);
-
-        for (const tabla of tablas) {
-            for (const [numero, data] of Object.entries(tabla.participantes)) {
-                if (data.nombre && (data.nombre.trim() !== '' || data.pago)) {
-                    await pool.request()
-                        .input('tid', sql.BigInt, tabla.id)
-                        .input('num', sql.Char(2), numero)
-                        .input('nom', sql.VarChar, data.nombre)
-                        .input('pago', sql.Bit, data.pago)
-                        .input('tit', sql.VarChar, tabla.titulo)
-                        .query(`MERGE INTO Rifas_Detalle AS target
-                                USING (SELECT @tid as tid, @num as num) AS source
-                                ON (target.TablaId = source.tid AND target.Numero = source.num)
-                                WHEN MATCHED THEN UPDATE SET NombreParticipante = @nom, EstadoPago = @pago, TituloTabla = @tit
-                                WHEN NOT MATCHED THEN INSERT (TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla)
-                                VALUES (@tid, @num, @nom, @pago, @tit);`);
-                }
-            }
-        }
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+        // Escribimos el archivo de forma sincrónica para asegurar el guardado
+        fs.writeFileSync(rutaArchivo, JSON.stringify(nuevosDatos, null, 2), 'utf8');
+        
+        console.log("✅ Datos guardados con éxito en:", rutaArchivo);
+        res.json({ success: true, message: "Servidor actualizado" });
+    } catch (error) {
+        console.error("❌ ERROR CRÍTICO AL GUARDAR:", error);
+        res.status(500).json({ 
+            success: false, 
+            error: "El servidor no pudo escribir el archivo JSON",
+            detalles: error.message 
+        });
     }
 });
 
