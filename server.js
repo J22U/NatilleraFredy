@@ -231,6 +231,53 @@ app.get('/reporte-general', async (req, res) => {
     } catch (err) { res.status(500).json({ TotalAhorrado: 0 }); }
 });
 
+// --- RUTAS PARA EL RESUMEN DEL SOCIO ---
+
+// 1. Obtener totales (Ahorro total y Deuda actual)
+app.get('/estado-cuenta/:id', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`SELECT 
+                    (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros WHERE ID_Persona = @id) as totalAhorrado,
+                    ISNULL((SELECT SUM(SaldoActual) FROM Prestamos WHERE ID_Persona = @id AND Estado = 'Activo'), 0) as deudaTotal`);
+        res.json(result.recordset[0]);
+    } catch (err) {
+        res.status(500).json({ totalAhorrado: 0, deudaTotal: 0 });
+    }
+});
+
+// 2. Historial de Ahorros
+app.get('/historial-ahorros/:id', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query("SELECT Monto, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada FROM Ahorros WHERE ID_Persona = @id ORDER BY Fecha DESC");
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json([]);
+    }
+});
+
+// 3. Historial de Abonos a Deuda
+app.get('/historial-abonos-deuda/:id', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
+                SELECT h.Monto as Monto_Abonado, FORMAT(h.Fecha, 'dd/MM/yyyy') as FechaFormateada
+                FROM HistorialPagos h
+                WHERE h.ID_Persona = @id AND h.TipoMovimiento = 'Abono Deuda'
+                ORDER BY h.Fecha DESC`);
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json([]);
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
