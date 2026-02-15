@@ -46,54 +46,32 @@ app.post('/login', (req, res) => {
 
 // --- 3. RUTAS DE RIFAS ---
 
-app.get('/api/cargar-rifas', async (req, res) => {
+// --- RUTAS DE RIFAS CORREGIDAS ---
+
+app.get('/api/cargar-rifas', (req, res) => {
     try {
-        const pool = await poolPromise;
-        const configRes = await pool.request().query("SELECT * FROM Rifas_Config WHERE Id = 1");
-        const detallesRes = await pool.request().query("SELECT * FROM Rifas_Detalle");
-
-        if (configRes.recordset.length === 0) return res.json({ info: {}, tablas: [] });
-
-        const info = configRes.recordset[0];
-        const tablasMap = {};
-
-        detallesRes.recordset.forEach(row => {
-            if (!tablasMap[row.TablaId]) {
-                tablasMap[row.TablaId] = { id: row.TablaId, titulo: row.TituloTabla, participantes: {} };
-            }
-            tablasMap[row.TablaId].participantes[row.Numero] = {
-                nombre: row.NombreParticipante,
-                pago: row.EstadoPago
-            };
-        });
-
-        res.json({
-            info: {
-                nombre: info.NombreRifa,
-                premio: info.Premio,
-                valor: info.ValorPuesto,
-                fecha: info.FechaSorteo ? info.FechaSorteo.toISOString().split('T')[0] : ''
-            },
-            tablas: Object.values(tablasMap)
-        });
+        const rutaArchivo = path.join(__dirname, 'rifas.json');
+        if (!fs.existsSync(rutaArchivo)) {
+            return res.json({ info: {}, tablas: [] });
+        }
+        const data = fs.readFileSync(rutaArchivo, 'utf8');
+        res.json(JSON.parse(data));
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("❌ Error al cargar:", err);
+        res.status(500).json({ error: "Fallo al leer rifas.json" });
     }
 });
 
 app.post('/api/guardar-rifa', (req, res) => {
     try {
-        const fs = require('fs');
-        const path = require('path');
-        // USAR RUTA ABSOLUTA ES CLAVE EN RENDER
         const rutaArchivo = path.join(__dirname, 'rifas.json');
-
+        // Guardamos lo que viene del cuerpo de la petición
         fs.writeFileSync(rutaArchivo, JSON.stringify(req.body, null, 2), 'utf8');
-        console.log("✅ Archivo actualizado correctamente");
+        console.log("✅ Archivo rifas.json actualizado correctamente");
         res.json({ success: true });
     } catch (error) {
-        console.error("❌ Error en el servidor:", error);
-        res.status(500).json({ error: "No se pudo guardar el archivo" });
+        console.error("❌ Error al guardar:", error);
+        res.status(500).json({ error: "No se pudo escribir el archivo" });
     }
 });
 
@@ -314,51 +292,6 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
     } catch (err) {
         console.error("Error al obtener préstamos:", err);
         res.status(500).json([]);
-    }
-});
-
-// 1. RUTA PARA GUARDAR (POST)
-// --- RUTAS DE RIFAS UNIFICADAS ---
-
-// 1. RUTA PARA GUARDAR TODO (POST)
-app.post('/api/guardar-rifa', async (req, res) => {
-    try {
-        const { info, tablas } = req.body;
-        const pool = await poolPromise;
-        
-        // Guardamos todo el paquete como un solo texto gigante (JSON)
-        await pool.request()
-            .input('datos', sql.NVarChar(sql.MAX), JSON.stringify({ info, tablas }))
-            .query(`
-                UPDATE ConfiguracionRifas 
-                SET DatosJSON = @datos, UltimaActualizacion = GETDATE() 
-                WHERE Id = 1
-            `);
-
-        res.json({ success: true });
-    } catch (err) {
-        console.error("Error al guardar rifa:", err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 2. RUTA PARA CARGAR TODO (GET)
-app.get('/api/cargar-rifas', async (req, res) => {
-    try {
-        const pool = await poolPromise;
-        const result = await pool.request()
-            .query("SELECT DatosJSON FROM ConfiguracionRifas WHERE Id = 1");
-        
-        if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
-            // Enviamos el JSON de vuelta al frontend
-            res.json(JSON.parse(result.recordset[0].DatosJSON));
-        } else {
-            // Si la tabla está vacía, enviamos estructura base
-            res.json({ info: {}, tablas: [] });
-        }
-    } catch (err) {
-        console.error("Error al cargar rifa:", err);
-        res.status(500).json({ error: "Error al leer la base de datos" });
     }
 });
 
