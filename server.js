@@ -48,30 +48,36 @@ app.post('/login', (req, res) => {
 
 // --- RUTAS DE RIFAS CORREGIDAS ---
 
-app.get('/api/cargar-rifas', (req, res) => {
+// --- RUTAS DE RIFAS PERSISTENTES (SQL) ---
+
+app.get('/api/cargar-rifas', async (req, res) => {
     try {
-        const rutaArchivo = path.join(__dirname, 'rifas.json');
-        if (!fs.existsSync(rutaArchivo)) {
-            return res.json({ info: {}, tablas: [] });
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .query("SELECT DatosJSON FROM ConfiguracionRifas WHERE Id = 1");
+        
+        if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
+            res.json(JSON.parse(result.recordset[0].DatosJSON));
+        } else {
+            res.json({ info: {}, tablas: [] });
         }
-        const data = fs.readFileSync(rutaArchivo, 'utf8');
-        res.json(JSON.parse(data));
     } catch (err) {
-        console.error("❌ Error al cargar:", err);
-        res.status(500).json({ error: "Fallo al leer rifas.json" });
+        res.status(500).json({ error: "Error al leer la base de datos" });
     }
 });
 
-app.post('/api/guardar-rifa', (req, res) => {
+app.post('/api/guardar-rifa', async (req, res) => {
     try {
-        const rutaArchivo = path.join(__dirname, 'rifas.json');
-        // Guardamos lo que viene del cuerpo de la petición
-        fs.writeFileSync(rutaArchivo, JSON.stringify(req.body, null, 2), 'utf8');
-        console.log("✅ Archivo rifas.json actualizado correctamente");
+        const pool = await poolPromise;
+        // Esta consulta busca la fila Id = 1 que acabamos de asegurar con el paso anterior
+        await pool.request()
+            .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(req.body))
+            .query("UPDATE ConfiguracionRifas SET DatosJSON = @datos, UltimaActualizacion = GETDATE() WHERE Id = 1");
+        
         res.json({ success: true });
-    } catch (error) {
-        console.error("❌ Error al guardar:", error);
-        res.status(500).json({ error: "No se pudo escribir el archivo" });
+    } catch (err) {
+        console.error("❌ Error real en SQL:", err.message);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
