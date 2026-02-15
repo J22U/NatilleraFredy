@@ -534,4 +534,50 @@ function reordenarBadges() {
         badge.innerText = `#${index + 1}`;
     });
 }
+
+/**
+ * Escanea la pantalla actual y genera un objeto con todos los datos
+ * para guardarlos en el LocalStorage y enviarlos al servidor.
+ */
+function recolectarDatosPantalla() {
+    const tablas = [];
+    const cards = document.querySelectorAll('.rifa-card');
+
+    cards.forEach(card => {
+        const id = card.id.replace('rifa-', '');
+        const titulo = card.querySelector('.input-table-title')?.value || '';
+        const slots = [];
+
+        // Recolectamos cada número de esta tabla
+        card.querySelectorAll('.n-slot').forEach(slot => {
+            const numero = slot.querySelector('.n-number')?.textContent || '';
+            const nombre = slot.querySelector('.n-name')?.value || '';
+            let estado = 'free';
+            
+            if (slot.classList.contains('paid')) estado = 'paid';
+            else if (slot.classList.contains('reserved')) estado = 'reserved';
+
+            slots.push({
+                n: numero,
+                nombre: nombre,
+                estado: estado
+            });
+        });
+
+        tablas.push({
+            id: id,
+            titulo: titulo,
+            numeros: slots
+        });
+    });
+
+    // Retornamos el objeto completo incluyendo la info general de la rifa
+    return {
+        nombre: document.getElementById('rifaName')?.value || '',
+        premio: document.getElementById('rifaPrize')?.value || '',
+        valor: document.getElementById('rifaCost')?.value || '',
+        fecha: document.getElementById('rifaDate')?.value || '',
+        tablas: tablas
+    };
+}
 // ... (Las funciones de búsqueda y excel se mantienen igual)
