@@ -224,11 +224,21 @@ app.get('/reporte-general', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT 
-            ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) - (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')) as TotalAhorrado,
-            (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
-            (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas`);
+                -- 1. Total Ahorrado (Suma de todos los ahorros menos retiros)
+                (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) as TotalAhorrado,
+
+                -- 2. Capital Prestado (SUMA SOLO EL MONTO ORIGINAL de préstamos activos)
+                -- Cambiamos SaldoActual por MontoPrestado para ignorar el interés
+                (SELECT ISNULL(SUM(MontoPrestado), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
+
+                -- 3. Ganancias Brutas (Lo que ya se cobró de intereses)
+                (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas
+        `);
         res.json(result.recordset[0]);
-    } catch (err) { res.status(500).json({ TotalAhorrado: 0 }); }
+    } catch (err) {
+        console.error("Error en reporte-general:", err);
+        res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0 });
+    }
 });
 
 // --- RUTAS PARA EL RESUMEN DEL SOCIO ---
