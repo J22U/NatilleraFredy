@@ -754,59 +754,44 @@ async function verListaRapidaDeudores() {
 }
 
 async function toggleDeudas() {
-    const numPantalla = document.getElementById('mov_id').value; // El # de la fila
+    const numPantalla = document.getElementById('mov_id').value;
     const tipo = document.getElementById('mov_tipo').value;
     const select = document.getElementById('mov_prestamo_id');
     const divSelector = document.getElementById('div_selector_deuda');
 
-    // 1. Usamos el mapeo que creaste en listarMiembros
     const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
-
-    // Si el tipo es deuda pero no hay ID escrito, avisamos y ocultamos
-    if (tipo === 'deuda' && !numPantalla) {
-        divSelector.classList.add('hidden');
-        return;
-    }
 
     if (tipo === 'deuda' && idReal) {
         try {
-            console.log("Buscando deudas para Socio ID Real:", idReal);
-            
-            // CORRECCIÓN: Agregamos /api/ para que coincida con la ruta del servidor
             const res = await fetch(`/api/prestamos-activos/${idReal}`);
-            
-            // Si el servidor no responde bien, lanzamos error para caer en el catch
-            if (!res.ok) throw new Error("Error en la respuesta del servidor");
-            
             const deudas = await res.json();
 
             if (deudas && deudas.length > 0) {
-                // Llenamos el select con los préstamos encontrados
-                select.innerHTML = deudas.map((d, index) => `
-    <option value="${d.ID_Prestamo}">
-        Préstamo #${index + 1} (Saldo: $${Number(d.SaldoActual).toLocaleString()})
-    </option>
-`).join('');
+                // 1. Invertimos para que el más nuevo sea el primero en la lista
+                const deudasInvertidas = [...deudas].reverse();
+                const totalDeudas = deudas.length;
+
+                // 2. Mapeamos usando el cálculo (Total - index) para que coincida con el historial
+                select.innerHTML = deudasInvertidas.map((d, index) => {
+                    const numeroConsecutivo = totalDeudas - index;
+                    return `
+                        <option value="${d.ID_Prestamo}">
+                            Préstamo #${numeroConsecutivo} (Saldo: $${Number(d.SaldoActual).toLocaleString()})
+                        </option>
+                    `;
+                }).join('');
+                
                 divSelector.classList.remove('hidden');
             } else {
-                // Si el socio no tiene deudas, informamos y regresamos a "Ahorro"
-                Swal.fire({
-                    icon: 'info',
-                    title: 'Sin deudas',
-                    text: 'Este socio no tiene préstamos activos actualmente.',
-                    confirmButtonColor: '#3b82f6'
-                });
+                Swal.fire('Atención', 'Este socio no tiene deudas activas.', 'info');
                 document.getElementById('mov_tipo').value = 'ahorro';
                 divSelector.classList.add('hidden');
             }
         } catch (error) {
-            console.error("Error al cargar deudas:", error);
-            divSelector.classList.add('hidden');
+            console.error("Error:", error);
         }
     } else {
-        // Si no es tipo deuda, ocultamos el selector
         divSelector.classList.add('hidden');
-        select.innerHTML = ''; 
     }
 }
 
