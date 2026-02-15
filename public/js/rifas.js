@@ -228,4 +228,47 @@ window.onbeforeunload = function (e) {
         return message;          // Estándar para algunos otros
     }
 };
+
+function buscarCliente() {
+    const texto = document.getElementById('searchInput').value.toLowerCase();
+    const slots = document.querySelectorAll('.n-slot');
+
+    slots.forEach(slot => {
+        const nombreInput = slot.querySelector('.n-name');
+        const nombre = nombreInput ? nombreInput.value.toLowerCase() : "";
+        
+        if (texto !== "" && nombre.includes(texto)) {
+            // Resaltamos el slot encontrado
+            slot.style.border = "2px solid var(--nat-blue)";
+            slot.style.transform = "scale(1.02)";
+            slot.style.zIndex = "10";
+            
+            // Truco: Encontrar la tabla padre y abrirla si está cerrada
+            const card = slot.closest('.rifa-card');
+            if (card && !card.classList.contains('active')) {
+                card.classList.add('active');
+                const id = card.id.replace('rifa-', '');
+                const arrow = document.getElementById(`arrow-${id}`);
+                if (arrow) arrow.style.transform = 'rotate(90deg)';
+            }
+        } else {
+            // Restauramos el estilo original si no coincide
+            slot.style.border = "";
+            slot.style.transform = "";
+            slot.style.zIndex = "";
+            
+            // Si el buscador está vacío, podrías querer resetear los colores
+            actualizarColorAlVuelo(slot); 
+        }
+    });
+}
+
+// Función auxiliar para no perder los colores verde/naranja al buscar
+function actualizarColorAlVuelo(slot) {
+    const nombre = slot.querySelector('.n-name').value.trim();
+    const pagado = slot.querySelector('.pay-check').checked;
+    slot.classList.remove('reserved', 'paid');
+    if (pagado) slot.classList.add('paid');
+    else if (nombre !== '') slot.classList.add('reserved');
+}
 // ... (Las funciones de búsqueda y excel se mantienen igual)
