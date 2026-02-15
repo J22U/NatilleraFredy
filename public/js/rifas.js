@@ -3,38 +3,56 @@ let ultimaSincronizacionManual = 0;
 
 // --- LÓGICA DE TABLAS ---
 
-function crearTabla(datosCargados = null) {
-    // Si viene de la DB usamos su ID, si es nueva usamos Date.now()
-    const id = datosCargados ? datosCargados.id : Date.now();
+function crearTabla(t = {}) {
     const container = document.getElementById('rifasContainer');
-    const numeroTabla = document.querySelectorAll('.rifa-card').length + 1;
+    // Usamos el idTabla que asignamos en cargarRifas (1, 2, 3 o 4)
+    const idTabla = t.idTabla || (container.children.length + 1);
+    const participantes = t.participantes || {};
 
-    const card = document.createElement('div');
-    card.className = 'rifa-card collapsed'; 
-    card.id = `rifa-${id}`;
-    
-    card.innerHTML = `
-        <div class="rifa-card-header" onclick="toggleTabla('${id}')" style="cursor:pointer;">
-            <div style="display:flex; align-items:center; gap:10px; flex:1;">
-                <i class="fas fa-chevron-right arrow-icon" id="arrow-${id}"></i>
-                <span class="tabla-badge">#${numeroTabla}</span>
-                <input type="text" class="input-table-title" 
-                       value="${datosCargados ? datosCargados.titulo : 'Nueva Tabla'}" 
-                       onclick="event.stopPropagation()" 
-                       onchange="guardarTodo()" 
-                       style="border:none; font-weight:bold; outline:none; font-size:1.1rem; background:transparent;">
-            </div>
-            <button onclick="event.stopPropagation(); eliminarTabla('${id}')" class="btn-delete">
-                <i class="fas fa-trash-alt"></i>
-            </button>
-        </div>
-        <div class="rifa-card-body" id="body-${id}">
-            <div class="numeros-grid">
-                ${generarCeldas(id, datosCargados)}
-            </div>
-        </div>
-    `;
-    container.appendChild(card);
+    const tablaDiv = document.createElement('div');
+    tablaDiv.className = 'tabla-rifa';
+    // Guardamos el índice de la tabla en el HTML para saber cuál estamos editando
+    tablaDiv.dataset.index = idTabla; 
+
+    // Título de la tabla
+    const titulo = document.createElement('h3');
+    titulo.innerText = t.nombre || `Tabla ${idTabla}`;
+    tablaDiv.appendChild(titulo);
+
+    const grid = document.createElement('div');
+    grid.className = 'rifa-grid';
+
+    for (let i = 0; i < 100; i++) {
+        const numStr = i.toString().padStart(2, '0');
+        const btn = document.createElement('div');
+        btn.className = 'numero';
+        
+        // --- CAMBIO CLAVE: ID ÚNICO POR TABLA ---
+        btn.id = `t${idTabla}-${numStr}`; 
+        
+        // Guardamos el número limpio en un atributo para usarlo al guardar
+        btn.dataset.numero = numStr; 
+
+        // Verificamos si este número ya tiene dueño en los datos cargados
+        if (participantes[numStr]) {
+            const p = participantes[numStr];
+            btn.classList.add('ocupado');
+            if (p.pago) btn.classList.add('pagado');
+            
+            // Mostramos el nombre del participante
+            btn.innerHTML = `<strong>${numStr}</strong><br><small>${p.nombre}</small>`;
+        } else {
+            btn.innerHTML = `<strong>${numStr}</strong>`;
+        }
+
+        // Evento para abrir el modal de compra
+        btn.onclick = () => abrirModalCompra(idTabla, numStr);
+        
+        grid.appendChild(btn);
+    }
+
+    tablaDiv.appendChild(grid);
+    container.appendChild(tablaDiv);
 }
 
 function generarCeldas(tableId, datos) {
