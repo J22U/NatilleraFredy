@@ -250,3 +250,30 @@ body {
     .btn-excel span { display: none; }
     .btn-excel::after { content: 'Reporte'; }
 }
+
+#sync-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: 8px;
+    transition: all 0.3s ease;
+}
+
+.sync-idle { background-color: #bdc3c7; } /* Gris */
+
+.sync-saving { 
+    background-color: var(--nat-blue); 
+    box-shadow: 0 0 8px var(--nat-blue);
+    animation: pulse-sync 1s infinite;
+}
+
+.sync-success { 
+    background-color: var(--nat-green); 
+    box-shadow: 0 0 8px var(--nat-green);
+}
+
+@keyframes pulse-sync {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}

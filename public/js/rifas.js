@@ -99,6 +99,12 @@ function actualizarColor(tableId, numero) {
 // --- PERSISTENCIA (RENDER API) ---
 
 function guardarTodo() {
+    // 1. Cambiar estado a "Guardando"
+    const status = document.getElementById('sync-status');
+    if(status) {
+        status.className = 'sync-saving';
+    }
+
     const infoGeneral = {
         nombre: document.getElementById('rifaName').value,
         premio: document.getElementById('rifaPrize').value,
@@ -122,14 +128,35 @@ function guardarTodo() {
         todasLasTablas.push({ id, titulo, participantes });
     });
 
-    // Guardar copia local por si acaso
-    localStorage.setItem('mis_rifas', JSON.stringify(todasLasTablas));
-
-    // Sincronizar con el servidor de Render (Debounce de 1 seg)
     clearTimeout(syncTimeout);
     syncTimeout = setTimeout(() => {
         sincronizarConServidor({ info: infoGeneral, tablas: todasLasTablas });
     }, 1000); 
+}
+
+async function sincronizarConServidor(datos) {
+    const status = document.getElementById('sync-status');
+    try {
+        const response = await fetch('/api/guardar-rifa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(datos)
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            // 2. Cambiar a éxito
+            if(status) {
+                status.className = 'sync-success';
+                // Volver a gris después de 3 segundos
+                setTimeout(() => { status.className = 'sync-idle'; }, 3000);
+            }
+            console.log("Sincronizado");
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        if(status) status.style.backgroundColor = 'red'; // Error crítico
+    }
 }
 
 async function sincronizarConServidor(datos) {
