@@ -278,12 +278,17 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
-                SELECT h.Monto as Monto_Abonado, FORMAT(h.Fecha, 'dd/MM/yyyy') as FechaFormateada
-                FROM HistorialPagos h
-                WHERE h.ID_Persona = @id AND h.TipoMovimiento = 'Abono Deuda'
-                ORDER BY h.Fecha DESC`);
+                SELECT 
+                    Monto as Monto_Abonado, 
+                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada,
+                    ID_Prestamo -- Para saber a qué préstamo se le aplicó
+                FROM HistorialPagos 
+                WHERE ID_Persona = @id AND TipoMovimiento = 'Abono Deuda'
+                ORDER BY Fecha DESC
+            `);
         res.json(result.recordset);
     } catch (err) {
+        console.error("Error en historial-abonos:", err);
         res.status(500).json([]);
     }
 });
