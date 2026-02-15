@@ -447,4 +447,46 @@ function generarPDF() {
         elemento.classList.remove('pdf-mode');
     });
 }
+
+function eliminarTabla(id) {
+    // 1. Mostrar la alerta de confirmación
+    const mensaje = "¿Estás seguro de que deseas eliminar esta tabla? \n\nEsta acción no se puede deshacer y se borrarán todos los nombres y estados de pago de esta tabla.";
+    
+    if (confirm(mensaje)) {
+        // 2. Si el usuario acepta, buscamos el elemento
+        const tabla = document.getElementById(`rifa-${id}`);
+        
+        if (tabla) {
+            // Opcional: Pequeña animación antes de borrar
+            tabla.style.opacity = '0';
+            tabla.style.transform = 'translateX(20px)';
+            tabla.style.transition = 'all 0.3s ease';
+
+            setTimeout(() => {
+                tabla.remove();
+                
+                // 3. Reordenar los números (#1, #2, #3...) de las tablas restantes
+                reordenarBadges();
+                
+                // 4. Guardar los cambios automáticamente en el servidor
+                if (typeof guardarTodo === 'function') {
+                    guardarTodo();
+                }
+                
+                console.log(`Tabla ${id} eliminada exitosamente.`);
+            }, 3000);
+        }
+    } else {
+        // Si el usuario cancela, no hacemos nada
+        console.log("Eliminación cancelada por el usuario.");
+    }
+}
+
+// Función auxiliar para que los números de las tablas se ajusten solos
+function reordenarBadges() {
+    const badges = document.querySelectorAll('.tabla-badge');
+    badges.forEach((badge, index) => {
+        badge.innerText = `#${index + 1}`;
+    });
+}
 // ... (Las funciones de búsqueda y excel se mantienen igual)
