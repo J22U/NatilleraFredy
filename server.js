@@ -278,6 +278,21 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
     }
 });
 
+// Agrega esta ruta para los detalles de préstamos (el error 404 de tu imagen)
+app.get('/detalle-prestamo/:id', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`SELECT ID_Prestamo, MontoPrestado, TasaInteres, SaldoActual, Estado, 
+                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaPrestamo 
+                    FROM Prestamos WHERE ID_Persona = @id ORDER BY Fecha DESC`);
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json([]);
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
