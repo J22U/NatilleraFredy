@@ -340,41 +340,47 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 });
 
 // 1. RUTA PARA GUARDAR (POST)
+// --- RUTAS DE RIFAS UNIFICADAS ---
+
+// 1. RUTA PARA GUARDAR TODO (POST)
 app.post('/api/guardar-rifa', async (req, res) => {
     try {
         const { info, tablas } = req.body;
         const pool = await poolPromise;
         
-        // Aquí guardamos el JSON completo de las tablas en una columna de texto
-        // Asegúrate de tener una tabla llamada 'ConfiguracionRifas' con una columna 'DatosJSON'
+        // Guardamos todo el paquete como un solo texto gigante (JSON)
         await pool.request()
             .input('datos', sql.NVarChar(sql.MAX), JSON.stringify({ info, tablas }))
-            .query("IF EXISTS (SELECT 1 FROM ConfiguracionRifas) " +
-                   "UPDATE ConfiguracionRifas SET DatosJSON = @datos " +
-                   "ELSE INSERT INTO ConfiguracionRifas (DatosJSON) VALUES (@datos)");
+            .query(`
+                UPDATE ConfiguracionRifas 
+                SET DatosJSON = @datos, UltimaActualizacion = GETDATE() 
+                WHERE Id = 1
+            `);
 
         res.json({ success: true });
     } catch (err) {
-        console.error(err);
+        console.error("Error al guardar rifa:", err);
         res.status(500).json({ error: err.message });
     }
 });
 
-// 2. RUTA PARA CARGAR (GET) - ESTA ES LA QUE TE DA EL ERROR 404
+// 2. RUTA PARA CARGAR TODO (GET)
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
-            .query("SELECT DatosJSON FROM ConfiguracionRifas");
+            .query("SELECT DatosJSON FROM ConfiguracionRifas WHERE Id = 1");
         
-        if (result.recordset.length > 0) {
+        if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
+            // Enviamos el JSON de vuelta al frontend
             res.json(JSON.parse(result.recordset[0].DatosJSON));
         } else {
-            // Si no hay nada, mandamos una estructura vacía para que no falle
+            // Si la tabla está vacía, enviamos estructura base
             res.json({ info: {}, tablas: [] });
         }
     } catch (err) {
-        res.status(500).json({ error: "Error al leer la DB" });
+        console.error("Error al cargar rifa:", err);
+        res.status(500).json({ error: "Error al leer la base de datos" });
     }
 });
 

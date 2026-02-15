@@ -19,7 +19,7 @@ body {
 
 .app-container { max-width: 1200px; margin: 0 auto; }
 
-/* HEADER */
+/* HEADER PRINCIPAL */
 .main-header {
     background: var(--white);
     border-radius: 15px;
@@ -33,6 +33,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 20px;
 }
@@ -65,13 +66,26 @@ body {
     filter: brightness(1.1);
 }
 
-/* Variación sutil para el botón atrás (opcional: puedes dejarlo azul igual) */
 .btn-back {
     background-color: var(--nat-purple);
     box-shadow: 0 4px 6px rgba(108, 92, 231, 0.15);
 }
 
-/* BANNER RESPONSIVE */
+.btn-excel {
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.3s;
+}
+
+/* BANNER DE INFORMACIÓN */
 .rifa-info-banner {
     display: flex;
     flex-direction: column;
@@ -101,12 +115,66 @@ body {
     border-radius: 8px; font-size: 13px; outline: none;
 }
 
-/* GRILLA DE NÚMEROS */
+/* TARJETA DE RIFA (MODIFICADA PARA MÓVIL) */
 .rifa-card {
     background: var(--white); border-radius: 15px;
-    padding: 20px; box-shadow: var(--shadow); margin-top: 25px;
+    box-shadow: var(--shadow); margin-top: 25px;
+    overflow: hidden;
+    transition: all 0.3s ease;
 }
 
+/* HEADER DE LA TARJETA CORREGIDO */
+.rifa-card-header {
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    gap: 10px; 
+    width: 100%;
+}
+
+/* Contenedor de flecha, badge e input */
+.rifa-card-header > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;      /* Ocupa el espacio disponible */
+    min-width: 0; /* Permite que el contenido se encoja sin desbordar */
+}
+
+.input-table-title {
+    border: none;
+    font-weight: bold;
+    outline: none;
+    font-size: 1.1rem;
+    background: transparent;
+    width: 100%;
+    min-width: 50px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Pone "..." si el nombre es muy largo */
+}
+
+/* CUERPO DE LA TARJETA (COLAPSO) */
+.rifa-card-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease-out;
+    padding: 0 15px;
+}
+
+.rifa-card.active .rifa-card-body {
+    max-height: 5000px;
+    padding: 15px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.rifa-card.active {
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+}
+
+/* GRILLA DE NÚMEROS */
 .numeros-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr); 
@@ -115,12 +183,6 @@ body {
 
 @media (min-width: 600px) {
     .numeros-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-}
-
-/* Media query para móviles: esconde texto en botones si hay poco espacio */
-@media (max-width: 400px) {
-    .btn-add span { display: none; }
-    .btn-add { padding: 10px; }
 }
 
 .n-slot {
@@ -136,7 +198,6 @@ body {
 .n-slot.paid { border: 2px solid var(--nat-green); background: #f0fff4; }
 .n-slot.paid .n-number { color: var(--nat-green); }
 
-/* Badge para el número de tabla */
 .tabla-badge {
     background-color: var(--nat-blue);
     color: white;
@@ -144,201 +205,18 @@ body {
     border-radius: 8px;
     font-weight: 800;
     font-size: 0.85rem;
-    display: inline-block;
-    box-shadow: 0 2px 5px rgba(9, 132, 227, 0.2);
+    flex-shrink: 0;
 }
 
-/* Opcional: un efecto sutil al header de la card */
-.rifa-card-header {
-    border-bottom: 1px solid #f1f5f9;
-    padding-bottom: 12px;
-}
-
-/* Buscador */
-.search-container { margin-top: 15px; }
-.search-box {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-.search-icon {
-    position: absolute;
-    left: 15px;
-    color: var(--nat-blue);
-}
-.search-box input {
-    width: 100%;
-    padding: 12px 12px 12px 40px;
-    border-radius: 12px;
-    border: 2px solid #e2e8f0;
-    outline: none;
-    font-size: 14px;
-    transition: 0.3s;
-}
-.search-box input:focus { border-color: var(--nat-blue); box-shadow: 0 0 10px rgba(9, 132, 227, 0.1); }
-
-/* Panel de Resultados */
-.search-results-panel {
-    background: white;
-    border-radius: 15px;
-    margin-top: 15px;
-    padding: 20px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    border: 2px solid var(--nat-purple);
-}
-.results-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-.results-header h3 { margin: 0; font-size: 1rem; color: var(--nat-dark); }
-.btn-close-search { background: none; border: none; font-size: 24px; cursor: pointer; color: #94a3b8; }
-
-/* Tabla de resultados interna */
-.res-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.res-table th { text-align: left; padding: 10px; border-bottom: 2px solid #f1f5f9; color: var(--nat-blue); }
-.res-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
-.status-debt { color: #e74c3c; font-weight: bold; }
-.status-paid { color: var(--nat-green); font-weight: bold; }
-
-/* Estilo para los grupos (Acordeones) */
-.search-group {
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    margin-bottom: 8px;
-    overflow: hidden;
-}
-
-.search-group-header {
-    background: #f8fafc;
-    padding: 12px 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-.search-group-header:hover {
-    background: #f1f5f9;
-}
-
-.search-group-header b {
-    color: var(--nat-blue);
-    font-size: 0.9rem;
-}
-
-.search-group-content {
-    padding: 10px 15px;
-    display: none; /* Escondido por defecto */
-    background: white;
-    border-top: 1px solid #f1f5f9;
-}
-
-.search-item-detail {
-    display: flex;
-    justify-content: space-between;
-    padding: 5px 0;
-    border-bottom: 1px dashed #edf2f7;
-    font-size: 0.85rem;
-}
-
-.search-item-detail:last-child { border: none; }
-
-.badge-count {
-    background: var(--nat-purple);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-}
-
-.btn-excel {
-    background-color: #27ae60; /* Verde Excel */
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.3s;
-}
-
-.btn-excel:hover {
-    background-color: #219150;
-}
-
-/* Ocultar el cuerpo por defecto */
-.rifa-card-body {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease-out, padding 0.3s ease;
-    padding: 0 15px;
-}
-
-/* Mostrar cuando esté activa */
-.rifa-card.active .rifa-card-body {
-    max-height: 2500px; /* Un valor grande para que quepan los 100 números */
-    padding: 15px;
-    border-top: 1px solid #eee;
-}
-
-/* Estilo para la flecha */
 .arrow-icon {
     transition: transform 0.3s ease;
     color: #0984e3;
     font-size: 0.9rem;
+    flex-shrink: 0;
 }
 
-.rifa-card-header {
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #fff;
-    border-radius: 12px;
-}
-
-/* Efecto de sombra al estar abierta */
-.rifa-card.active {
-    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-    margin-bottom: 20px;
-}
-
-/* BOTÓN ELIMINAR (Corregido: Estilo premium) */
-.btn-delete-card {
-    background-color: var(--nat-red);
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 10px; /* Bordes más suaves */
-    cursor: pointer;
-    font-size: 1.1rem;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 10px rgba(255, 118, 117, 0.3);
-}
-
-.btn-delete-card:hover {
-    background-color: var(--nat-red-hover);
-    transform: scale(1.1) rotate(5deg); /* Efecto sutil de rotación y escala */
-    box-shadow: 0 6px 15px rgba(214, 48, 49, 0.4);
-}
-
-.btn-delete-card:active {
-    transform: scale(0.9); /* Efecto de pulsación al hacer clic */
-}
-
-/* ESTO CAMBIA EL COLOR SÍ O SÍ (Ataca todas las versiones) */
-.btn-delete, 
-.btn-delete-card, 
-[onclick*="eliminarTabla"] {
+/* BOTÓN ELIMINAR CORREGIDO */
+.btn-delete, [onclick*="eliminarTabla"] {
     background-color: #ff7675 !important;
     color: white !important;
     border: none !important;
@@ -349,40 +227,26 @@ body {
     justify-content: center !important;
     cursor: pointer !important;
     box-shadow: 0 4px 10px rgba(255, 118, 117, 0.3) !important;
+    flex-shrink: 0; /* No se encoge */
+    width: 40px;
+    height: 38px;
 }
 
-/* Para que el icono del basurero sea blanco */
-.btn-delete i, 
-.btn-delete-card i, 
-[onclick*="eliminarTabla"] i {
-    color: white !important;
+.btn-delete i { color: white !important; }
+
+/* RESPONSIVE MÓVIL */
+@media (max-width: 400px) {
+    .btn-add span { display: none; }
+    .btn-add { padding: 10px; }
 }
 
-/* Hacer que el contenedor del header sea flexible */
-.header-top {
-    display: flex;
-    flex-wrap: wrap; /* Permite que los botones bajen si no caben */
-    gap: 10px;
-    justify-content: space-between;
-    align-items: center;
-}
-
-/* Ajuste para el botón de Excel en móviles */
 @media (max-width: 600px) {
     .btn-excel {
-        flex: 1; /* El botón se estira para ocupar espacio */
+        flex: 1;
         justify-content: center;
         padding: 12px;
         font-size: 12px;
     }
-    
-    /* Si quieres que solo se vea el icono en pantallas muy pequeñas */
-    .btn-excel span {
-        display: none; 
-    }
-    
-    .btn-excel::after {
-        content: 'Reporte'; /* Texto más corto para móvil */
-        display: inline-block;
-    }
+    .btn-excel span { display: none; }
+    .btn-excel::after { content: 'Reporte'; }
 }

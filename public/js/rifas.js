@@ -148,30 +148,33 @@ async function sincronizarConServidor(datos) {
 
 async function cargarRifas() {
     const container = document.getElementById('rifasContainer');
-    container.innerHTML = '<div class="loading-spinner">Cargando datos desde la nube...</div>';
-
+    // No borramos todo de inmediato para evitar saltos visuales bruscos
+    
     try {
         const response = await fetch('/api/cargar-rifas'); 
         const datos = await response.json();
 
         if (datos && !datos.error) {
-            // Llenar encabezados
-            document.getElementById('rifaName').value = datos.info.nombre || '';
-            document.getElementById('rifaPrize').value = datos.info.premio || '';
-            document.getElementById('rifaCost').value = datos.info.valor || '';
-            document.getElementById('rifaDate').value = datos.info.fecha || '';
+            // 1. Llenar inputs de arriba
+            if(datos.info) {
+                document.getElementById('rifaName').value = datos.info.nombre || '';
+                document.getElementById('rifaPrize').value = datos.info.premio || '';
+                document.getElementById('rifaCost').value = datos.info.valor || '';
+                document.getElementById('rifaDate').value = datos.info.fecha || '';
+            }
 
+            // 2. Limpiar y dibujar tablas
             container.innerHTML = ''; 
 
             if (datos.tablas && datos.tablas.length > 0) {
                 datos.tablas.forEach(t => crearTabla(t));
             } else {
-                crearTabla(); 
+                crearTabla(); // Crear una vacía por defecto
             }
         }
     } catch (error) {
         console.error("Error al cargar:", error);
-        container.innerHTML = '<p>Error al conectar con el servidor.</p>';
+        container.innerHTML = '<p style="padding:20px; color:red;">Error de conexión. Revisa el servidor.</p>';
     }
 }
 
