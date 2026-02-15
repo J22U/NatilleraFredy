@@ -417,3 +417,13 @@ body {
     border-radius: 20px;
     font-size: 11px;
 }
+
+.sync-refresh {
+    animation: flash-refresh 0.5s ease;
+}
+
+@keyframes flash-refresh {
+    0% { background-color: #bdc3c7; }
+    50% { background-color: var(--nat-blue); transform: scale(1.5); }
+    100% { background-color: #bdc3c7; }
+}

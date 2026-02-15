@@ -357,4 +357,73 @@ function actualizarColorAlVuelo(slot) {
     if (pagado) slot.classList.add('paid');
     else if (nombre !== '') slot.classList.add('reserved');
 }
+
+let autoRefreshTimer;
+
+function iniciarAutoRefresco() {
+    // Cancelar cualquier temporizador previo para no duplicar
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+
+    autoRefreshTimer = setInterval(() => {
+        // REGLA DE SEGURIDAD: 
+        // No refrescar si el usuario tiene el buscador abierto 
+        // o si hay una sincronización pendiente (luz azul)
+        const status = document.getElementById('sync-status');
+        const searchInput = document.getElementById('searchInput');
+        const isSaving = status && status.classList.contains('sync-saving');
+        const isSearching = searchInput && searchInput.value.trim() !== "";
+
+        if (!isSaving && !isSearching) {
+            console.log("🔄 Sincronizando cambios de otros dispositivos...");
+            cargarRifasSilencioso();
+        }
+    }, 15000); // 15 segundos
+}
+
+// Versión de carga que no borra la pantalla para que no parpadee
+async function cargarRifasSilencioso() {
+    try {
+        const response = await fetch('/api/cargar-rifas');
+        const datos = await response.json();
+
+        if (datos && !datos.error) {
+            // Actualizar solo los inputs de arriba si no tienen el foco
+            const inputs = ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'];
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (document.activeElement !== el) {
+                    const campo = id.replace('rifa', '').toLowerCase();
+                    // Ajuste según los nombres de tu JSON
+                    const mapa = { name: 'nombre', prize: 'premio', cost: 'valor', date: 'fecha' };
+                    el.value = datos.info[mapa[campo]] || '';
+                }
+            });
+
+            // NOTA: Para actualizar las tablas sin que el usuario pierda su posición,
+            // lo ideal es comparar el JSON. Si es diferente al actual, redibujar.
+            const nuevoJSON = JSON.stringify(datos.tablas);
+            const viejoJSON = localStorage.getItem('ultimo_snapshot_tablas');
+            const status = document.getElementById('sync-status');
+status.classList.add('sync-refresh');
+setTimeout(() => status.classList.remove('sync-refresh'), 500);
+
+            if (nuevoJSON !== viejoJSON) {
+                localStorage.setItem('ultimo_snapshot_tablas', nuevoJSON);
+                // Si el usuario no está escribiendo en ninguna tabla, redibujamos
+                if (!document.querySelector('.n-name:focus')) {
+                    const container = document.getElementById('rifasContainer');
+                    container.innerHTML = ''; 
+                    datos.tablas.forEach(t => crearTabla(t));
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error en auto-refresco:", error);
+    }
+}
+
+// Llamar al inicio al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+    iniciarAutoRefresco();
+});
 // ... (Las funciones de búsqueda y excel se mantienen igual)
