@@ -218,4 +218,14 @@ function toggleTabla(id) {
         if (arrow) arrow.style.transform = 'rotate(0deg)';
     }
 }
+
+// Evitar cerrar la pestaña si se está guardando
+window.onbeforeunload = function (e) {
+    const status = document.getElementById('sync-status');
+    if (status && status.classList.contains('sync-saving')) {
+        const message = "Se están guardando los cambios en la nube. ¿Estás seguro de que quieres salir?";
+        e.returnValue = message; // Estándar para la mayoría de navegadores
+        return message;          // Estándar para algunos otros
+    }
+};
 // ... (Las funciones de búsqueda y excel se mantienen igual)
