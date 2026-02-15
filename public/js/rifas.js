@@ -1,17 +1,5 @@
 let syncTimeout;
 
-document.addEventListener('DOMContentLoaded', () => {
-    cargarRifas();
-    document.getElementById('btnNuevaTabla').addEventListener('click', () => {
-        crearTabla();
-        guardarTodo(); 
-    });
-    
-    ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'].forEach(id => {
-        document.getElementById(id).addEventListener('change', guardarTodo);
-    });
-});
-
 // --- LÓGICA DE TABLAS ---
 
 function crearTabla(datosCargados = null) {
@@ -74,89 +62,90 @@ function generarCeldas(tableId, datos) {
     return html;
 }
 
-// --- ACTUALIZACIÓN Y COLORES ---
-
-function actualizarEstado(tableId, n) {
-    actualizarColor(tableId, n);
-    guardarTodo();
-}
-
-function actualizarColor(tableId, numero) {
-    const slot = document.getElementById(`slot-${tableId}-${numero}`);
-    if (!slot) return;
-
-    const nombre = slot.querySelector('.n-name').value.trim();
-    const pagado = slot.querySelector('.pay-check').checked;
-
-    slot.classList.remove('reserved', 'paid');
-    if (pagado) {
-        slot.classList.add('paid');
-    } else if (nombre !== '') {
-        slot.classList.add('reserved');
-    }
-}
-
-// --- PERSISTENCIA (RENDER API) ---
-
+// Agrupa todos los datos y los envía al servidor (Llamada general)
 function guardarTodo() {
-    // 1. Cambiar estado a "Guardando"
     const status = document.getElementById('sync-status');
-    if(status) {
-        status.className = 'sync-saving';
-    }
+    if (status) status.className = 'sync-saving';
 
-    const infoGeneral = {
-        nombre: document.getElementById('rifaName').value,
-        premio: document.getElementById('rifaPrize').value,
-        valor: document.getElementById('rifaCost').value,
-        fecha: document.getElementById('rifaDate').value
+    const datos = {
+        info: {
+            nombre: document.getElementById('rifaName').value,
+            premio: document.getElementById('rifaPrize').value,
+            valor: document.getElementById('rifaCost').value,
+            fecha: document.getElementById('rifaDate').value
+        },
+        tablas: []
     };
 
-    const todasLasTablas = [];
     document.querySelectorAll('.rifa-card').forEach(card => {
         const id = card.id.replace('rifa-', '');
-        const titulo = card.querySelector('.input-table-title').value;
-        const participantes = {};
-
-        card.querySelectorAll('.n-slot').forEach(slot => {
-            const num = slot.querySelector('.n-number').innerText;
-            participantes[num] = {
-                nombre: slot.querySelector('.n-name').value,
-                pago: slot.querySelector('.pay-check').checked
-            };
+        datos.tablas.push({
+            id: id,
+            titulo: card.querySelector('.input-table-title').value,
+            participantes: obtenerParticipantesDeTabla(card)
         });
-        todasLasTablas.push({ id, titulo, participantes });
     });
 
-    clearTimeout(syncTimeout);
-    syncTimeout = setTimeout(() => {
-        sincronizarConServidor({ info: infoGeneral, tablas: todasLasTablas });
-    }, 1000); 
+    sincronizarConServidor(datos);
 }
 
-async function sincronizarConServidor(datos) {
-    const status = document.getElementById('sync-status');
-    try {
-        const response = await fetch('/api/guardar-rifa', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(datos)
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            // 2. Cambiar a éxito
-            if(status) {
-                status.className = 'sync-success';
-                // Volver a gris después de 3 segundos
-                setTimeout(() => { status.className = 'sync-idle'; }, 3000);
-            }
-            console.log("Sincronizado");
+// Extrae los nombres y pagos de una tabla específica
+function obtenerParticipantesDeTabla(card) {
+    const participantes = {};
+    card.querySelectorAll('.n-slot').forEach(slot => {
+        const numero = slot.querySelector('.n-number').innerText;
+        const nombre = slot.querySelector('.n-name').value;
+        const pago = slot.querySelector('.pay-check').checked;
+        if (nombre.trim() !== '' || pago) {
+            participantes[numero] = { nombre, pago };
         }
-    } catch (error) {
-        console.error("Error:", error);
-        if(status) status.style.backgroundColor = 'red'; // Error crítico
-    }
+    });
+    return participantes;
+}
+
+// Cambia el color del cuadrito (Verde/Naranja/Blanco)
+function actualizarColor(tableId, n) {
+    const slot = document.getElementById(`slot-${tableId}-${n}`);
+    const nombre = slot.querySelector('.n-name').value.trim();
+    const pago = slot.querySelector('.pay-check').checked;
+
+    slot.classList.remove('paid', 'reserved');
+    if (pago) slot.classList.add('paid');
+    else if (nombre !== '') slot.classList.add('reserved');
+}
+
+// Se ejecuta al marcar el checkbox de pago
+function actualizarEstado(tableId, n) {
+    actualizarColor(tableId, n);
+    guardarTodo(); // O puedes usar guardarCambioIndividual(tableId)
+}
+
+// --- ACTUALIZACIÓN Y COLORES ---
+
+// En lugar de guardarTodo(), enviamos solo la tabla afectada
+function guardarCambioIndividual(tablaId) {
+    const status = document.getElementById('sync-status');
+    status.className = 'sync-saving'; // Luz azul
+
+    const tablaElemento = document.getElementById(`rifa-${tablaId}`);
+    const datosTabla = {
+        id: tablaId,
+        titulo: tablaElemento.querySelector('.input-table-title').value,
+        participantes: obtenerParticipantesDeTabla(tablaElemento)
+    };
+
+    // Enviamos solo esta pieza de datos
+    fetch('/api/guardar-tabla-unica', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datosTabla)
+    })
+    .then(res => {
+        if(res.ok) {
+            status.className = 'sync-success'; // Luz verde
+            setTimeout(() => status.className = 'sync-idle', 2000);
+        }
+    });
 }
 
 async function sincronizarConServidor(datos) {
@@ -408,12 +397,18 @@ status.classList.add('sync-refresh');
 setTimeout(() => status.classList.remove('sync-refresh'), 500);
 
             if (nuevoJSON !== viejoJSON) {
-                localStorage.setItem('ultimo_snapshot_tablas', nuevoJSON);
-                // Si el usuario no está escribiendo en ninguna tabla, redibujamos
-                if (!document.querySelector('.n-name:focus')) {
-                    const container = document.getElementById('rifasContainer');
-                    container.innerHTML = ''; 
-                    datos.tablas.forEach(t => crearTabla(t));
+    localStorage.setItem('ultimo_snapshot_tablas', nuevoJSON);
+    
+    // Solo redibujamos si el usuario NO está interactuando con las tablas
+    const algunInputEnFoco = document.activeElement.classList.contains('n-name') || 
+                             document.activeElement.classList.contains('input-table-title');
+
+    if (!algunInputEnFoco && !isSearching) {
+        const container = document.getElementById('rifasContainer');
+        // En lugar de borrar, podrías solo actualizar los valores, 
+        // pero por ahora, esto es más seguro para no duplicar IDs:
+        container.innerHTML = ''; 
+        datos.tablas.forEach(t => crearTabla(t));
                 }
             }
         }
@@ -424,7 +419,18 @@ setTimeout(() => status.classList.remove('sync-refresh'), 500);
 
 // Llamar al inicio al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
-    iniciarAutoRefresco();
+    cargarRifas();
+    iniciarAutoRefresco(); // Iniciar aquí
+    
+    document.getElementById('btnNuevaTabla').addEventListener('click', () => {
+        crearTabla();
+        guardarTodo(); 
+    });
+    
+    ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.addEventListener('change', guardarTodo);
+    });
 });
 
 function generarPDF() {
