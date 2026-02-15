@@ -427,25 +427,36 @@ document.addEventListener('DOMContentLoaded', () => {
     iniciarAutoRefresco();
 });
 
-function generarPDF() {
-    const elemento = document.getElementById('app-container'); // O el ID de tu contenedor principal
-    
-    // Configuramos el diseño del PDF
+async function generarPDF() {
+    // 1. Validar la librería
+    if (typeof html2pdf === 'undefined') {
+        alert("Falta la librería PDF. Asegúrate de tener el script en tu HTML.");
+        return;
+    }
+
+    // 2. Intentar capturar el contenedor (ajustado para que no de NULL)
+    // Probemos con el body directamente si .app-container falla
+    const elemento = document.querySelector('.app-container') || document.body;
+
     const opciones = {
-        margin:       10,
-        filename:     `Rifa_${document.getElementById('rifaName').value || 'General'}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        margin: [10, 10],
+        filename: 'Reporte_Rifa.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // Añadimos una clase temporal para optimizar el diseño en el PDF
-    elemento.classList.add('pdf-mode');
+    try {
+        // Abrir todas las tablas para que salgan en el PDF
+        document.querySelectorAll('.rifa-card').forEach(card => {
+            card.classList.add('active');
+        });
 
-    // Generar el PDF
-    html2pdf().set(opciones).from(elemento).save().then(() => {
-        // Quitamos la clase al terminar
-        elemento.classList.remove('pdf-mode');
-    });
+        // Generar
+        await html2pdf().set(opciones).from(elemento).save();
+        
+    } catch (error) {
+        console.error("Error detallado:", error);
+    }
 }
 // ... (Las funciones de búsqueda y excel se mantienen igual)
