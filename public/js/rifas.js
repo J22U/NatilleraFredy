@@ -229,24 +229,20 @@ async function cargarRifas() {
             // 2. Limpiar el contenedor antes de dibujar
             container.innerHTML = ''; 
 
-            // 3. CAMBIO CLAVE: Vamos a buscar las 4 tablas explícitamente
-            // Creamos un array con las tablas que existan en el JSON (tabla1, tabla2, tabla3, tabla4)
-            const listaDeTablas = [];
+            // 3. PROCESAR LAS 4 TABLAS
+            // Forzamos el recorrido del 1 al 4 para asegurar que todas se dibujen
             for (let i = 1; i <= 4; i++) {
-                if (datos[`tabla${i}`]) {
-                    // Le añadimos un ID para identificarla internamente si es necesario
-                    const tablaData = datos[`tabla${i}`];
-                    tablaData.idTabla = i; // Esto ayuda a diferenciar t1, t2, t3...
-                    listaDeTablas.push(tablaData);
-                }
-            }
+                // Buscamos si la tabla existe en los datos (tabla1, tabla2...), 
+                // si no existe, creamos un objeto base con participantes vacíos.
+                const tablaData = datos[`tabla${i}`] || { participantes: {} };
+                
+                // ASIGNAMOS NOMBRE E ID PARA EVITAR EL 'UNDEFINED'
+                // Esto garantiza que crearTabla(t) sepa qué título poner y qué ID usar
+                tablaData.nombre = `Tabla ${i}`; 
+                tablaData.idTabla = i; 
 
-            // 4. Dibujar las tablas encontradas
-            if (listaDeTablas.length > 0) {
-                listaDeTablas.forEach(t => crearTabla(t));
-            } else {
-                // Si no hay nada en la base de datos, creamos las 4 vacías por defecto
-                for(let i = 1; i <= 4; i++) { crearTabla({ idTabla: i }); }
+                // 4. Dibujar la tabla inmediatamente
+                crearTabla(tablaData);
             }
         }
     } catch (error) {
