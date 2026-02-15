@@ -780,11 +780,11 @@ async function toggleDeudas() {
 
             if (deudas && deudas.length > 0) {
                 // Llenamos el select con los préstamos encontrados
-                select.innerHTML = deudas.map(d => `
-                    <option value="${d.ID_Prestamo}">
-                        Préstamo #${d.ID_Prestamo} - Saldo: $${Number(d.SaldoActual).toLocaleString()}
-                    </option>
-                `).join('');
+                select.innerHTML = deudas.map((d, index) => `
+    <option value="${d.ID_Prestamo}">
+        Préstamo ${index + 1} (Saldo: $${Number(d.SaldoActual).toLocaleString()})
+    </option>
+`).join('');
                 divSelector.classList.remove('hidden');
             } else {
                 // Si el socio no tiene deudas, informamos y regresamos a "Ahorro"
