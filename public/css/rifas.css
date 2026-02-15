@@ -452,3 +452,24 @@ body {
 .pdf-mode .main-header {
     border-left: 15px solid var(--nat-blue); /* Un detalle elegante para el reporte */
 }
+
+@media print {
+    /* Fuerza un salto de página después de cada tarjeta de rifa */
+    .rifa-card {
+        page-break-after: always; /* Para navegadores antiguos */
+        break-after: page;        /* Estándar moderno */
+        margin-bottom: 0;
+        border: 1px solid #eee !important;
+    }
+
+    /* Evita que el encabezado principal se quede solo en una hoja si prefieres */
+    .main-header {
+        page-break-after: auto;
+    }
+}
+
+/* Si usas la librería html2pdf, añade también esta clase */
+.pdf-mode .rifa-card {
+    page-break-after: always;
+    break-after: page;
+}

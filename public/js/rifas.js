@@ -427,36 +427,24 @@ document.addEventListener('DOMContentLoaded', () => {
     iniciarAutoRefresco();
 });
 
-async function generarPDF() {
-    // 1. Validar la librería
-    if (typeof html2pdf === 'undefined') {
-        alert("Falta la librería PDF. Asegúrate de tener el script en tu HTML.");
-        return;
-    }
-
-    // 2. Intentar capturar el contenedor (ajustado para que no de NULL)
-    // Probemos con el body directamente si .app-container falla
-    const elemento = document.querySelector('.app-container') || document.body;
+function generarPDF() {
+    const elemento = document.querySelector('.app-container');
+    
+    // Añadimos clase para activar los saltos de página
+    elemento.classList.add('pdf-mode');
 
     const opciones = {
         margin: [10, 10],
-        filename: 'Reporte_Rifa.pdf',
+        filename: 'Rifas_Por_Hoja.pdf',
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        // ESTA LÍNEA ES CLAVE: indica qué elementos causan el salto
+        pagebreak: { mode: ['avoid-all', 'after'], before: '.rifa-card' }
     };
 
-    try {
-        // Abrir todas las tablas para que salgan en el PDF
-        document.querySelectorAll('.rifa-card').forEach(card => {
-            card.classList.add('active');
-        });
-
-        // Generar
-        await html2pdf().set(opciones).from(elemento).save();
-        
-    } catch (error) {
-        console.error("Error detallado:", error);
-    }
+    html2pdf().set(opciones).from(elemento).save().then(() => {
+        elemento.classList.remove('pdf-mode');
+    });
 }
 // ... (Las funciones de búsqueda y excel se mantienen igual)
