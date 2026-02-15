@@ -322,3 +322,69 @@ body {
     50% { opacity: 0.4; }
     100% { opacity: 1; }
 }
+
+.search-results-panel {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+    margin-top: 10px;
+    max-height: 450px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    z-index: 1000;
+    position: relative;
+}
+
+.cliente-resumen {
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 5px;
+}
+
+.cliente-header {
+    background: #f8fafc;
+    padding: 10px 15px;
+    font-weight: 900;
+    font-size: 13px;
+    color: var(--nat-blue);
+    border-left: 4px solid var(--nat-blue);
+}
+
+.tabla-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.tabla-item:hover { background: #f0f7ff; }
+
+.tabla-nombre {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 5px;
+}
+
+.numeros-lista {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.badge-debe {
+    background: #fff5f5;
+    color: #c53030;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid #feb2b2;
+}
+
+.badge-pago {
+    background: #f0fff4;
+    color: #2f855a;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid #9ae6b4;
+}

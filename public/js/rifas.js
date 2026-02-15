@@ -230,37 +230,95 @@ window.onbeforeunload = function (e) {
 };
 
 function buscarCliente() {
-    const texto = document.getElementById('searchInput').value.toLowerCase();
-    const slots = document.querySelectorAll('.n-slot');
+    const texto = document.getElementById('searchInput').value.toLowerCase().trim();
+    const panel = document.getElementById('searchResults');
+    panel.innerHTML = ''; 
 
-    slots.forEach(slot => {
-        const nombreInput = slot.querySelector('.n-name');
-        const nombre = nombreInput ? nombreInput.value.toLowerCase() : "";
-        
-        if (texto !== "" && nombre.includes(texto)) {
-            // Resaltamos el slot encontrado
-            slot.style.border = "2px solid var(--nat-blue)";
-            slot.style.transform = "scale(1.02)";
-            slot.style.zIndex = "10";
-            
-            // Truco: Encontrar la tabla padre y abrirla si está cerrada
-            const card = slot.closest('.rifa-card');
-            if (card && !card.classList.contains('active')) {
-                card.classList.add('active');
-                const id = card.id.replace('rifa-', '');
-                const arrow = document.getElementById(`arrow-${id}`);
-                if (arrow) arrow.style.transform = 'rotate(90deg)';
+    if (texto.length < 2) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    // 1. Agrupar datos por Cliente y por Tabla
+    // Estructura: { "JUAN": { "Tabla 1": { números: [], deuda: 0 }, "Tabla 2": {...} } }
+    let resultados = {};
+
+    document.querySelectorAll('.rifa-card').forEach(card => {
+        const tituloTabla = card.querySelector('.input-table-title').value;
+        const slots = card.querySelectorAll('.n-slot');
+
+        slots.forEach(slot => {
+            const nombre = slot.querySelector('.n-name').value.toLowerCase().trim();
+            const numero = slot.querySelector('.n-number').innerText;
+            const pagado = slot.querySelector('.pay-check').checked;
+
+            if (nombre.includes(texto)) {
+                if (!resultados[nombre]) resultados[nombre] = {};
+                if (!resultados[nombre][tituloTabla]) {
+                    resultados[nombre][tituloTabla] = { numeros: [], cardRef: card };
+                }
+                
+                resultados[nombre][tituloTabla].numeros.push({
+                    num: numero,
+                    pago: pagado,
+                    slotRef: slot
+                });
             }
-        } else {
-            // Restauramos el estilo original si no coincide
-            slot.style.border = "";
-            slot.style.transform = "";
-            slot.style.zIndex = "";
-            
-            // Si el buscador está vacío, podrías querer resetear los colores
-            actualizarColorAlVuelo(slot); 
-        }
+        });
     });
+
+    // 2. Generar el HTML de los resultados
+    const nombresHallados = Object.keys(resultados);
+    
+    if (nombresHallados.length === 0) {
+        panel.innerHTML = '<div style="padding:15px; text-align:center; color:gray; font-size:13px;">No se encontró ningún cliente.</div>';
+    } else {
+        nombresHallados.forEach(nombre => {
+            const clienteDiv = document.createElement('div');
+            clienteDiv.className = 'cliente-resumen';
+            
+            let tablasHTML = '';
+            for (const [tabla, data] of Object.entries(resultados[nombre])) {
+                const deudas = data.numeros.filter(n => !n.pago).map(n => n.num);
+                const pagados = data.numeros.filter(n => n.pago).map(n => n.num);
+                
+                tablasHTML += `
+                    <div class="tabla-item" onclick="irATabla('${data.cardRef.id}')">
+                        <div class="tabla-nombre">📍 ${tabla}</div>
+                        <div class="numeros-lista">
+                            ${deudas.length > 0 ? `<span class="badge-debe">Debe: ${deudas.join(', ')}</span>` : ''}
+                            ${pagados.length > 0 ? `<span class="badge-pago">Pagó: ${pagados.join(', ')}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            clienteDiv.innerHTML = `
+                <div class="cliente-header">${nombre.toUpperCase()}</div>
+                <div class="cliente-tablas">${tablasHTML}</div>
+            `;
+            panel.appendChild(clienteDiv);
+        });
+    }
+    panel.style.display = 'block';
+}
+
+// Función para navegar y resaltar
+function irATabla(cardId) {
+    const card = document.getElementById(cardId);
+    const panel = document.getElementById('searchResults');
+    
+    if (card) {
+        card.classList.add('active'); // Abrir acordeón
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+        // Efecto visual de flash
+        card.style.boxShadow = "0 0 20px rgba(9, 132, 227, 0.4)";
+        setTimeout(() => card.style.boxShadow = "", 2000);
+        
+        panel.style.display = 'none'; // Cerrar buscador
+        document.getElementById('searchInput').value = ''; 
+    }
 }
 
 // Función auxiliar para no perder los colores verde/naranja al buscar
