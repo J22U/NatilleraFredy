@@ -784,7 +784,7 @@ async function toggleDeudas() {
                 // Llenamos el select con los préstamos encontrados
                 select.innerHTML = deudas.map((d, index) => `
     <option value="${d.ID_Prestamo}">
-        Préstamo ${index + 1} (Saldo: $${Number(d.SaldoActual).toLocaleString()})
+        Préstamo #${index + 1} (Saldo: $${Number(d.SaldoActual).toLocaleString()})
     </option>
 `).join('');
                 divSelector.classList.remove('hidden');
