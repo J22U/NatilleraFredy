@@ -1,4 +1,5 @@
 let syncTimeout;
+let ultimaSincronizacionManual = 0;
 
 // --- LÓGICA DE TABLAS ---
 
@@ -86,12 +87,10 @@ function guardarTodo() {
         });
     });
 
-    // --- EL CAMBIO CLAVE AQUÍ ---
-    // Guardamos lo que estamos viendo en pantalla como la "versión más reciente"
-    // Así, el auto-refresco sabrá que NO debe sobrescribir esto con datos viejos de la nube.
+    // CLAVE: Actualizamos el snapshot ANTES de enviar al servidor
     localStorage.setItem('ultimo_snapshot_tablas', JSON.stringify(datos.tablas));
     
-    // Registramos la hora de este guardado (útil para la pausa de seguridad)
+    // CLAVE: Marcamos el tiempo exacto de este cambio
     ultimaSincronizacionManual = Date.now(); 
 
     sincronizarConServidor(datos);
@@ -399,23 +398,26 @@ function actualizarColorAlVuelo(slot) {
 let autoRefreshTimer;
 
 function iniciarAutoRefresco() {
-    // Cancelar cualquier temporizador previo para no duplicar
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
 
     autoRefreshTimer = setInterval(() => {
-        // REGLA DE SEGURIDAD: 
-        // No refrescar si el usuario tiene el buscador abierto 
-        // o si hay una sincronización pendiente (luz azul)
+        // --- NUEVA REGLA DE SEGURIDAD ---
+        // Si borramos o editamos algo hace menos de 5 segundos, NO refrescamos.
+        // Esto evita que la "versión vieja" del servidor sobrescriba nuestro cambio nuevo.
+        if (Date.now() - ultimaSincronizacionManual < 5000) {
+            console.log("⏳ Pausa de seguridad activa... esperando estabilidad de la nube.");
+            return; 
+        }
+
         const status = document.getElementById('sync-status');
         const searchInput = document.getElementById('searchInput');
         const isSaving = status && status.classList.contains('sync-saving');
         const isSearching = searchInput && searchInput.value.trim() !== "";
 
         if (!isSaving && !isSearching) {
-            console.log("🔄 Sincronizando cambios de otros dispositivos...");
             cargarRifasSilencioso();
         }
-    }, 15000); // 15 segundos
+    }, 15000); 
 }
 
 // Versión de carga que no borra la pantalla para que no parpadee
