@@ -401,13 +401,18 @@ function iniciarAutoRefresco() {
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
 
     autoRefreshTimer = setInterval(() => {
-        // --- NUEVA REGLA DE SEGURIDAD ---
-        // Si borramos o editamos algo hace menos de 5 segundos, NO refrescamos.
-        // Esto evita que la "versión vieja" del servidor sobrescriba nuestro cambio nuevo.
-        if (Date.now() - ultimaSincronizacionManual < 5000) {
-            console.log("⏳ Pausa de seguridad activa... esperando estabilidad de la nube.");
+        const loader = document.getElementById('security-pause-loader');
+        const tiempoPasado = Date.now() - ultimaSincronizacionManual;
+
+        // --- ZONA DE SEGURIDAD (8 SEGUNDOS) ---
+        if (tiempoPasado < 8000) {
+            if (loader) loader.style.display = 'flex'; // Mostramos que estamos esperando
+            console.log("⏳ Pausa de seguridad activa...");
             return; 
         }
+
+        // Si ya pasaron los 8 segundos, ocultamos el loader y procedemos
+        if (loader) loader.style.display = 'none';
 
         const status = document.getElementById('sync-status');
         const searchInput = document.getElementById('searchInput');
@@ -422,46 +427,31 @@ function iniciarAutoRefresco() {
 
 // Versión de carga que no borra la pantalla para que no parpadee
 async function cargarRifasSilencioso() {
-    const searchInput = document.getElementById('searchInput');
-    const isSearching = searchInput && searchInput.value.trim() !== "";
-    const status = document.getElementById('sync-status');
+    // 1. Si hubo un cambio manual hace menos de 8 segundos, abortamos
+    if (Date.now() - ultimaSincronizacionManual < 8000) return;
 
     try {
         const response = await fetch('/api/cargar-rifas');
         const datos = await response.json();
 
         if (datos && !datos.error) {
-            // 1. Actualizar inputs de cabecera (solo si no se están usando)
-            const inputs = ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'];
-            inputs.forEach(id => {
-                const el = document.getElementById(id);
-                if (el && document.activeElement !== el) {
-                    const campo = id.replace('rifa', '').toLowerCase();
-                    const mapa = { name: 'nombre', prize: 'premio', cost: 'valor', date: 'fecha' };
-                    el.value = datos.info[mapa[campo]] || '';
-                }
-            });
-
-            // 2. Comparar tablas
             const nuevoJSON = JSON.stringify(datos.tablas);
             const viejoJSON = localStorage.getItem('ultimo_snapshot_tablas');
 
-            // Pequeño parpadeo visual de "revisando nube"
-            if (status) {
-                status.classList.add('sync-refresh');
-                setTimeout(() => status.classList.remove('sync-refresh'), 500);
-            }
-
+            // 2. SOLO redibujamos si el servidor trae algo REALMENTE distinto
+            // y no estamos escribiendo en ningún lado
             if (nuevoJSON !== viejoJSON) {
-                // Solo si NO hay ningún input con el cursor puesto
-                const estaEditando = document.activeElement.tagName === 'INPUT';
+                const estaEditando = document.activeElement.tagName === 'INPUT' || 
+                                     document.activeElement.tagName === 'TEXTAREA';
 
-                if (!estaEditando && !isSearching) {
+                if (!estaEditando) {
+                    // Actualizamos el snapshot para que la próxima vez coincida
                     localStorage.setItem('ultimo_snapshot_tablas', nuevoJSON);
+                    
                     const container = document.getElementById('rifasContainer');
                     container.innerHTML = ''; 
                     datos.tablas.forEach(t => crearTabla(t));
-                    console.log("🔄 Tablas actualizadas desde la nube.");
+                    console.log("🔄 Tablas actualizadas (Cambio detectado en otro dispositivo).");
                 }
             }
         }
