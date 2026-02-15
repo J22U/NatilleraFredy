@@ -170,6 +170,7 @@ function guardarCambioIndividual(tablaId) {
 }
 
 async function sincronizarConServidor(datos) {
+    const status = document.getElementById('sync-status');
     try {
         const response = await fetch('/api/guardar-rifa', {
             method: 'POST',
@@ -177,9 +178,17 @@ async function sincronizarConServidor(datos) {
             body: JSON.stringify(datos)
         });
         const result = await response.json();
-        if (result.success) console.log("Sincronización en Render/Somee exitosa");
+        
+        if (result.success || response.ok) {
+            console.log("✅ Sincronización exitosa");
+            if (status) {
+                status.className = 'sync-success'; // LUZ VERDE
+                setTimeout(() => status.className = 'sync-idle', 2000);
+            }
+        }
     } catch (error) {
         console.error("Error al guardar en el servidor:", error);
+        if (status) status.className = 'sync-error'; // Crea esta clase roja en CSS
     }
 }
 
@@ -392,44 +401,46 @@ function iniciarAutoRefresco() {
 
 // Versión de carga que no borra la pantalla para que no parpadee
 async function cargarRifasSilencioso() {
+    const searchInput = document.getElementById('searchInput');
+    const isSearching = searchInput && searchInput.value.trim() !== "";
+    const status = document.getElementById('sync-status');
+
     try {
         const response = await fetch('/api/cargar-rifas');
         const datos = await response.json();
 
         if (datos && !datos.error) {
-            // Actualizar solo los inputs de arriba si no tienen el foco
+            // 1. Actualizar inputs de cabecera (solo si no se están usando)
             const inputs = ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'];
             inputs.forEach(id => {
                 const el = document.getElementById(id);
-                if (document.activeElement !== el) {
+                if (el && document.activeElement !== el) {
                     const campo = id.replace('rifa', '').toLowerCase();
-                    // Ajuste según los nombres de tu JSON
                     const mapa = { name: 'nombre', prize: 'premio', cost: 'valor', date: 'fecha' };
                     el.value = datos.info[mapa[campo]] || '';
                 }
             });
 
-            // NOTA: Para actualizar las tablas sin que el usuario pierda su posición,
-            // lo ideal es comparar el JSON. Si es diferente al actual, redibujar.
+            // 2. Comparar tablas
             const nuevoJSON = JSON.stringify(datos.tablas);
             const viejoJSON = localStorage.getItem('ultimo_snapshot_tablas');
-            const status = document.getElementById('sync-status');
-status.classList.add('sync-refresh');
-setTimeout(() => status.classList.remove('sync-refresh'), 500);
+
+            // Pequeño parpadeo visual de "revisando nube"
+            if (status) {
+                status.classList.add('sync-refresh');
+                setTimeout(() => status.classList.remove('sync-refresh'), 500);
+            }
 
             if (nuevoJSON !== viejoJSON) {
-    localStorage.setItem('ultimo_snapshot_tablas', nuevoJSON);
-    
-    // Solo redibujamos si el usuario NO está interactuando con las tablas
-    const algunInputEnFoco = document.activeElement.classList.contains('n-name') || 
-                             document.activeElement.classList.contains('input-table-title');
+                // Solo si NO hay ningún input con el cursor puesto
+                const estaEditando = document.activeElement.tagName === 'INPUT';
 
-    if (!algunInputEnFoco && !isSearching) {
-        const container = document.getElementById('rifasContainer');
-        // En lugar de borrar, podrías solo actualizar los valores, 
-        // pero por ahora, esto es más seguro para no duplicar IDs:
-        container.innerHTML = ''; 
-        datos.tablas.forEach(t => crearTabla(t));
+                if (!estaEditando && !isSearching) {
+                    localStorage.setItem('ultimo_snapshot_tablas', nuevoJSON);
+                    const container = document.getElementById('rifasContainer');
+                    container.innerHTML = ''; 
+                    datos.tablas.forEach(t => crearTabla(t));
+                    console.log("🔄 Tablas actualizadas desde la nube.");
                 }
             }
         }
@@ -476,36 +487,20 @@ function generarPDF() {
 }
 
 function eliminarTabla(id) {
-    // 1. Mostrar la alerta de confirmación
-    const mensaje = "¿Estás seguro de que deseas eliminar esta tabla? \n\nEsta acción no se puede deshacer y se borrarán todos los nombres y estados de pago de esta tabla.";
-    
+    const mensaje = "¿Estás seguro de que deseas eliminar esta tabla?";
     if (confirm(mensaje)) {
-        // 2. Si el usuario acepta, buscamos el elemento
         const tabla = document.getElementById(`rifa-${id}`);
-        
         if (tabla) {
-            // Opcional: Pequeña animación antes de borrar
             tabla.style.opacity = '0';
-            tabla.style.transform = 'translateX(20px)';
             tabla.style.transition = 'all 0.3s ease';
 
             setTimeout(() => {
-                tabla.remove();
-                
-                // 3. Reordenar los números (#1, #2, #3...) de las tablas restantes
+                tabla.remove(); // Se borra del HTML
                 reordenarBadges();
-                
-                // 4. Guardar los cambios automáticamente en el servidor
-                if (typeof guardarTodo === 'function') {
-                    guardarTodo();
-                }
-                
-                console.log(`Tabla ${id} eliminada exitosamente.`);
-            }, 3000);
+                guardarTodo(); // AHORA SÍ: Notifica al servidor que ya no existe
+                console.log(`Tabla ${id} eliminada.`);
+            }, 500); // 500ms es suficiente, 3000ms era demasiado
         }
-    } else {
-        // Si el usuario cancela, no hacemos nada
-        console.log("Eliminación cancelada por el usuario.");
     }
 }
 
