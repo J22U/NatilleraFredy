@@ -70,24 +70,27 @@ app.post('/api/guardar-rifa', async (req, res) => {
     try {
         const pool = await poolPromise;
         
-        // RECIBIMOS LOS DATOS (Ajusta los nombres según tu formulario)
-        const { idSocio, monto, nombreRifa, descripcion } = req.body;
-
-        // CAMBIAMOS UPDATE POR INSERT
-        // Así, cada registro es una fila nueva y NO borra la anterior
-        await pool.request()
-            .input('idSocio', sql.Int, idSocio)
-            .input('monto', sql.Decimal(18, 2), monto)
-            .input('nombre', sql.NVarChar, nombreRifa)
-            .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(req.body)) // Si aún quieres guardar el JSON
-            .query(`
-                INSERT INTO HistorialRifas (IdSocio, Monto, NombreRifa, DatosJSON, FechaRegistro)
-                VALUES (@idSocio, @monto, @nombre, @datos, GETDATE())
-            `);
+        // 1. Primero leemos lo que ya hay para no borrar las otras tablas
+        const current = await pool.request()
+            .query("SELECT DatosJSON FROM ConfiguracionRifas WHERE Id = 1");
         
-        res.json({ success: true, message: "Registro guardado permanentemente" });
+        let datosExistentes = { info: {}, tablas: [] };
+        if (current.recordset.length > 0 && current.recordset[0].DatosJSON) {
+            datosExistentes = JSON.parse(current.recordset[0].DatosJSON);
+        }
+
+        // 2. Fusionamos los datos nuevos con los viejos
+        // Esto asegura que si guardas la Tabla 2, no se borre la 1, 3 o 4
+        const datosActualizados = { ...datosExistentes, ...req.body };
+
+        // 3. Guardamos en la tabla CORRECTA (ConfiguracionRifas)
+        await pool.request()
+            .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosActualizados))
+            .query("UPDATE ConfiguracionRifas SET DatosJSON = @datos, UltimaActualizacion = GETDATE() WHERE Id = 1");
+        
+        res.json({ success: true });
     } catch (err) {
-        console.error("❌ Error al guardar en BD:", err.message);
+        console.error("❌ Error real en SQL:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
