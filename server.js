@@ -50,22 +50,50 @@ app.post('/login', (req, res) => {
 
 // --- RUTAS DE RIFAS PERSISTENTES (SQL) ---
 
-app.get('/api/cargar-rifas', async (req, res) => {
+async function cargarRifas() {
+    const container = document.getElementById('rifasContainer');
+    
     try {
-        const pool = await poolPromise;
-        const result = await pool.request()
-            .query("SELECT DatosJSON FROM ConfiguracionRifas WHERE Id = 1");
-        
-        if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
-            res.json(JSON.parse(result.recordset[0].DatosJSON));
-        } else {
-            res.json({ info: {}, tablas: [] });
-        }
-    } catch (err) {
-        res.status(500).json({ error: "Error al leer la base de datos" });
-    }
-});
+        const response = await fetch('/api/cargar-rifas'); 
+        const datos = await response.json();
 
+        if (datos && !datos.error) {
+            // 1. Llenar inputs de información general (Rifa Name, Premio, etc.)
+            if(datos.info) {
+                document.getElementById('rifaName').value = datos.info.nombre || '';
+                document.getElementById('rifaPrize').value = datos.info.premio || '';
+                document.getElementById('rifaCost').value = datos.info.valor || '';
+                document.getElementById('rifaDate').value = datos.info.fecha || '';
+            }
+
+            // 2. Limpiar el contenedor
+            container.innerHTML = ''; 
+
+            // 3. CAMBIO CLAVE: Leer la propiedad "tablas" que está en tu JSON
+            // Según tu imagen, los datos están en datos.tablas
+            if (datos.tablas && Array.isArray(datos.tablas)) {
+                
+                datos.tablas.forEach((t, index) => {
+                    // Aseguramos que la tabla tenga un nombre para que no salga undefined
+                    // Usamos el 'titulo' que ya tienes en la DB ("TABLA 1", etc.)
+                    t.nombre = t.titulo || `Tabla ${index + 1}`;
+                    t.idTabla = index + 1; 
+
+                    crearTabla(t);
+                });
+
+            } else {
+                // Si por alguna razón no hay tablas, creamos las 4 vacías
+                for(let i = 1; i <= 4; i++) { 
+                    crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} }); 
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error al cargar:", error);
+        container.innerHTML = '<p style="padding:20px; color:red;">Error de conexión.</p>';
+    }
+}
 app.post('/api/guardar-rifa', async (req, res) => {
     try {
         const pool = await poolPromise;
