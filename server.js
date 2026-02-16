@@ -536,6 +536,33 @@ app.post('/registrar-abono-dinamico', async (req, res) => {
     }
 });
 
+// 1. Cambiar estado (Habilitar/Inhabilitar)
+app.post('/cambiar-estado-socio', async (req, res) => {
+    try {
+        const { id, nuevoEstado } = req.body;
+        const pool = await poolPromise;
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('estado', sql.VarChar, nuevoEstado)
+            .query("UPDATE Personas SET Estado = @estado WHERE ID_Persona = @id");
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 2. Obtener solo inactivos
+app.get('/listar-inactivos', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .query("SELECT * FROM Personas WHERE Estado = 'Inactivo' ORDER BY Nombre ASC");
+        res.json(result.recordset);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

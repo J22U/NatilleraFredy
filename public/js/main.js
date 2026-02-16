@@ -638,6 +638,59 @@ async function crearPersona() {
     }
 }
 
+async function toggleEstadoSocio(id, nombre, estadoActual) {
+    const nuevoEstado = estadoActual === 'Activo' ? 'Inactivo' : 'Activo';
+    const accion = nuevoEstado === 'Inactivo' ? 'Inhabilitar' : 'Habilitar';
+
+    const result = await Swal.fire({
+        title: `¿${accion} socio?`,
+        text: `Vas a pasar a ${nombre} a la lista de ${nuevoEstado}s.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: `Sí, ${accion}`,
+        confirmButtonColor: nuevoEstado === 'Inactivo' ? '#ef4444' : '#10b981'
+    });
+
+    if (result.isConfirmed) {
+        const res = await fetch('/cambiar-estado-socio', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id, nuevoEstado })
+        });
+        if (res.ok) {
+            Swal.fire('Actualizado', `${nombre} ahora está ${nuevoEstado}`, 'success');
+            cargarTodo(); // Recarga la lista principal
+        }
+    }
+}
+
+async function abrirVentanaInactivos() {
+    const res = await fetch('/listar-inactivos');
+    const inactivos = await res.json();
+
+    let htmlInactivos = inactivos.length === 0 
+        ? '<p class="text-center text-slate-400 py-4">No hay socios inactivos</p>'
+        : inactivos.map(s => `
+            <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl mb-2 border border-slate-200">
+                <div>
+                    <p class="text-xs font-black text-slate-700">#${s.ID_Persona} - ${s.Nombre}</p>
+                    <p class="text-[9px] text-slate-400 uppercase">Estado: Inactivo</p>
+                </div>
+                <button onclick="toggleEstadoSocio(${s.ID_Persona}, '${s.Nombre}', 'Inactivo')" 
+                        class="bg-emerald-500 text-white p-2 rounded-lg hover:bg-emerald-600 transition-all">
+                    <i class="fas fa-user-plus"></i> Re-activar
+                </button>
+            </div>
+        `).join('');
+
+    Swal.fire({
+        title: 'Socios Inactivos',
+        html: `<div class="max-h-[60vh] overflow-y-auto pr-2">${htmlInactivos}</div>`,
+        showConfirmButton: false,
+        customClass: { popup: 'rounded-[2rem]' }
+    });
+}
+
 function eliminarSocio(id) {
     Swal.fire({ 
         title: '¿Eliminar socio?', 

@@ -138,7 +138,13 @@
                                 <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
                                 <input type="text" id="inputBusqueda" onkeyup="filtrarSocios()" placeholder="Buscar socio..." class="pl-11 pr-4 py-3 bg-slate-100 border-none rounded-2xl text-sm w-full outline-none focus:ring-2 focus:ring-indigo-500">
                             </div>
-                            <button onclick="cargarTodo()" class="bg-indigo-50 text-indigo-600 p-3 rounded-xl hover:bg-indigo-100 transition-colors"><i class="fas fa-sync-alt"></i></button>
+                            <button onclick="cargarTodo()" class="bg-indigo-50 text-indigo-600 p-3 rounded-xl hover:bg-indigo-100 transition-colors" title="Actualizar lista">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                            <button onclick="abrirVentanaInactivos()" class="bg-slate-100 text-slate-600 p-3 rounded-xl hover:bg-slate-200 transition-colors flex items-center gap-2" title="Ver Socios Inactivos">
+                                <i class="fas fa-users-slash"></i>
+                                <span class="text-[10px] font-black uppercase hidden xl:block">Inactivos</span>
+                            </button>
                         </div>
                         <button onclick="verListaRapidaDeudores()" class="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold shadow-lg hover:bg-amber-600 transition-all">
                             <i class="fas fa-hand-holding-usd mr-2"></i>Lista de Cobro
