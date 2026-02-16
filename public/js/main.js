@@ -2,6 +2,7 @@
 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
 window.mapeoIdentificadores = {};
 let miembrosGlobal = []; 
+let quincenasSeleccionadas = [];
 const mesesDelAño = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -1003,16 +1004,17 @@ function cargarMesesEnInterfaz() {
 ['Q1', 'Q2'].forEach(q => {
     const btn = document.createElement('button');
     btn.textContent = q;
-    // Guardamos el valor completo aquí
     btn.value = `${mes} (${q})`; 
+    // Mantenemos tus clases, asegurando que 'btn-quincena' esté presente
     btn.className = 'btn-quincena py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-amber-50 transition-all';
     
     btn.onclick = (e) => {
         e.preventDefault();
-        // Alternamos una clase simple para saber qué está seleccionado
+        // ESTO ES LO QUE BUSCAREMOS DESPUÉS
         btn.classList.toggle('active'); 
         btn.classList.toggle('bg-amber-500');
         btn.classList.toggle('text-white');
+        btn.classList.toggle('border-amber-500');
     };
     botonesCont.appendChild(btn);
 });
