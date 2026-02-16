@@ -397,15 +397,19 @@ function toggleAcordeon(id, btn) {
 
     // --- 1. CAPTURAR MESES ---
     let mesesParaEnviar = "Abono General";
-    if (tipo === 'ahorro') {
-        // Buscamos botones que tengan la clase active O el fondo rojo
-        const activos = Array.from(document.querySelectorAll('.btn-quincena'))
-                             .filter(btn => btn.classList.contains('active') || btn.classList.contains('bg-red-500'));
-        
-        if (activos.length > 0) {
-            mesesParaEnviar = activos.map(btn => btn.value).join(', ');
-        }
+if (tipo === 'ahorro') {
+    const activos = document.querySelectorAll('.btn-quincena.active');
+    
+    // ALARMA 1: ¿El navegador ve los botones rojos?
+    console.log("¿Cuántos botones rojos hay?:", activos.length);
+
+    if (activos.length > 0) {
+        mesesParaEnviar = Array.from(activos).map(btn => btn.value).join(', ');
     }
+}
+
+// ALARMA 2: ¿Qué texto se preparó para enviar?
+console.log("Texto final que se enviará:", mesesParaEnviar);
 
     // --- 2. CONFIRMACIÓN ---
     const confirmacion = await Swal.fire({
