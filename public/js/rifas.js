@@ -268,6 +268,7 @@ async function cargarRifas() {
                 document.getElementById('rifaPrize').value = datos.info.premio || '';
                 document.getElementById('rifaCost').value = datos.info.valor || '';
                 document.getElementById('rifaDate').value = datos.info.fecha || '';
+                document.getElementById('costoPremio').value = datos.info.inversion || '';
             }
 
             // 2. Limpiar el contenedor UNA SOLA VEZ antes de dibujar
@@ -611,7 +612,8 @@ function recolectarDatosPantalla() {
             nombre: document.getElementById('rifaName')?.value || '',
             premio: document.getElementById('rifaPrize')?.value || '',
             valor: document.getElementById('rifaCost')?.value || '',
-            fecha: document.getElementById('rifaDate')?.value || ''
+            fecha: document.getElementById('rifaDate')?.value || '',
+            inversion: document.getElementById('costoPremio').value || ''
         }
     };
 
@@ -743,43 +745,40 @@ function actualizarContadoresVisuales() {
 }
 
 function actualizarContadoresRifa() {
-    // 1. Obtener el valor de cada puesto
     const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
+    const inversionPremio = parseFloat(document.getElementById('costoPremio').value) || 0;
     
-    let potencialTotal = 0; // Lo que valen todos los números de todas las tablas
-    let totalRecogido = 0;  // Lo que ya entró en efectivo (pagos marcados)
+    let potencialTotal = 0; 
+    let totalRecogido = 0;  
 
-    // 2. Escaneamos TODOS los slots que existan en las tablas
-    const todosLosSlots = document.querySelectorAll('.n-slot');
-
-    todosLosSlots.forEach(slot => {
-        // Sumamos al potencial total (siempre que el slot exista)
+    // Escaneamos todos los slots para los cálculos
+    document.querySelectorAll('.n-slot').forEach(slot => {
         potencialTotal += costoPuesto;
-
-        // Verificamos si este slot ya está pagado
         if (slot.classList.contains('paid')) {
             totalRecogido += costoPuesto;
         }
     });
 
-    // 3. La "Ganancia" real es lo que ya pagaron, 
-    // pero si quieres ver cuánto falta, restamos:
-    const porCobrar = potencialTotal - totalRecogido;
+    // CÁLCULO DE GANANCIA REAL: Dinero en mano menos lo que te costó el premio
+    const gananciaReal = totalRecogido - inversionPremio;
 
-    // 4. Formatear a moneda colombiana
     const formato = new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        maximumFractionDigits: 0
+        style: 'currency', currency: 'COP', maximumFractionDigits: 0
     });
 
-    // 5. Actualizar los cuadros del HTML
-    // Total por Recoger: Muestra el valor de todos los números del talonario
+    // Actualizamos los textos
     document.getElementById('stats-total-debe').innerText = formato.format(potencialTotal);
-    
-    // Total Recogido: Muestra lo que ya tienes en mano
     document.getElementById('stats-total-pago').innerText = formato.format(totalRecogido);
     
-    // Ganancia Actual: Muestra lo mismo que el recogido (dinero real hoy)
-    document.getElementById('stats-ganancia').innerText = formato.format(totalRecogido);
+    const txtGanancia = document.getElementById('stats-ganancia');
+    txtGanancia.innerText = formato.format(gananciaReal);
+    
+    // Cambiamos el color según el estado financiero
+    if (gananciaReal < 0) {
+        txtGanancia.style.color = "#e74c3c"; // Rojo: Aún no recuperas la inversión
+    } else if (gananciaReal > 0) {
+        txtGanancia.style.color = "#00b894"; // Verde: ¡Ya tienes ganancias!
+    } else {
+        txtGanancia.style.color = "#2d3436"; // Gris oscuro: Punto de equilibrio
+    }
 }
