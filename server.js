@@ -300,7 +300,7 @@ app.get('/historial-ahorros/:id', async (req, res) => {
             .input('id', sql.Int, req.params.id)
             .query(`SELECT Monto, 
                            FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
-                           ISNULL(MesesCorrespondientes, 'No especificado') as Meses 
+                           ISNULL(MesesCorrespondientes, 'No especificado') as MesesCorrespondientes
                     FROM Ahorros 
                     WHERE ID_Persona = @id ORDER BY Fecha DESC`);
         res.json(result.recordset);
