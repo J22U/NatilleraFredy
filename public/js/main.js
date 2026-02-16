@@ -2,6 +2,8 @@
 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
 window.mapeoIdentificadores = {};
 let miembrosGlobal = []; 
+const mesesDelAño = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 function cargarTodo() { cargarDashboard(); listarMiembros(); }
 document.addEventListener('DOMContentLoaded', () => {
