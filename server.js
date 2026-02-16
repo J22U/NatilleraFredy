@@ -381,26 +381,32 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 
 app.post('/procesar-movimiento', async (req, res) => {
     try {
-        const pool = await poolPromise;
-        
-        // Buscamos el valor sin importar si viene como 'meses', 'MesesCorrespondientes' o 'mesesParaEnviar'
-        const mesesRecibidos = req.body.MesesCorrespondientes || req.body.meses || req.body.Meses || "Abono General";
-        
+        // Log para ver en la terminal negra de VS Code qué está llegando exactamente
+        console.log("CUERPO RECIBIDO:", req.body);
+
+        // EXTRAER EL DATO (Probamos todas las combinaciones por si acaso)
+        const meses = req.body.MesesCorrespondientes || req.body.meses || "Abono General";
         const { idPersona, monto, tipoMovimiento } = req.body;
+
+        const pool = await poolPromise;
 
         if (tipoMovimiento === 'ahorro') {
             await pool.request()
                 .input('id', sql.Int, idPersona)
-                .input('m', sql.Decimal(18,2), monto)
-                .input('textoMeses', sql.VarChar(sql.MAX), mesesRecibidos)
+                .input('m', sql.Decimal(18, 2), monto)
+                // Usamos la variable 'meses' que acabamos de extraer arriba
+                .input('txtMeses', sql.VarChar(sql.MAX), meses) 
                 .query(`
                     INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
-                    VALUES (@id, @m, GETDATE(), @textoMeses)
+                    VALUES (@id, @m, GETDATE(), @txtMeses)
                 `);
+            
+            console.log("¡Guardado en DB con éxito!: ", meses);
         }
+        
         res.json({ success: true });
     } catch (err) {
-        console.error("ERROR FINAL:", err.message);
+        console.error("ERROR AL GUARDAR:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
