@@ -1291,45 +1291,53 @@ function cargarMesesEnContenedor(idContenedor, quincenasPagas = []) {
 
     contenedor.innerHTML = ""; 
 
-    // 1. Definimos la estructura del ciclo de la Natillera
-    // Iniciamos con Dic Q2, luego todos los meses normales, y terminamos en Dic Q1
+    // Definimos el ciclo exacto: 
+    // Empezamos en Dic Q2 (Año anterior) y terminamos en Dic Q1 (Año actual/cierre)
     const estructuraCiclo = [
-        { mes: "Diciembre", qs: ["Q1", "Q2"] }, // El inicio del ahorro
-        { mes: "Enero", qs: ["Q1", "Q2"] },
-        { mes: "Febrero", qs: ["Q1", "Q2"] },
-        { mes: "Marzo", qs: ["Q1", "Q2"] },
-        { mes: "Abril", qs: ["Q1", "Q2"] },
-        { mes: "Mayo", qs: ["Q1", "Q2"] },
-        { mes: "Junio", qs: ["Q1", "Q2"] },
-        { mes: "Julio", qs: ["Q1", "Q2"] },
-        { mes: "Agosto", qs: ["Q1", "Q2"] },
-        { mes: "Septiembre", qs: ["Q1", "Q2"] },
-        { mes: "Octubre", qs: ["Q1", "Q2"] },
-        { mes: "Noviembre", qs: ["Q1", "Q2"] },
-        { mes: "Diciembre", qs: ["Q1", "Q2"] } // El cierre de la natillera
+        { mes: "Diciembre", label: "Diciembre (Inicio)", qs: ["Q2"] }, 
+        { mes: "Enero", label: "Enero", qs: ["Q1", "Q2"] },
+        { mes: "Febrero", label: "Febrero", qs: ["Q1", "Q2"] },
+        { mes: "Marzo", label: "Marzo", qs: ["Q1", "Q2"] },
+        { mes: "Abril", label: "Abril", qs: ["Q1", "Q2"] },
+        { mes: "Mayo", label: "Mayo", qs: ["Q1", "Q2"] },
+        { mes: "Junio", label: "Junio", qs: ["Q1", "Q2"] },
+        { mes: "Julio", label: "Julio", qs: ["Q1", "Q2"] },
+        { mes: "Agosto", label: "Agosto", qs: ["Q1", "Q2"] },
+        { mes: "Septiembre", label: "Septiembre", qs: ["Q1", "Q2"] },
+        { mes: "Octubre", label: "Octubre", qs: ["Q1", "Q2"] },
+        { mes: "Noviembre", label: "Noviembre", qs: ["Q1", "Q2"] },
+        { mes: "Diciembre", label: "Diciembre (Cierre)", qs: ["Q1"] } 
     ];
 
     estructuraCiclo.forEach(item => {
-        // Opcional: Agregar un separador visual por mes
+        // Label del mes
         const labelMes = document.createElement("p");
         labelMes.className = "col-span-2 text-[8px] font-black text-slate-400 uppercase mt-2 mb-1 border-b border-slate-50";
-        labelMes.innerText = item.mes;
+        labelMes.innerText = item.label; // Usamos el label para diferenciar visualmente
         contenedor.appendChild(labelMes);
 
         item.qs.forEach(q => {
+            // El value debe ser único. 
+            // Si tu base de datos no guarda el año, "Diciembre (Q2)" siempre será el de inicio
+            // y "Diciembre (Q1)" siempre será el de cierre en este esquema.
             const nombreQ = `${item.mes} (${q})`;
             const yaPaga = quincenasPagas.includes(nombreQ);
             
             const btn = document.createElement("button");
             btn.type = "button";
             btn.value = nombreQ;
-            btn.innerText = q; // Solo mostramos Q1 o Q2 para no saturar, el label arriba dice el mes
+            btn.innerText = q; 
 
             if (yaPaga) {
                 btn.className = "p-2 text-[10px] font-bold border bg-red-50 text-red-400 border-red-100 cursor-not-allowed line-through rounded-lg opacity-60";
                 btn.onclick = () => Swal.fire('Periodo Ocupado', `${nombreQ} ya fue pagada.`, 'info');
             } else {
-                btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-lg hover:bg-indigo-50 transition-all";
+                // Si es el Diciembre inicial, podrías darle un color sutilmente distinto para guiar al usuario
+                const esInicio = item.label.includes("Inicio");
+                const colorBorde = esInicio ? 'border-amber-200' : 'border-slate-200';
+                
+                btn.className = `btn-quincena p-2 text-[10px] font-bold border ${colorBorde} rounded-lg hover:bg-indigo-50 transition-all`;
+                
                 btn.onclick = () => {
                     btn.classList.toggle("active");
                     btn.classList.toggle("bg-indigo-600");
