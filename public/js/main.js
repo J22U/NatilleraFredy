@@ -16,15 +16,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function cargarDashboard() {
-            try {
-                const res = await fetch('/reporte-general');
-                const data = await res.json();
-                document.getElementById('dash-ahorro').innerText = `$ ${Number(data.TotalAhorrado || 0).toLocaleString()}`;
-                document.getElementById('dash-prestamos').innerText = `$ ${Number(data.CapitalPrestado || 0).toLocaleString()}`;
-                document.getElementById('dash-ganancia').innerText = `$ ${Number(data.GananciasBrutas || 0).toLocaleString()}`;
-            } catch (err) { console.error(err); }
-        }
-
+    try {
+        const res = await fetch('/reporte-general');
+        const data = await res.json();
+        
+        document.getElementById('dash-ahorro').innerText = `$ ${Number(data.TotalAhorrado || 0).toLocaleString()}`;
+        document.getElementById('dash-prestamos').innerText = `$ ${Number(data.CapitalPrestado || 0).toLocaleString()}`;
+        document.getElementById('dash-ganancia').innerText = `$ ${Number(data.GananciasBrutas || 0).toLocaleString()}`;
+        
+        // ESTA ES LA LÍNEA QUE TE FALTA:
+        document.getElementById('dash-caja').innerText = `$ ${Number(data.CajaDisponible || 0).toLocaleString()}`;
+        
+    } catch (err) { console.error(err); }
+}
         async function listarMiembros() {
     try {
         const res = await fetch('/api/socios-esfuerzo');

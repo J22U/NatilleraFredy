@@ -297,20 +297,25 @@ app.get('/reporte-general', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT 
-                -- 1. Total Ahorrado (Suma de todos los ahorros menos retiros)
+                -- Total de ahorros en el sistema
                 (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) as TotalAhorrado,
 
-                -- 2. Capital Prestado (SUMA SOLO EL MONTO ORIGINAL de préstamos activos)
-                -- Cambiamos SaldoActual por MontoPrestado para ignorar el interés
-                (SELECT ISNULL(SUM(MontoPrestado), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
+                -- Capital neto que está prestado actualmente
+                (SELECT ISNULL(SUM(MontoPrestado - MontoPagado), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
 
-                -- 3. Ganancias Brutas (Lo que ya se cobró de intereses)
-                (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas
+                -- Ganancias por intereses ya cobrados
+                (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas,
+
+                -- LA CAJA (Lo que deberías tener en efectivo): Ahorros + Intereses - Lo que está prestado
+                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + 
+                 (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) - 
+                 (SELECT ISNULL(SUM(MontoPrestado - MontoPagado), 0) FROM Prestamos WHERE Estado = 'Activo')
+                ) as CajaDisponible
         `);
         res.json(result.recordset[0]);
     } catch (err) {
         console.error("Error en reporte-general:", err);
-        res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0 });
+        res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0, CajaDisponible: 0 });
     }
 });
 
@@ -660,8 +665,12 @@ app.get('/api/total-ahorros', async (req, res) => {
 app.get('/api/total-prestamos', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // OJO: Usamos MontoPrestado - MontoPagado para saber cuánto capital hay en la calle
-        const result = await pool.request().query("SELECT ISNULL(SUM(MontoPrestado - MontoPagado), 0) as total FROM Prestamos WHERE Estado = 'Activo'");
+        // Calculamos el capital que está en la calle (lo prestado menos lo que ya devolvieron)
+        const result = await pool.request().query(`
+            SELECT ISNULL(SUM(MontoPrestado - MontoPagado), 0) as total 
+            FROM Prestamos 
+            WHERE Estado = 'Activo'
+        `);
         res.json(result.recordset[0]);
     } catch (err) {
         res.status(500).json({ total: 0 });
