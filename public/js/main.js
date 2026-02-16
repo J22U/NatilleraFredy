@@ -205,7 +205,7 @@ async function verHistorialFechas(id, nombre) {
                     <div class="flex flex-col">
                         <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
                         <span class="text-[9px] font-black uppercase ${esRetiro ? 'text-rose-400' : 'text-indigo-400'} mt-0.5">
-                            ${m.Meses || 'Ahorro'}
+                            ${m.MesesCorrespondientes || 'Ahorro'}
                         </span>
                     </div>
                     <div class="text-right">
