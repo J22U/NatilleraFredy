@@ -1197,12 +1197,11 @@ function dibujarBotonesModal(pagas = []) {
     const contenedor = document.getElementById('contenedorMesesModal');
     if (!contenedor) return;
 
-    contenedor.innerHTML = ""; // Limpiar
+    contenedor.innerHTML = ""; 
 
-    const añoActual = new Date().getFullYear(); // 2026
-    const añoPasado = añoActual - 1; // 2025
+    const añoActual = new Date().getFullYear(); 
+    const añoPasado = añoActual - 1; 
 
-    // Definimos el ciclo exacto: Desde Diciembre del año pasado (Q2)
     const estructuraCiclo = [
         { mes: "Diciembre", año: añoPasado, qs: ["Q2"], label: `Diciembre ${añoPasado} (Inicio)` },
         { mes: "Enero", año: añoActual, qs: ["Q1", "Q2"] },
@@ -1220,7 +1219,6 @@ function dibujarBotonesModal(pagas = []) {
     ];
 
     estructuraCiclo.forEach(item => {
-        // Título del mes/periodo
         const divEtiqueta = document.createElement("div");
         divEtiqueta.className = "col-span-2 mb-1";
         const titulo = item.label ? item.label : `${item.mes} ${item.año}`;
@@ -1228,24 +1226,24 @@ function dibujarBotonesModal(pagas = []) {
         contenedor.appendChild(divEtiqueta);
 
         item.qs.forEach(q => {
-            const nombreQ = `${item.mes} ${item.año} (${q})`;
-            const estaPaga = pagas.includes(nombreQ);
+            const nombreNuevo = `${item.mes} ${item.año} (${q})`; // Ej: "Enero 2026 (Q1)"
+            const nombreViejo = `${item.mes} (${q})`;           // Ej: "Enero (Q1)"
+
+            // BUSQUEDA FLEXIBLE: Tacha si encuentra el nombre con año O el nombre sin año
+            const estaPaga = pagas.some(p => p === nombreNuevo || p === nombreViejo);
 
             const btn = document.createElement("button");
             btn.type = "button";
             btn.innerText = q;
-            btn.value = nombreQ;
+            btn.value = nombreNuevo; // Los nuevos se guardarán con año
 
             if (estaPaga) {
-                // Estilo para quincenas ya registradas (Rojo)
                 btn.className = "p-2 text-[10px] font-bold border bg-red-50 text-red-500 border-red-200 cursor-not-allowed line-through rounded-xl opacity-70";
-                btn.onclick = () => Swal.fire('Ya registrado', `Este socio ya pagó ${nombreQ}`, 'info');
+                btn.onclick = () => Swal.fire('Ya registrado', `Este periodo ya cuenta con un pago.`, 'info');
             } else {
-                // Estilo para disponibles (Indigo)
                 btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-xl hover:bg-indigo-50 transition-all text-slate-600 shadow-sm";
                 btn.onclick = () => {
                     btn.classList.toggle("active");
-                    // Nota: Las clases active ya las tienes en tu <style> en el HTML
                 };
             }
             contenedor.appendChild(btn);
