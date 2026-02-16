@@ -1396,7 +1396,7 @@ async function cambiarEstadoSocio(id, nombre, estadoActual) {
 
     if (confirmacion.isConfirmed) {
         try {
-            const res = await fetch('/api/cambiar-estado-socio', {
+            const res = await fetch('/cambiar-estado-socio', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, nuevoEstado })
@@ -1417,7 +1417,7 @@ async function cambiarEstadoSocio(id, nombre, estadoActual) {
 // 2. FUNCIÓN PARA MOSTRAR LA VENTANA DE SOCIOS INACTIVOS
 async function abrirVentanaInactivos() {
     try {
-        const res = await fetch('/api/listar-inactivos');
+        const res = await fetch('/listar-inactivos');
         const inactivos = await res.json();
 
         let listadoHTML = inactivos.length === 0 

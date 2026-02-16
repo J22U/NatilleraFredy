@@ -545,6 +545,7 @@ app.post('/registrar-abono-dinamico', async (req, res) => {
 });
 
 // 1. Cambiar estado (Habilitar/Inhabilitar)
+// BUSCA ESTA RUTA EN SERVER.JS Y DÉJALA ASÍ:
 app.post('/cambiar-estado-socio', async (req, res) => {
     try {
         const { id, nuevoEstado } = req.body;
@@ -553,18 +554,20 @@ app.post('/cambiar-estado-socio', async (req, res) => {
             .input('id', sql.Int, id)
             .input('estado', sql.VarChar, nuevoEstado)
             .query("UPDATE Personas SET Estado = @estado WHERE ID_Persona = @id");
+        
         res.json({ success: true });
     } catch (err) {
+        console.error("Error al cambiar estado:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// 2. Obtener solo inactivos
+// Y ESTA PARA LOS INACTIVOS:
 app.get('/listar-inactivos', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
-            .query("SELECT * FROM Personas WHERE Estado = 'Inactivo' ORDER BY Nombre ASC");
+            .query("SELECT ID_Persona as id, Nombre as nombre FROM Personas WHERE Estado = 'Inactivo'");
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });
