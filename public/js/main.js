@@ -1291,35 +1291,32 @@ function cargarMesesEnContenedor(idContenedor, quincenasPagas = []) {
 
     contenedor.innerHTML = ""; 
 
-    // Definimos el ciclo exacto: 
-    // Empezamos en Dic Q2 (Año anterior) y terminamos en Dic Q1 (Año actual/cierre)
+    // ESTRUCTURA EXACTA: Diciembre Q2 -> Enero a Noviembre -> Diciembre Q1
     const estructuraCiclo = [
-        { mes: "Diciembre", label: "Diciembre (Inicio)", qs: ["Q2"] }, 
-        { mes: "Enero", label: "Enero", qs: ["Q1", "Q2"] },
-        { mes: "Febrero", label: "Febrero", qs: ["Q1", "Q2"] },
-        { mes: "Marzo", label: "Marzo", qs: ["Q1", "Q2"] },
-        { mes: "Abril", label: "Abril", qs: ["Q1", "Q2"] },
-        { mes: "Mayo", label: "Mayo", qs: ["Q1", "Q2"] },
-        { mes: "Junio", label: "Junio", qs: ["Q1", "Q2"] },
-        { mes: "Julio", label: "Julio", qs: ["Q1", "Q2"] },
-        { mes: "Agosto", label: "Agosto", qs: ["Q1", "Q2"] },
-        { mes: "Septiembre", label: "Septiembre", qs: ["Q1", "Q2"] },
-        { mes: "Octubre", label: "Octubre", qs: ["Q1", "Q2"] },
-        { mes: "Noviembre", label: "Noviembre", qs: ["Q1", "Q2"] },
-        { mes: "Diciembre", label: "Diciembre (Cierre)", qs: ["Q1"] } 
+        { mes: "Diciembre", qs: ["Q2"], etiqueta: "Inicio Ciclo" }, 
+        { mes: "Enero", qs: ["Q1", "Q2"] },
+        { mes: "Febrero", qs: ["Q1", "Q2"] },
+        { mes: "Marzo", qs: ["Q1", "Q2"] },
+        { mes: "Abril", qs: ["Q1", "Q2"] },
+        { mes: "Mayo", qs: ["Q1", "Q2"] },
+        { mes: "Junio", qs: ["Q1", "Q2"] },
+        { mes: "Julio", qs: ["Q1", "Q2"] },
+        { mes: "Agosto", qs: ["Q1", "Q2"] },
+        { mes: "Septiembre", qs: ["Q1", "Q2"] },
+        { mes: "Octubre", qs: ["Q1", "Q2"] },
+        { mes: "Noviembre", qs: ["Q1", "Q2"] },
+        { mes: "Diciembre", qs: ["Q1"], etiqueta: "Cierre Ciclo" }
     ];
 
     estructuraCiclo.forEach(item => {
-        // Label del mes
-        const labelMes = document.createElement("p");
-        labelMes.className = "col-span-2 text-[8px] font-black text-slate-400 uppercase mt-2 mb-1 border-b border-slate-50";
-        labelMes.innerText = item.label; // Usamos el label para diferenciar visualmente
-        contenedor.appendChild(labelMes);
+        // Título del mes/periodo
+        const divMes = document.createElement("div");
+        divMes.className = "col-span-2 mb-1";
+        const textoEtiqueta = item.etiqueta ? `${item.mes} (${item.etiqueta})` : item.mes;
+        divMes.innerHTML = `<p class="text-[9px] font-black text-slate-400 uppercase mt-2 border-b border-slate-100">${textoEtiqueta}</p>`;
+        contenedor.appendChild(divMes);
 
         item.qs.forEach(q => {
-            // El value debe ser único. 
-            // Si tu base de datos no guarda el año, "Diciembre (Q2)" siempre será el de inicio
-            // y "Diciembre (Q1)" siempre será el de cierre en este esquema.
             const nombreQ = `${item.mes} (${q})`;
             const yaPaga = quincenasPagas.includes(nombreQ);
             
@@ -1329,15 +1326,12 @@ function cargarMesesEnContenedor(idContenedor, quincenasPagas = []) {
             btn.innerText = q; 
 
             if (yaPaga) {
-                btn.className = "p-2 text-[10px] font-bold border bg-red-50 text-red-400 border-red-100 cursor-not-allowed line-through rounded-lg opacity-60";
+                // Estilo rojo (Ya pagado) - Como se ve en tu imagen
+                btn.className = "p-2 text-[10px] font-bold border bg-red-50 text-red-500 border-red-200 cursor-not-allowed line-through rounded-xl opacity-70";
                 btn.onclick = () => Swal.fire('Periodo Ocupado', `${nombreQ} ya fue pagada.`, 'info');
             } else {
-                // Si es el Diciembre inicial, podrías darle un color sutilmente distinto para guiar al usuario
-                const esInicio = item.label.includes("Inicio");
-                const colorBorde = esInicio ? 'border-amber-200' : 'border-slate-200';
-                
-                btn.className = `btn-quincena p-2 text-[10px] font-bold border ${colorBorde} rounded-lg hover:bg-indigo-50 transition-all`;
-                
+                // Estilo normal (Disponible)
+                btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-xl hover:bg-indigo-50 transition-all text-slate-600";
                 btn.onclick = () => {
                     btn.classList.toggle("active");
                     btn.classList.toggle("bg-indigo-600");
