@@ -1010,7 +1010,7 @@ function cargarMesesEnInterfaz() {
             btn.textContent = q;
             
             // --- ESTA ES LA LÍNEA CLAVE QUE DEBES AGREGAR ---
-            btn.setAttribute('data-valor', valorQuincena); 
+            btn.setAttribute('data-valor', `${mes} (${q})`); 
             // -----------------------------------------------
 
             btn.className = 'py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-amber-50 transition-all';
