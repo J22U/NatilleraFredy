@@ -238,23 +238,25 @@ body {
 
 /* CUERPO DE LA TARJETA */
 /* 1. Esto las oculta por defecto */
-.rifa-card .rifa-body {
+/* 1. Usamos rifa-card-body para que coincida con tu JS */
+.rifa-card .rifa-card-body {
     display: none; 
     visibility: hidden;
     height: 0;
     overflow: hidden;
 }
 
-/* 2. Esto las muestra SOLO cuando haces clic (cuando JS pone la clase 'active') */
-.rifa-card.active .rifa-body {
+/* 2. Cuando la tarjeta tiene la clase 'active', mostramos el CUERPO CORRECTO */
+.rifa-card.active .rifa-card-body {
     display: block;
     visibility: visible;
     height: auto;
 }
 
-/* 3. Rotación de la flecha para saber si está abierta o cerrada */
+/* 3. Rotación de la flecha (en tu JS usaste una flecha hacia abajo, 
+   así que la rotamos para que apunte hacia arriba al abrir) */
 .rifa-card.active .arrow-icon {
-    transform: rotate(90deg);
+    transform: rotate(180deg);
 }
 
 /* GRILLA DE NÚMEROS */
