@@ -3,6 +3,7 @@ const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: 
 window.mapeoIdentificadores = {};
 let miembrosGlobal = []; 
 let quincenasSeleccionadas = [];
+let mesesSeleccionadosTemporales = "Abono General";
 const mesesDelAño = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -393,37 +394,28 @@ function toggleAcordeon(id, btn) {
     const selectDeuda = document.getElementById('mov_prestamo_id');
     const idReal = window.mapeoIdentificadores[numPantalla];
 
-    if (!idReal || isNaN(monto)) return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
-
-    // --- 1. CAPTURAR MESES ---
-    let mesesParaEnviar = "Abono General";
-if (tipo === 'ahorro') {
-    const activos = document.querySelectorAll('.btn-quincena.active');
-    
-    // ALARMA 1: ¿El navegador ve los botones rojos?
-    console.log("¿Cuántos botones rojos hay?:", activos.length);
-
-    if (activos.length > 0) {
-        mesesParaEnviar = Array.from(activos).map(btn => btn.value).join(', ');
+    if (!idReal || isNaN(monto)) {
+        return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
     }
-}
 
-// ALARMA 2: ¿Qué texto se preparó para enviar?
-console.log("Texto final que se enviará:", mesesParaEnviar);
+    // --- 1. DETERMINAR MESES (DESDE EL MODAL O POR DEFECTO) ---
+    // Si es deuda, ponemos un texto fijo. Si es ahorro, usamos lo que capturó el modal.
+    let mesesParaEnviar = (tipo === 'ahorro') ? mesesSeleccionadosTemporales : "Pago de Deuda";
 
     // --- 2. CONFIRMACIÓN ---
     const confirmacion = await Swal.fire({
         title: '¿Confirmar movimiento?',
-        text: `Registro de ${tipo} por $${monto.toLocaleString()} (${mesesParaEnviar})`,
+        text: `Registro de ${tipo.toUpperCase()} por $${monto.toLocaleString()} (${mesesParaEnviar})`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#f59e0b',
-        confirmButtonText: 'Sí, registrar'
+        confirmButtonText: 'Sí, registrar',
+        cancelButtonText: 'Cancelar'
     });
 
     if (!confirmacion.isConfirmed) return;
 
-    // --- 3. ENVÍO ---
+    // --- 3. ENVÍO AL SERVIDOR ---
     try {
         const respuesta = await fetch('/procesar-movimiento', {
             method: 'POST',
@@ -433,7 +425,7 @@ console.log("Texto final que se enviará:", mesesParaEnviar);
                 monto: monto,
                 tipoMovimiento: tipo,
                 idPrestamo: (tipo === 'deuda') ? selectDeuda.value : null,
-                MesesCorrespondientes: mesesParaEnviar // NOMBRE EXACTO
+                MesesCorrespondientes: mesesParaEnviar 
             })
         });
 
@@ -441,18 +433,26 @@ console.log("Texto final que se enviará:", mesesParaEnviar);
 
         if (resultado.success) {
             Swal.fire('¡Éxito!', 'Guardado correctamente', 'success');
+            
+            // Limpieza de interfaz
             montoInput.value = '';
-            // Limpiar botones
-            document.querySelectorAll('.btn-quincena').forEach(btn => {
+            mesesSeleccionadosTemporales = "Abono General"; // Reset variable
+            
+            const indicador = document.getElementById('indicadorMeses');
+            if (indicador) indicador.textContent = "Abono General";
+
+            // Limpiar clases de botones dentro del modal si es necesario
+            document.querySelectorAll('#contenedorMesesModal .btn-quincena').forEach(btn => {
                 btn.classList.remove('active', 'bg-red-500', 'text-white', 'border-red-500');
             });
+
             cargarTodo();
         } else {
             Swal.fire('Error', resultado.error || 'Error desconocido', 'error');
         }
     } catch (error) {
         console.error("Error:", error);
-        Swal.fire('Error', 'Falla de conexión', 'error');
+        Swal.fire('Error', 'Falla de conexión con el servidor', 'error');
     }
 }
 
@@ -1031,5 +1031,63 @@ function cargarMesesEnInterfaz() {
 
         grupoMes.appendChild(botonesCont);
         contenedor.appendChild(grupoMes);
+    });
+}
+
+function abrirModalMeses() {
+    const modal = document.getElementById('modalMeses');
+    modal.classList.remove('hidden');
+    // Reutilizamos tu lógica de cargar botones, pero apuntando al modal
+    cargarMesesEnContenedor('contenedorMesesModal'); 
+}
+
+function cerrarModalMeses() {
+    document.getElementById('modalMeses').classList.add('hidden');
+}
+
+function confirmarSeleccionMeses() {
+    const activos = document.querySelectorAll('#contenedorMesesModal .btn-quincena.active');
+    if (activos.length > 0) {
+        mesesSeleccionadosTemporales = Array.from(activos).map(btn => btn.value).join(', ');
+    } else {
+        mesesSeleccionadosTemporales = "Abono General";
+    }
+    
+    // Mostramos un pequeño feedback en la pantalla principal
+    const indicador = document.getElementById('indicadorMeses');
+    if(indicador) indicador.textContent = mesesSeleccionadosTemporales;
+    
+    cerrarModalMeses();
+}
+
+function cargarMesesEnContenedor(idContenedor) {
+    const contenedor = document.getElementById(idContenedor);
+    if (!contenedor) return;
+
+    const meses = [
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+
+    contenedor.innerHTML = ""; // Limpiar antes de llenar
+
+    meses.forEach(mes => {
+        // Crear botones para Q1 y Q2 de cada mes
+        for (let q = 1; q <= 2; q++) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.value = `${mes} (Q${q})`;
+            btn.innerText = `${mes} (Q${q})`;
+            btn.className = "btn-quincena p-2 text-[10px] font-bold border rounded-lg hover:bg-slate-100 transition-all";
+            
+            // Lógica para marcar como activo al hacer clic
+            btn.onclick = () => {
+                btn.classList.toggle("active");
+                btn.classList.toggle("bg-indigo-600");
+                btn.classList.toggle("text-white");
+            };
+            
+            contenedor.appendChild(btn);
+        }
     });
 }
