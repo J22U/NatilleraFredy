@@ -521,67 +521,83 @@ async function crearPersona() {
                     </div>
                     <div>
                         <label class="swal-input-label">Interés Mensual (%)</label>
-                        <input id="p-tasa" type="number" class="swal-custom-input" value="5">
+                        <input id="p-tasa" type="number" class="swal-custom-input" value="10">
                     </div>
                 </div>
-                <div>
-                    <label class="swal-input-label">Número de Cuotas</label>
-                    <select id="p-cuotas" class="swal-custom-input cursor-pointer">
-                        <option value="1">1 Mes (Pago único)</option>
-                        <option value="2">2 Meses</option>
-                        <option value="3">3 Meses</option>
-                        <option value="6">6 Meses</option>
-                        <option value="12">12 Meses</option>
-                    </select>
+
+                <div class="bg-indigo-950 p-5 rounded-2xl text-white shadow-xl border border-indigo-500/30">
+                    <div class="flex justify-between text-[10px] text-indigo-300 font-black uppercase mb-4 tracking-widest">
+                        <span>Simulador de Interés Diario</span>
+                        <i class="fas fa-bolt text-amber-400"></i>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="border-r border-white/10">
+                            <p class="text-[9px] text-slate-400 uppercase font-bold">Costo por día</p>
+                            <span id="calc-dia" class="text-xl font-black text-amber-400">$ 0</span>
+                        </div>
+                        <div class="pl-2">
+                            <p class="text-[9px] text-slate-400 uppercase font-bold">Costo por semana</p>
+                            <span id="calc-semana" class="text-xl font-black text-emerald-400">$ 0</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-white/10">
+                        <p class="text-[9px] text-slate-400 uppercase font-bold mb-1">Impacto a 30 días</p>
+                        <div class="flex justify-between items-end">
+                            <span id="calc-mes" class="text-sm font-bold text-white">$ 0</span>
+                            <span class="text-[8px] text-indigo-300 italic">* Basado en mes de 30 días</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="bg-slate-900 p-4 rounded-2xl text-white shadow-inner">
-                    <div class="flex justify-between text-[10px] text-slate-400 font-bold uppercase mb-2">
-                        <span>Resumen del Crédito</span>
-                        <i class="fas fa-calculator"></i>
-                    </div>
-                    <div class="space-y-1 border-b border-white/10 pb-2 mb-2">
-                        <div class="flex justify-between text-xs"><span>Interés total:</span> <span id="calc-interes" class="text-rose-400 font-bold">$ 0</span></div>
-                        <div class="flex justify-between text-xs"><span>Total a pagar:</span> <span id="calc-total" class="text-emerald-400 font-bold">$ 0</span></div>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-[10px] font-bold uppercase text-indigo-300">Valor de cada cuota:</span>
-                        <span id="calc-cuota" class="text-lg font-black text-white">$ 0</span>
-                    </div>
-                </div>
+                
+                <p class="text-[10px] text-slate-500 italic px-2">
+                    * El sistema sumará el interés automáticamente cada día transcurrido.
+                </p>
             </div>`,
         didOpen: () => {
-            const inputs = ['p-m', 'p-tasa', 'p-cuotas'];
-            const calcular = () => {
+            const inputs = ['p-m', 'p-tasa'];
+            const calcularDiario = () => {
                 const capital = parseFloat(document.getElementById('p-m').value) || 0;
-                const tasa = parseFloat(document.getElementById('p-tasa').value) || 0;
-                const nCuotas = parseInt(document.getElementById('p-cuotas').value);
+                const tasaMensual = parseFloat(document.getElementById('p-tasa').value) || 0;
 
-                // Lógica Natillera: El interés se aplica sobre el capital inicial por el tiempo pactado
-                const interesTotal = capital * (tasa / 100) * nCuotas;
-                const totalADevolver = capital + interesTotal;
-                const valorCuota = totalADevolver / nCuotas;
+                // Cálculo Natillero: (Capital * %Mensual) / 30 días
+                const interesPorDia = (capital * (tasaMensual / 100)) / 30;
+                const interesPorSemana = interesPorDia * 7;
+                const interesPorMes = interesPorDia * 30;
 
-                document.getElementById('calc-interes').innerText = `$ ${interesTotal.toLocaleString()}`;
-                document.getElementById('calc-total').innerText = `$ ${totalADevolver.toLocaleString()}`;
-                document.getElementById('calc-cuota').innerText = `$ ${valorCuota.toLocaleString()}`;
+                document.getElementById('calc-dia').innerText = `$ ${Math.round(interesPorDia).toLocaleString()}`;
+                document.getElementById('calc-semana').innerText = `$ ${Math.round(interesPorSemana).toLocaleString()}`;
+                document.getElementById('calc-mes').innerText = `$ ${Math.round(interesPorMes).toLocaleString()}`;
             };
-            inputs.forEach(id => document.getElementById(id).addEventListener('input', calcular));
-            inputs.forEach(id => document.getElementById(id).addEventListener('change', calcular));
+            
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                el.addEventListener('input', calcularDiario);
+            });
         },
         preConfirm: () => {
             const idReal = window.mapeoIdentificadores[document.getElementById('p-id').value];
             const monto = parseFloat(document.getElementById('p-m').value);
             const tasa = parseFloat(document.getElementById('p-tasa').value);
-            const cuotas = parseInt(document.getElementById('p-cuotas').value);
 
             if (!idReal) return Swal.showValidationMessage(`Socio no encontrado`);
             if (!monto || monto <= 0) return Swal.showValidationMessage(`Monto inválido`);
+            if (!tasa || tasa <= 0) return Swal.showValidationMessage(`Tasa inválida`);
             
-            return { idPersona: idReal, monto, tasaInteres: tasa, cuotas };
+            return { 
+                idPersona: idReal, 
+                monto, 
+                tasaInteresMensual: tasa,
+                esDiario: true // Flag para que el backend sepa que es el nuevo modelo
+            };
         }
     });
 
-    if (formValues) apiCall('/registrar-prestamo', formValues, "Préstamo registrado");
+    if (formValues) {
+        // Ajusta la URL según tu backend
+        apiCall('/registrar-prestamo-diario', formValues, "Préstamo dinámico registrado");
+    }
 }
 
 function eliminarSocio(id) {
@@ -1180,4 +1196,53 @@ function cargarMesesEnContenedor(idContenedor) {
             contenedor.appendChild(btn);
         }
     });
+}
+
+function calcularInteresDiario() {
+    const monto = parseFloat(document.getElementById('pre_monto').value) || 0;
+    const tasaMensual = parseFloat(document.getElementById('pre_tasa_mensual').value) || 0;
+
+    if (monto > 0 && tasaMensual > 0) {
+        // Cálculo: (Monto * % mensual) / 100 / 30 días
+        const interesDia = (monto * (tasaMensual / 100)) / 30;
+        const interesSemana = interesDia * 7;
+
+        document.getElementById('calc_interes_dia').textContent = `$ ${interesDia.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+        document.getElementById('calc_interes_semana').textContent = `$ ${interesSemana.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+    } else {
+        document.getElementById('calc_interes_dia').textContent = "$ 0";
+        document.getElementById('calc_interes_semana').textContent = "$ 0";
+    }
+}
+
+async function guardarPrestamoDiario() {
+    const idSocNum = document.getElementById('pre_id_socio').value;
+    const idReal = window.mapeoIdentificadores[idSocNum];
+    const monto = parseFloat(document.getElementById('pre_monto').value);
+    const tasa = parseFloat(document.getElementById('pre_tasa_mensual').value);
+
+    if (!idReal || !monto || !tasa) {
+        return Swal.fire('Error', 'Completa todos los campos', 'error');
+    }
+
+    try {
+        const res = await fetch('/crear-prestamo-diario', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                idPersona: idReal,
+                monto: monto,
+                tasaMensual: tasa
+            })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            Swal.fire('¡Éxito!', 'Préstamo iniciado con éxito', 'success');
+            cerrarModalPrestamo();
+            cargarTodo();
+        }
+    } catch (err) {
+        Swal.fire('Error', 'No se pudo guardar el préstamo', 'error');
+    }
 }
