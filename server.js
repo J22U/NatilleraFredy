@@ -111,13 +111,21 @@ app.post('/api/guardar-rifa', async (req, res) => {
 app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT p.ID_Persona as id, p.Nombre as nombre, p.Documento as cedula, 
-            CASE WHEN p.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
-            ISNULL((SELECT SUM(SaldoActual) FROM Prestamos WHERE ID_Persona = p.ID_Persona), 0) as deudaTotal
-            FROM Personas p ORDER BY p.ID_Persona DESC`);
+        const result = await pool.request()
+            .query(`
+                SELECT 
+                    ID_Persona as id, 
+                    Nombre as nombre, 
+                    Documento as cedula, 
+                    CASE WHEN EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo 
+                FROM Personas 
+                WHERE Estado = 'Activo' OR Estado IS NULL
+                ORDER BY ID_Persona ASC
+            `);
         res.json(result.recordset);
-    } catch (err) { res.status(500).json([]); }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/guardar-miembro', async (req, res) => {

@@ -28,7 +28,7 @@ async function cargarDashboard() {
         async function listarMiembros() {
     try {
         const res = await fetch('/listar-miembros');
-        // Quitamos el 'const' para usar la variable global
+        // Usamos la variable global
         miembrosGlobal = await res.json(); 
         
         const tbody = document.getElementById('tabla-recientes');
@@ -38,7 +38,7 @@ async function cargarDashboard() {
         let cAhorro = 0, cExtra = 0;
         const totalMiembros = miembrosGlobal.length;
 
-        // Clonamos y volteamos para no dañar el array original
+        // Clonamos y volteamos para mostrar los últimos primero
         [...miembrosGlobal].reverse().forEach((m, index) => {
             const numPantalla = totalMiembros - index;
             
@@ -61,22 +61,29 @@ async function cargarDashboard() {
                         </div>
                     </td>
                     <td class="px-8 py-5 text-center">
-                        <div class="flex justify-center gap-3">
-    <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
-    
-    <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-2">
-        <i class="fas fa-hand-holding-usd"></i> Retirar
-    </button>
+                        <div class="flex justify-center gap-3 items-center">
+                            <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
+                            
+                            <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-2">
+                                <i class="fas fa-hand-holding-usd"></i> Retirar
+                            </button>
 
-    <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
-    <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2"><i class="fas fa-trash"></i></button>
-</div>
+                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}')" class="text-amber-500 p-2 hover:scale-110 transition-transform"><i class="fas fa-pen"></i></button>
+                            
+                            <button onclick="cambiarEstadoSocio(${m.id}, '${m.nombre}', 'Activo')" class="text-slate-400 p-2 hover:text-orange-500 hover:scale-110 transition-all" title="Inhabilitar Socio">
+                                <i class="fas fa-user-slash"></i>
+                            </button>
+
+                            <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2 hover:scale-110 transition-transform"><i class="fas fa-trash"></i></button>
+                        </div>
                     </td>
                 </tr>`;
         });
         document.getElementById('count-ahorradores').innerText = `${cAhorro} Ahorradores`;
         document.getElementById('count-prestamos').innerText = `${cExtra} Externos`;
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+        console.error("Error al listar miembros:", err); 
+    }
 }
 
 async function abrirModalRetiro(id, nombre) {
