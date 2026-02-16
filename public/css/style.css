@@ -50,3 +50,12 @@
 .btn-rifas-dashboard i {
     font-size: 1.1rem;
 }
+
+/* Botón ya registrado */
+.btn-registrado {
+    background-color: #fee2e2 !important; /* Rojo muy claro */
+    color: #ef4444 !important;            /* Texto rojo */
+    border-color: #fecaca !important;     /* Borde rojo suave */
+    cursor: not-allowed;
+    text-decoration: line-through;
+}

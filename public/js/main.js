@@ -1039,24 +1039,57 @@ async function abrirModalMeses() {
     const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
 
     if (!idReal) {
-        return Swal.fire('Atención', 'Ingresa un ID de socio válido para verificar pagos.', 'warning');
+        return Swal.fire('Atención', 'Primero ingresa el ID del socio para ver su historial.', 'warning');
     }
 
     try {
-        // 1. Consultar al servidor qué quincenas ya están registradas
+        // Consultamos las quincenas que ya existen en la base de datos para este ID
         const resp = await fetch(`/api/quincenas-pagas/${idReal}`);
-        const quincenasPagas = await resp.json();
+        const quincenasYaPagas = await resp.json(); 
 
-        // 2. Mostrar el modal
         const modal = document.getElementById('modalMeses');
         modal.classList.remove('hidden');
 
-        // 3. Dibujar botones pasando la lista de lo que ya se pagó
-        cargarMesesEnContenedor('contenedorMesesModal', quincenasPagas);
+        // Pasamos la lista de pagas a la función que dibuja los botones
+        dibujarBotonesModal(quincenasYaPagas);
+        
     } catch (error) {
-        console.error("Error:", error);
-        Swal.fire('Error', 'No se pudo conectar con la base de datos', 'error');
+        console.error("Error al pintar quincenas:", error);
     }
+}
+
+function dibujarBotonesModal(pagas = []) {
+    const contenedor = document.getElementById('contenedorMesesModal');
+    contenedor.innerHTML = ""; // Limpiar
+
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+    meses.forEach(mes => {
+        for (let q = 1; q <= 2; q++) {
+            const nombreQ = `${mes} (Q${q})`;
+            const estaPaga = pagas.includes(nombreQ); // ¿Está en la lista del servidor?
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.innerText = nombreQ;
+            btn.value = nombreQ;
+
+            if (estaPaga) {
+                // Si ya está registrada, la pintamos de rojo y la bloqueamos
+                btn.className = "btn-registrado p-2 text-[10px] font-bold border rounded-lg shadow-sm";
+                btn.onclick = () => Swal.fire('Ya registrado', `Este socio ya pagó ${nombreQ}`, 'info');
+            } else {
+                // Si está disponible, botón normal
+                btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-lg hover:bg-indigo-50 transition-all";
+                btn.onclick = () => {
+                    btn.classList.toggle("active");
+                    btn.classList.toggle("bg-indigo-600");
+                    btn.classList.toggle("text-white");
+                };
+            }
+            contenedor.appendChild(btn);
+        }
+    });
 }
 
 function cargarMesesEnContenedor(idContenedor, quincenasPagas = []) {
