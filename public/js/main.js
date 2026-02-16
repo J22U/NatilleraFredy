@@ -962,11 +962,37 @@ function obtenerMesesSeleccionados() {
 function cargarMesesEnInterfaz() {
     const contenedor = document.getElementById('contenedor-meses');
     if (!contenedor) return;
-    
-    contenedor.innerHTML = mesesDelAño.map(mes => `
-        <label class="flex items-center justify-center p-2 rounded-xl border border-slate-200 text-[10px] font-bold cursor-pointer hover:bg-amber-50 has-[:checked]:bg-amber-500 has-[:checked]:text-white transition-all shadow-sm">
-            <input type="checkbox" name="mes-ahorro" value="${mes}" class="hidden">
-            ${mes}
-        </label>
-    `).join('');
+    contenedor.innerHTML = '';
+
+    // "mesesDelAño" debe estar definida al inicio de tu main.js
+    mesesDelAño.forEach(mes => {
+        // Creamos un contenedor pequeño para las dos quincenas del mes
+        const grupoMes = document.createElement('div');
+        grupoMes.className = 'col-span-3 mb-2'; // Ocupa todo el ancho del grid
+        grupoMes.innerHTML = `<p class="text-[9px] font-black text-slate-400 uppercase mb-1 border-b border-slate-100">${mes}</p>`;
+        
+        const botonesCont = document.createElement('div');
+        botonesCont.className = 'grid grid-cols-2 gap-1';
+
+        // Generamos Q1 y Q2
+        ['Q1', 'Q2'].forEach(q => {
+            const btn = document.createElement('button');
+            const valorQuincena = `${mes} (${q})`;
+            btn.textContent = q;
+            btn.className = 'py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-amber-50 transition-all';
+            
+            btn.onclick = (e) => {
+                e.preventDefault();
+                btn.classList.toggle('bg-amber-500');
+                btn.classList.toggle('text-white');
+                btn.classList.toggle('border-amber-500');
+                // Aquí podrías añadir lógica para guardar los meses seleccionados en un array
+            };
+            
+            botonesCont.appendChild(btn);
+        });
+
+        grupoMes.appendChild(botonesCont);
+        contenedor.appendChild(grupoMes);
+    });
 }
