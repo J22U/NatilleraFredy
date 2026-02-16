@@ -773,125 +773,102 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const fechaDoc = new Date().toLocaleDateString('es-CO');
-    const horaDoc = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
-    // --- 1. ENCABEZADO DE ALTO IMPACTO ---
-    doc.setFillColor(15, 23, 42); // Slate-900
-    doc.rect(0, 0, 210, 50, 'F');
-    
+    // 1. ENCABEZADO PROFESIONAL
+    doc.setFillColor(15, 23, 42); 
+    doc.rect(0, 0, 210, 45, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
+    doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
-    doc.text("ESTADO DE CUENTA INTEGRAL", 14, 25);
+    doc.text("EXTRACTO DETALLADO DE CUENTA", 14, 22);
     
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(148, 163, 184);
-    doc.text(`ID SOCIO: #${totales.idSocio || '---'}`, 14, 33);
-    doc.text(`TITULAR: ${nombre.toUpperCase()}`, 14, 38);
-    doc.text(`TIPO DE MIEMBRO: ${totales.tipoMiembro || 'SOCIO'}`, 14, 43);
+    doc.text(`TITULAR: ${nombre.toUpperCase()}`, 14, 32);
+    doc.text(`ID SOCIO: #${totales.idSocio || '---'}`, 140, 22);
+    doc.text(`FECHA DE EMISIÓN: ${fechaDoc}`, 140, 32);
 
-    doc.setTextColor(255, 255, 255);
-    doc.text(`EMITIDO: ${fechaDoc} | ${horaDoc}`, 145, 43);
-
-    // --- 2. BALANCE DE SITUACIÓN (RESUMEN FINANCIERO) ---
+    // 2. RESUMEN DE SALDOS
     doc.autoTable({
-        startY: 55,
-        head: [['CONCEPTO DE BALANCE', 'VALOR ACUMULADO']],
+        startY: 50,
+        head: [['CONCEPTO', 'VALOR']],
         body: [
-            ['(+) TOTAL APORTES DE AHORRO', `$ ${Number(totales.totalAhorrado || 0).toLocaleString('es-CO')}`],
-            ['(-) TOTAL CAPITAL PRESTADO', `$ ${Number(totales.capitalPendiente || 0).toLocaleString('es-CO')}`],
-            ['(-) INTERESES POR PAGAR', `$ ${Number(totales.interesesPendientes || 0).toLocaleString('es-CO')}`],
-            ['(=) SALDO NETO PENDIENTE (DEUDA)', `$ ${Number(totales.deudaTotal || 0).toLocaleString('es-CO')}`]
+            ['TOTAL AHORRADO', `$ ${Number(totales.totalAhorrado || 0).toLocaleString('es-CO')}`],
+            ['DEUDA TOTAL PENDIENTE', `$ ${Number(totales.deudaTotal || 0).toLocaleString('es-CO')}`]
         ],
-        theme: 'grid',
-        headStyles: { fillStyle: [79, 70, 229], halign: 'center' },
+        theme: 'striped',
+        headStyles: { fillStyle: [79, 70, 229] },
         styles: { fontSize: 10, cellPadding: 3 },
         columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // --- 3. DESGLOSE TÉCNICO DE AHORROS (QUINCENAS Y PERIODOS) ---
-    doc.setFontSize(11);
-    doc.setTextColor(16, 185, 129); // Verde
-    doc.text("1. AUDITORÍA DE APORTES Y PERIODOS CUBIERTOS", 14, doc.lastAutoTable.finalY + 12);
+    // 3. HISTORIAL DE AHORROS (CON ID Y QUINCENAS)
+    doc.setFontSize(12);
+    doc.setTextColor(16, 185, 129);
+    doc.text("1. DETALLE DE AHORROS Y PERIODOS", 14, doc.lastAutoTable.finalY + 12);
     
-    const bodyAhorros = ahorros.map(a => [
-        a.ID_Ahorro || '---',
-        a.FechaFormateada || new Date(a.Fecha).toLocaleDateString('es-CO'),
-        (a.Descripcion || "Abono General").toUpperCase(), // Aquí salen tus quincenas: "Ene Q1, Ene Q2..."
-        `$ ${Number(a.Monto).toLocaleString('es-CO')}`
-    ]);
-
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['ID', 'Fecha Pago', 'Periodos / Concepto', 'Monto Recibido']],
-        body: bodyAhorros,
+        head: [['ID', 'Fecha Pago', 'Quincenas / Periodo Correspondiente', 'Monto']],
+        body: ahorros.map(a => [
+            `#${a.ID_Ahorro || a.id || '---'}`, // ID Real del Ahorro
+            a.FechaFormateada || new Date(a.Fecha).toLocaleDateString('es-CO'),
+            (a.Descripcion || "Abono General").toUpperCase(), // Aquí se muestran las quincenas (ej: "ENE Q1, ENE Q2")
+            `$ ${Number(a.Monto).toLocaleString('es-CO')}`
+        ]),
         headStyles: { fillStyle: [16, 185, 129] },
         styles: { fontSize: 8.5 },
-        columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
+        columnStyles: { 0: { cellWidth: 20 }, 3: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // --- 4. DETALLE DE CRÉDITOS ACTIVOS (LIQUIDACIÓN TÉCNICA) ---
-    doc.setFontSize(11);
-    doc.setTextColor(59, 130, 246); // Azul
-    doc.text("2. ESTADO TÉCNICO DE PRÉSTAMOS (CAPITAL + INT)", 14, doc.lastAutoTable.finalY + 12);
+    // 4. DETALLE DE PRÉSTAMOS (CON FECHA DE REALIZACIÓN)
+    doc.setFontSize(12);
+    doc.setTextColor(59, 130, 246);
+    doc.text("2. HISTORIAL DE PRÉSTAMOS REALIZADOS", 14, doc.lastAutoTable.finalY + 12);
 
-    const bodyPrestamos = prestamos.map(p => {
-        const totalConInt = Number(p.MontoPrestado) + Number(p.MontoInteres || 0);
-        return [
+    doc.autoTable({
+        startY: doc.lastAutoTable.finalY + 15,
+        head: [['REF ID', 'Fecha Realización', 'Tasa %', 'Monto Inicial', 'Saldo Actual']],
+        body: prestamos.map(p => [
             `PR-${p.ID_Prestamo}`,
-            p.FechaPrestamo || '---',
+            p.FechaPrestamo || '---', // Fecha en que se realizó el préstamo
             `${p.TasaInteres || 3}%`,
             `$ ${Number(p.MontoPrestado).toLocaleString('es-CO')}`,
-            `$ ${Number(p.MontoInteres || 0).toLocaleString('es-CO')}`,
-            `$ ${totalConInt.toLocaleString('es-CO')}`,
             `$ ${Number(p.SaldoActual).toLocaleString('es-CO')}`
-        ];
-    });
-
-    doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 15,
-        head: [['REF', 'Fecha', '%', 'Capital', 'Interés', 'Total', 'Saldo']],
-        body: bodyPrestamos,
+        ]),
         headStyles: { fillStyle: [59, 130, 246] },
-        styles: { fontSize: 8 },
-        columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right', fontStyle: 'bold' } }
+        styles: { fontSize: 9 },
+        columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // --- 5. REGISTRO DE PAGOS A DEUDA (CRONOLÓGICO) ---
-    doc.setFontSize(11);
-    doc.setTextColor(225, 29, 72); // Rojo
-    doc.text("3. TRAZABILIDAD DE PAGOS Y ABONOS", 14, doc.lastAutoTable.finalY + 12);
-
-    const bodyAbonos = abonos.map(ab => [
-        ab.FechaFormateada || '---',
-        `PAGO RECIBIDO PARA PRÉSTAMO REF: PR-${ab.ID_Prestamo}`,
-        `$ ${Number(ab.Monto_Abonado).toLocaleString('es-CO')}`
-    ]);
+    // 5. HISTORIAL DE ABONOS A PRÉSTAMOS
+    doc.setFontSize(12);
+    doc.setTextColor(225, 29, 72);
+    doc.text("3. ABONOS REALIZADOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['Fecha de Transacción', 'Descripción de Aplicación', 'Valor Abonado']],
-        body: bodyAbonos.length ? bodyAbonos : [['---', 'Sin abonos registrados a la fecha', '$ 0']],
+        head: [['Fecha Abono', 'Referencia Préstamo', 'Monto Pagado']],
+        body: abonos.map(ab => [
+            ab.FechaFormateada || '---',
+            `Abono a Préstamo PR-${ab.ID_Prestamo}`,
+            `$ ${Number(ab.Monto_Abonado).toLocaleString('es-CO')}`
+        ]),
         headStyles: { fillStyle: [225, 29, 72] },
         styles: { fontSize: 9 },
         columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // --- PIE DE PÁGINA CON SELLO DE VALIDEZ ---
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
+    // PIE DE PÁGINA
+    const totalPaginas = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPaginas; i++) {
         doc.setPage(i);
-        doc.setDrawColor(200);
-        doc.line(14, 275, 196, 275); // Línea divisoria
-        
         doc.setFontSize(8);
         doc.setTextColor(150);
-        doc.text("Este reporte es un documento oficial de control interno. Verifique sus saldos periódicamente.", 14, 282);
-        doc.text(`Página ${i} de ${totalPages}`, 180, 282);
+        doc.text(`Página ${i} de ${totalPaginas} - Documento Informativo Natillera`, 14, 285);
     }
 
-    doc.save(`Extracto_Completo_${nombre.replace(/\s+/g, '_')}.pdf`);
+    doc.save(`Extracto_Detallado_${nombre.replace(/\s+/g, '_')}.pdf`);
 }
 
 async function verListaRapidaDeudores() {
