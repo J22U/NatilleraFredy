@@ -394,13 +394,21 @@ function toggleAcordeon(id, btn) {
 
     if (!idReal || isNaN(monto)) return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
 
-    // --- NUEVO: CAPTURAR MESES ---
+    // --- CORRECCIÓN: CAPTURAR MESES DESDE BOTONES ---
     let mesesSeleccionados = "";
     if (tipo === 'ahorro') {
-        const checks = document.querySelectorAll('input[name="mes-ahorro"]:checked');
-        mesesSeleccionados = Array.from(checks).map(cb => cb.value).join(', ');
+        // Buscamos los botones que tienen la clase de color activo (naranja)
+        const botonesActivos = document.querySelectorAll('#contenedor-meses button.bg-amber-500');
+        
+        // Extraemos el texto o el atributo data-valor de cada botón seleccionado
+        mesesSeleccionados = Array.from(botonesActivos)
+            .map(btn => btn.getAttribute('data-valor') || btn.textContent.trim())
+            .join(', ');
+
+        // Si no hay ninguno seleccionado, podrías dejarlo vacío o poner un texto por defecto
+        if (!mesesSeleccionados) mesesSeleccionados = "Abono General";
     }
-    // ----------------------------
+    // ------------------------------------------------
 
     if (tipo === 'deuda') {
         if (!selectDeuda.value) return Toast.fire({ icon: 'error', title: 'Selecciona una deuda' });
@@ -978,21 +986,23 @@ function cargarMesesEnInterfaz() {
     if (!contenedor) return;
     contenedor.innerHTML = '';
 
-    // "mesesDelAño" debe estar definida al inicio de tu main.js
     mesesDelAño.forEach(mes => {
-        // Creamos un contenedor pequeño para las dos quincenas del mes
         const grupoMes = document.createElement('div');
-        grupoMes.className = 'col-span-3 mb-2'; // Ocupa todo el ancho del grid
+        grupoMes.className = 'col-span-3 mb-2';
         grupoMes.innerHTML = `<p class="text-[9px] font-black text-slate-400 uppercase mb-1 border-b border-slate-100">${mes}</p>`;
         
         const botonesCont = document.createElement('div');
         botonesCont.className = 'grid grid-cols-2 gap-1';
 
-        // Generamos Q1 y Q2
         ['Q1', 'Q2'].forEach(q => {
             const btn = document.createElement('button');
-            const valorQuincena = `${mes} (${q})`;
+            const valorQuincena = `${mes} (${q})`; // Ejemplo: "Enero (Q1)"
             btn.textContent = q;
+            
+            // --- ESTA ES LA LÍNEA CLAVE QUE DEBES AGREGAR ---
+            btn.setAttribute('data-valor', valorQuincena); 
+            // -----------------------------------------------
+
             btn.className = 'py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-amber-50 transition-all';
             
             btn.onclick = (e) => {
@@ -1000,7 +1010,6 @@ function cargarMesesEnInterfaz() {
                 btn.classList.toggle('bg-amber-500');
                 btn.classList.toggle('text-white');
                 btn.classList.toggle('border-amber-500');
-                // Aquí podrías añadir lógica para guardar los meses seleccionados en un array
             };
             
             botonesCont.appendChild(btn);
