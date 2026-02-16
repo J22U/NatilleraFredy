@@ -378,15 +378,15 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 app.post('/procesar-movimiento', async (req, res) => {
     try {
         // 1. Extraemos los datos
-        const { idPersona, monto, tipoMovimiento, meses } = req.body;
+        const { idPersona, monto, tipoMovimiento, MesesCorrespondientes } = req.body;
         
         // 2. VERIFICACIÓN CRÍTICA EN TU CONSOLA DE NODE:
-        console.log("¿Llegó el dato al servidor?:", meses);
+        console.log("¿Llegó el dato al servidor?:", MesesCorrespondientes);
 
         const pool = await poolPromise;
         
         // 3. Si 'meses' es undefined o vacío, le ponemos un texto para saber que falló el envío
-        const valorFinal = (meses && meses.toString().trim() !== "") ? meses : "ERROR: DATO VACIO";
+        const valorFinal = (MesesCorrespondientes && MesesCorrespondientes.toString().trim() !== "") ? MesesCorrespondientes : "ERROR: DATO VACIO";
 
         if (tipoMovimiento === 'ahorro') {
             await pool.request()

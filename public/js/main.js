@@ -433,7 +433,7 @@ function toggleAcordeon(id, btn) {
                 monto: monto,
                 tipoMovimiento: tipo,
                 idPrestamo: (tipo === 'deuda') ? selectDeuda.value : null,
-                meses: mesesParaEnviar 
+                MesesCorrespondientes: mesesParaEnviar 
             })
         });
 
