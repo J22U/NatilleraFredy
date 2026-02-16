@@ -471,36 +471,27 @@ function toggleAcordeon(id, btn) {
 
 async function cargarEstadisticas() {
     try {
-        // 1. Obtenemos los datos (Asegúrate de que estas rutas existan en tu server.js)
-        const [resAhorros, resPrestamos, resGanancias] = await Promise.all([
+        // Pedimos los 4 datos al tiempo
+        const [resA, resP, resG, resC] = await Promise.all([
             fetch('/api/total-ahorros'),
             fetch('/api/total-prestamos'),
-            fetch('/api/ganancias-disponibles')
+            fetch('/api/ganancias-disponibles'),
+            fetch('/api/caja-disponible')
         ]);
 
-        const dataAhorros = await resAhorros.json();
-        const dataPrestamos = await resPrestamos.json();
-        const dataGanancias = await resGanancias.json();
+        const a = await resA.json();
+        const p = await resP.json();
+        const g = await resG.json();
+        const c = await resC.json();
 
-        // 2. Extraemos los valores numéricos
-        const totalAhorrado = parseFloat(dataAhorros.total || 0);
-        const capitalPrestado = parseFloat(dataPrestamos.total || 0);
-        const gananciasBrutas = parseFloat(dataGanancias.saldo || 0);
-
-        // 3. LA FÓRMULA MÁGICA: Efectivo en caja
-        // Es lo que tenemos (Ahorro + Ganancia) menos lo que está prestado ("en la calle")
-        const efectivoCaja = (totalAhorrado + gananciasBrutas) - capitalPrestado;
-
-        // 4. Pintamos los datos en la pantalla
-        document.getElementById('dash-ahorro').innerText = `$ ${totalAhorrado.toLocaleString()}`;
-        document.getElementById('dash-prestamos').innerText = `$ ${capitalPrestado.toLocaleString()}`;
-        document.getElementById('dash-ganancia').innerText = `$ ${gananciasBrutas.toLocaleString()}`;
-        
-        // Esta es la línea que llena el nuevo cuadro
-        document.getElementById('dash-caja').innerText = `$ ${efectivoCaja.toLocaleString()}`;
+        // Pintamos en los IDs del HTML que revisamos antes
+        document.getElementById('dash-ahorro').innerText = `$ ${parseFloat(a.total).toLocaleString()}`;
+        document.getElementById('dash-prestamos').innerText = `$ ${parseFloat(p.total).toLocaleString()}`;
+        document.getElementById('dash-ganancia').innerText = `$ ${parseFloat(g.saldo).toLocaleString()}`;
+        document.getElementById('dash-caja').innerText = `$ ${parseFloat(c.total).toLocaleString()}`;
 
     } catch (error) {
-        console.error("Error al cargar estadísticas:", error);
+        console.error("Error cargando cuadros:", error);
     }
 }
 

@@ -633,18 +633,38 @@ app.get('/api/caja-disponible', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT (
-                -- Todo lo que entró físicamente
                 ISNULL((SELECT SUM(Monto) FROM Ahorros), 0) + 
-                ISNULL((SELECT SUM(Monto) FROM HistorialGanancias), 0)
+                ISNULL((SELECT SUM(Monto), 0) FROM HistorialGanancias)
             ) - (
-                -- Lo que salió y no ha regresado (Capital en la calle)
-                ISNULL((SELECT SUM(Monto_Prestado - Monto_Pagado) FROM Prestamos WHERE Estado = 'Activo'), 0)
-            ) as efectivoNeto
+                ISNULL((SELECT SUM(MontoPrestado - MontoPagado) FROM Prestamos WHERE Estado = 'Activo'), 0)
+            ) as total
         `);
-        res.json({ disponible: result.recordset[0].efectivoNeto });
+        res.json(result.recordset[0]); // Esto devolverá { "total": X }
     } catch (err) {
-        console.error("Error en caja-disponible:", err.message);
-        res.status(500).json({ disponible: 0, error: err.message });
+        res.status(500).json({ total: 0 });
+    }
+});
+
+// --- RUTAS FALTANTES PARA LOS CUADROS DEL DASHBOARD ---
+
+app.get('/api/total-ahorros', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query("SELECT ISNULL(SUM(Monto), 0) as total FROM Ahorros");
+        res.json(result.recordset[0]);
+    } catch (err) {
+        res.status(500).json({ total: 0 });
+    }
+});
+
+app.get('/api/total-prestamos', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        // OJO: Usamos MontoPrestado - MontoPagado para saber cuánto capital hay en la calle
+        const result = await pool.request().query("SELECT ISNULL(SUM(MontoPrestado - MontoPagado), 0) as total FROM Prestamos WHERE Estado = 'Activo'");
+        res.json(result.recordset[0]);
+    } catch (err) {
+        res.status(500).json({ total: 0 });
     }
 });
 
