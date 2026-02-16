@@ -157,11 +157,18 @@ app.post('/eliminar-socio', async (req, res) => {
 
 app.post('/registrar-prestamo-diario', async (req, res) => {
     try {
-        const { idPersona, monto, tasaInteresMensual } = req.body; // Recibimos del frontend
+        // 1. Extraer datos del cuerpo de la petición
+        const { idPersona, monto, tasaInteresMensual } = req.body;
+
+        // Validación de seguridad para que no llegue nada vacío
+        if (!idPersona || !monto || !tasaInteresMensual) {
+            return res.status(400).json({ success: false, error: "Faltan datos obligatorios" });
+        }
+
         const pool = await poolPromise;
 
+        // 2. Ejecutar la consulta con los inputs correctamente declarados
         await pool.request()
-            // AQUÍ ES DONDE SE DECLARAN LAS VARIABLES PARA SQL
             .input('idPersona', sql.Int, idPersona)
             .input('monto', sql.Decimal(18, 2), monto)
             .input('tasa', sql.Decimal(18, 2), tasaInteresMensual)
@@ -179,16 +186,18 @@ app.post('/registrar-prestamo-diario', async (req, res) => {
                     @idPersona, 
                     @monto, 
                     @tasa, 
-                    GETDATE(), -- Fecha de hoy
-                    0,         -- Empieza con 0 pagado
-                    @monto,    -- El saldo inicial es el mismo monto
+                    GETDATE(), 
+                    0, 
+                    @monto, 
                     'Activo'
                 )
             `);
 
-        res.json({ success: true, message: "Préstamo registrado correctamente" });
+        res.json({ success: true, message: "Préstamo registrado" });
+
     } catch (err) {
-        console.error("Error al registrar préstamo:", err.message);
+        // Esto imprimirá el error real en la consola de Render o de tu terminal
+        console.error("DETALLE DEL ERROR:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
