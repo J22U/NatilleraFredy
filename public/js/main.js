@@ -785,7 +785,6 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.text(`TITULAR: ${nombre.toUpperCase()}`, 14, 32);
-    doc.text(`ID SOCIO: #${totales.idSocio || '---'}`, 140, 22);
     doc.text(`FECHA REPORTE: ${fechaDoc}`, 140, 32);
 
     // 2. RESUMEN FINANCIERO (BOTONES SUPERIORES)
