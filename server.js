@@ -118,16 +118,14 @@ app.get('/listar-miembros', async (req, res) => {
         const result = await pool.request()
             .query(`
                 SELECT 
-                    P.ID_Persona as id, 
-                    P.Nombre as nombre, 
-                    P.Documento as cedula, 
-                    P.EsSocio as esSocio, 
-                    ISNULL(SUM(A.Monto), 0) as totalAhorrado
-                FROM Personas P
-                LEFT JOIN Ahorros A ON P.ID_Persona = A.ID_Persona
-                WHERE P.Estado = 'Activo'
-                GROUP BY P.ID_Persona, P.Nombre, P.Documento, P.EsSocio
-                ORDER BY P.Nombre ASC
+                    ID_Persona as id, -- Este es el ID que no cambia
+                    Nombre as nombre, 
+                    Documento as cedula, 
+                    CASE WHEN EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
+                    Estado
+                FROM Personas 
+                WHERE Estado = 'Activo'
+                ORDER BY ID_Persona ASC
             `);
         res.json(result.recordset);
     } catch (err) {
