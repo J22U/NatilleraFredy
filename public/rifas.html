@@ -65,7 +65,7 @@
                     </div>
                     <div class="info-field">
                         <label>Valor Puesto</label>
-                        <input type="text" id="rifaCost" placeholder="$ 0.00">
+                        <input type="number" id="rifaCost" placeholder="0" oninput="actualizarContadoresRifa()">
                     </div>
                     <div class="info-field">
                         <label>Fecha Sorteo</label>
@@ -75,28 +75,42 @@
             </div>
         </header>
 
+        <div class="stats-rifas-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px auto; max-width: 1200px; padding: 0 20px;">
+            <div class="stat-card" style="background: white; border-left: 5px solid #0984e3; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <div style="color: #636e72; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Total por Recoger</div>
+                <h2 id="stats-total-debe" style="margin: 5px 0 0; color: #2d3436; font-size: 1.5rem;">$ 0</h2>
+            </div>
+            <div class="stat-card" style="background: white; border-left: 5px solid #00b894; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <div style="color: #636e72; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Total Recogido</div>
+                <h2 id="stats-total-pago" style="margin: 5px 0 0; color: #2d3436; font-size: 1.5rem;">$ 0</h2>
+            </div>
+            <div class="stat-card" style="background: white; border-left: 5px solid #6c5ce7; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                <div style="color: #636e72; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Ganancia Actual</div>
+                <h2 id="stats-ganancia" style="margin: 5px 0 0; color: #2d3436; font-size: 1.5rem;">$ 0</h2>
+            </div>
+        </div>
+
         <main id="rifasContainer"></main>
-    </div> <div id="modalCompra" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    </div>
+
+    <div id="modalCompra" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
         <div style="background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 400px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); font-family: 'Inter', sans-serif;">
             <h2 style="margin-top: 0; color: #2d3436; font-size: 1.4rem; font-weight: 800; border-bottom: 2px solid #f1f2f6; padding-bottom: 10px; margin-bottom: 20px;">
                 <i class="fas fa-user-edit" style="color: #0984e3; margin-right: 10px;"></i>Registrar Puesto
             </h2>
-            
             <div style="margin-bottom: 20px;">
                 <label style="display: block; font-size: 11px; font-weight: 800; color: #636e72; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Nombre del Cliente</label>
-                <input type="text" id="modalNombre" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; font-size: 1rem; transition: border-color 0.3s;" placeholder="Ej: JUAN PÉREZ">
+                <input type="text" id="modalNombre" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; font-size: 1rem;" placeholder="Ej: JUAN PÉREZ">
             </div>
-
             <div style="margin-bottom: 25px;">
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; background: #f9f9f9; padding: 12px; border-radius: 10px;">
-                    <input type="checkbox" id="modalPago" style="width: 20px; height: 20px; cursor: pointer;">
+                    <input type="checkbox" id="modalPago" style="width: 20px; height: 20px;">
                     <span style="font-size: 14px; font-weight: 700; color: #2d3436;">¿Ya pagó el puesto?</span>
                 </label>
             </div>
-
             <div style="display: flex; gap: 12px;">
-                <button onclick="cerrarModal()" style="flex: 1; padding: 12px; border: none; background: #dfe6e9; color: #2d3436; border-radius: 10px; font-weight: 700; cursor: pointer; transition: background 0.3s;">Cancelar</button>
-                <button onclick="confirmarCompra()" style="flex: 1; padding: 12px; border: none; background: #00b894; color: white; border-radius: 10px; font-weight: 700; cursor: pointer; transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0, 184, 148, 0.3);">Confirmar</button>
+                <button onclick="cerrarModal()" style="flex: 1; padding: 12px; background: #dfe6e9; border-radius: 10px; font-weight: 700; cursor: pointer; border: none;">Cancelar</button>
+                <button onclick="confirmarCompra()" style="flex: 1; padding: 12px; background: #00b894; color: white; border-radius: 10px; font-weight: 700; cursor: pointer; border: none;">Confirmar</button>
             </div>
         </div>
     </div>

@@ -706,3 +706,33 @@ function confirmarCompra() {
 function cerrarModal() {
     document.getElementById('modalCompra').style.display = 'none';
 }
+
+function actualizarContadoresVisuales() {
+    const datos = recolectarDatosPantalla();
+    const costoPuesto = parseFloat(datos.info.valor) || 0;
+    const premioValor = 0; // Si tienes un campo para valor del premio, úsalo aquí
+
+    let totalRecogido = 0;
+    let totalPendiente = 0;
+
+    // Recorremos las tablas del objeto que generó recolectarDatosPantalla
+    Object.keys(datos).forEach(llave => {
+        if (llave.startsWith('tabla')) {
+            const participantes = datos[llave].participantes;
+            Object.values(participantes).forEach(p => {
+                if (p.pago) {
+                    totalRecogido += costoPuesto;
+                } else {
+                    totalPendiente += costoPuesto;
+                }
+            });
+        }
+    });
+
+    // Actualizar el HTML
+    document.getElementById('stats-total-debe').innerText = `$ ${totalPendiente.toLocaleString()}`;
+    document.getElementById('stats-total-pago').innerText = `$ ${totalRecogido.toLocaleString()}`;
+    
+    // Ganancia: Aquí tú decides si es el total recogido o el total proyectado
+    document.getElementById('stats-ganancia').innerText = `$ ${totalRecogido.toLocaleString()}`;
+}

@@ -677,6 +677,45 @@ app.get('/api/total-prestamos', async (req, res) => {
     }
 });
 
+app.get('/api/estadisticas-rifas', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query("SELECT DatosJSON FROM ConfiguracionRifas WHERE Id = 1");
+        
+        if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
+            const datos = JSON.parse(result.recordset[0].DatosJSON);
+            let totalPorRecoger = 0;
+            let totalRecogido = 0;
+
+            // Recorremos todas las tablas y sus números
+            datos.tablas.forEach(tabla => {
+                tabla.numeros.forEach(n => {
+                    const valorNum = parseFloat(datos.info.valor) || 0;
+                    totalPorRecoger += valorNum;
+                    if (n.pagado) {
+                        totalRecogido += valorNum;
+                    }
+                });
+            });
+
+            // Ganancia (Asumiendo que la ganancia es lo recogido menos el valor del premio)
+            // Si el premio se paga aparte, la ganancia es el total recogido.
+            const valorPremio = parseFloat(datos.info.premio_valor) || 0; 
+            const gananciasActuales = totalRecogido - valorPremio;
+
+            res.json({
+                totalDebido: totalPorRecoger,
+                totalPagado: totalRecogido,
+                ganancia: gananciasActuales > 0 ? gananciasActuales : 0
+            });
+        } else {
+            res.json({ totalDebido: 0, totalPagado: 0, ganancia: 0 });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
