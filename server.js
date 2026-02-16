@@ -636,18 +636,18 @@ app.get('/api/caja-disponible', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT (
-                -- Todo lo que entró (Ahorros y Ganancias)
+                -- Todo lo que entró físicamente
                 ISNULL((SELECT SUM(Monto) FROM Ahorros), 0) + 
-                ISNULL((SELECT SUM(Monto) FROM Ganancias_Brutas), 0)
+                ISNULL((SELECT SUM(Monto) FROM HistorialGanancias), 0)
             ) - (
-                -- Todo lo que salió (Préstamos pendientes y Retiros)
-                ISNULL((SELECT SUM(Monto_Prestado - Monto_Pagado) FROM Prestamos WHERE Estado = 'Activo'), 0) +
-                ISNULL((SELECT SUM(Monto) FROM Retiros), 0)
+                -- Lo que salió y no ha regresado (Capital en la calle)
+                ISNULL((SELECT SUM(Monto_Prestado - Monto_Pagado) FROM Prestamos WHERE Estado = 'Activo'), 0)
             ) as efectivoNeto
         `);
         res.json({ disponible: result.recordset[0].efectivoNeto });
     } catch (err) {
-        res.status(500).json({ disponible: 0 });
+        console.error("Error en caja-disponible:", err.message);
+        res.status(500).json({ disponible: 0, error: err.message });
     }
 });
 

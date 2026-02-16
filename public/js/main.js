@@ -504,6 +504,7 @@ async function cargarEstadisticas() {
     }
 }
 
+
 async function crearPersona() {
     // 1. Validamos que los elementos existan antes de leer su .value
     const inputNombre = document.getElementById('p_Nombre') || document.getElementById('p_nombre');
