@@ -174,36 +174,6 @@ app.post('/registrar-prestamo', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false }); }
 });
 
-app.post('/procesar-movimiento', async (req, res) => {
-    try {
-        const { idPersona, monto, tipoMovimiento, idPrestamo } = req.body;
-        const pool = await poolPromise;
-        const m = parseFloat(monto);
-
-        if (tipoMovimiento === 'deuda') {
-            const pRes = await pool.request().input('idP', sql.Int, idPrestamo)
-                .query("SELECT MontoPrestado, MontoPagado FROM Prestamos WHERE ID_Prestamo = @idP");
-            const p = pRes.recordset[0];
-            const faltante = p.MontoPrestado - p.MontoPagado;
-            let ganancia = m > faltante ? m - faltante : 0;
-            if (faltante <= 0) ganancia = m;
-
-            await pool.request()
-                .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18,2), m).input('g', sql.Decimal(18,2), ganancia)
-                .query(`UPDATE Prestamos SET MontoPagado += @m, InteresesPagados += @g, 
-                        SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
-                        Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP`);
-            
-            await pool.request().input('idPers', sql.Int, idPersona).input('idPre', sql.Int, idPrestamo).input('m', sql.Decimal(18,2), m)
-                .query("INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento) VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda')");
-        } else {
-            await pool.request().input('id', sql.Int, idPersona).input('m', sql.Decimal(18,2), m)
-                .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha) VALUES (@id, @m, GETDATE())");
-        }
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false }); }
-});
-
 // --- 5.5 RUTA DE RETIRO DE AHORROS ---
 app.post('/api/retirar-ahorro', async (req, res) => {
     const { id, tipo, monto } = req.body;
@@ -380,23 +350,46 @@ app.post('/procesar-movimiento', async (req, res) => {
     try {
         const pool = await poolPromise;
         
-        // REVISIÓN DE SEGURIDAD: Intentamos capturar el dato de cualquier forma
+        // 1. Capturamos los datos
         const mesesParaSQL = req.body.MesesCorrespondientes || req.body.meses || "Abono General";
-        const { idPersona, monto, tipoMovimiento } = req.body;
+        const { idPersona, monto, tipoMovimiento, idPrestamo } = req.body;
+        const m = parseFloat(monto);
 
-        console.log("Dato que el servidor va a insertar:", mesesParaSQL);
+        console.log("Servidor procesando:", { tipo: tipoMovimiento, detalle: mesesParaSQL });
 
-        if (tipoMovimiento === 'ahorro') {
+        // --- CASO A: ES UNA DEUDA ---
+        if (tipoMovimiento === 'deuda') {
+            const pRes = await pool.request().input('idP', sql.Int, idPrestamo)
+                .query("SELECT MontoPrestado, MontoPagado FROM Prestamos WHERE ID_Prestamo = @idP");
+            
+            if (pRes.recordset.length > 0) {
+                const p = pRes.recordset[0];
+                const faltante = p.MontoPrestado - p.MontoPagado;
+                let ganancia = m > faltante ? m - faltante : 0;
+                if (faltante <= 0) ganancia = m;
+
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18,2), m).input('g', sql.Decimal(18,2), ganancia)
+                    .query(`UPDATE Prestamos SET MontoPagado += @m, InteresesPagados += @g, 
+                            SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
+                            Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP`);
+                
+                await pool.request().input('idPers', sql.Int, idPersona).input('idPre', sql.Int, idPrestamo).input('m', sql.Decimal(18,2), m)
+                    .query("INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento) VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda')");
+            }
+        } 
+        // --- CASO B: ES UN AHORRO ---
+        else if (tipoMovimiento === 'ahorro') {
             await pool.request()
                 .input('id', sql.Int, idPersona)
-                .input('m', sql.Decimal(18, 2), monto)
-                // Usamos la variable mesesParaSQL que acabamos de validar
+                .input('m', sql.Decimal(18, 2), m)
                 .input('txtMeses', sql.VarChar(sql.MAX), mesesParaSQL) 
                 .query(`
                     INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
                     VALUES (@id, @m, GETDATE(), @txtMeses)
                 `);
         }
+
         res.json({ success: true });
     } catch (err) {
         console.error("Error en servidor:", err.message);
