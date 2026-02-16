@@ -1246,3 +1246,38 @@ async function guardarPrestamoDiario() {
         Swal.fire('Error', 'No se pudo guardar el préstamo', 'error');
     }
 }
+
+function renderizarDeudaDinamica(prestamo) {
+    // prestamo viene con los datos calculados del backend
+    const dias = prestamo.DiasTranscurridos;
+    const interesGenerado = Math.round(prestamo.interesHoy);
+    const saldoFinal = Math.round(prestamo.saldoHoy);
+
+    return `
+        <div class="bg-slate-900 text-white p-4 rounded-3xl shadow-lg border-l-4 border-amber-500">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-black uppercase text-slate-400">Estado de Deuda (Día ${dias})</span>
+                <span class="bg-amber-500/20 text-amber-500 text-[9px] px-2 py-0.5 rounded-full font-bold italic">INTERÉS DIARIO</span>
+            </div>
+            
+            <div class="space-y-1">
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-400">Capital inicial:</span>
+                    <span class="font-bold">$ ${prestamo.MontoPrestado.toLocaleString()}</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-400 text-xs">Intereses (+${dias}d):</span>
+                    <span class="font-bold text-rose-400">$ ${interesGenerado.toLocaleString()}</span>
+                </div>
+                <div class="flex justify-between text-sm border-b border-white/10 pb-2">
+                    <span class="text-slate-400">Abonos realizados:</span>
+                    <span class="font-bold text-emerald-400">- $ ${prestamo.MontoPagado.toLocaleString()}</span>
+                </div>
+                <div class="flex justify-between items-center pt-2">
+                    <span class="text-xs font-black uppercase text-indigo-300">Saldo Total Hoy:</span>
+                    <span class="text-xl font-black text-white">$ ${saldoFinal.toLocaleString()}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}

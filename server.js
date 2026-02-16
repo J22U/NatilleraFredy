@@ -155,23 +155,42 @@ app.post('/eliminar-socio', async (req, res) => {
 
 // --- 5. RUTAS DE PRÉSTAMOS Y AHORROS ---
 
-app.post('/registrar-prestamo', async (req, res) => {
+app.post('/registrar-prestamo-diario', async (req, res) => {
     try {
-        const { idPersona, monto, tasaInteres, cuotas } = req.body;
+        const { idPersona, monto, tasaInteresMensual } = req.body; // Recibimos del frontend
         const pool = await poolPromise;
-        const capital = parseFloat(monto);
-        const tasa = parseFloat(tasaInteres || 5);
-        const n = parseInt(cuotas || 1);
-        const intTotal = capital * (tasa / 100) * n;
 
         await pool.request()
-            .input('id', sql.Int, idPersona).input('m', sql.Decimal(18,2), capital)
-            .input('t', sql.Decimal(5,2), tasa).input('i', sql.Decimal(18,2), intTotal)
-            .input('s', sql.Decimal(18,2), capital + intTotal).input('c', sql.Int, n)
-            .query(`INSERT INTO Prestamos (ID_Persona, MontoPrestado, TasaInteres, MontoInteres, MontoPagado, SaldoActual, Estado, Fecha, Cuotas, InteresesPagados) 
-                    VALUES (@id, @m, @t, @i, 0, @s, 'Activo', GETDATE(), @c, 0)`);
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false }); }
+            // AQUÍ ES DONDE SE DECLARAN LAS VARIABLES PARA SQL
+            .input('idPersona', sql.Int, idPersona)
+            .input('monto', sql.Decimal(18, 2), monto)
+            .input('tasa', sql.Decimal(18, 2), tasaInteresMensual)
+            .query(`
+                INSERT INTO Prestamos (
+                    ID_Persona, 
+                    MontoPrestado, 
+                    TasaInteresMensual, 
+                    FechaPrestamo, 
+                    MontoPagado, 
+                    SaldoActual, 
+                    Estado
+                ) 
+                VALUES (
+                    @idPersona, 
+                    @monto, 
+                    @tasa, 
+                    GETDATE(), -- Fecha de hoy
+                    0,         -- Empieza con 0 pagado
+                    @monto,    -- El saldo inicial es el mismo monto
+                    'Activo'
+                )
+            `);
+
+        res.json({ success: true, message: "Préstamo registrado correctamente" });
+    } catch (err) {
+        console.error("Error al registrar préstamo:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // --- 5.5 RUTA DE RETIRO DE AHORROS ---
@@ -301,27 +320,40 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
 });
 
 // Agrega esta ruta para los detalles de préstamos (el error 404 de tu imagen)
-app.get('/detalle-prestamo/:id', async (req, res) => {
+app.get('/api/detalles-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
                 SELECT 
-                    ID_Prestamo, MontoPrestado, TasaInteres, MontoInteres,
-                    Cuotas, SaldoActual, Estado, Fecha,
-                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaPrestamo 
+                    ID_Prestamo,
+                    MontoPrestado,
+                    MontoPagado,
+                    TasaInteresMensual,
+                    FechaPrestamo,
+                    -- Calculamos días transcurridos hasta hoy
+                    DATEDIFF(DAY, FechaPrestamo, GETDATE()) as DiasTranscurridos,
+                    -- Calculamos el interés acumulado a hoy
+                    (MontoPrestado * (TasaInteresMensual / 100 / 30) * DATEDIFF(DAY, FechaPrestamo, GETDATE())) as InteresAcumulado
                 FROM Prestamos 
-                WHERE ID_Persona = @id 
-                ORDER BY Fecha ASC
+                WHERE Estado = 'Activo' AND ID_Persona = @id
             `);
-        
-        // CORRECCIÓN MENOR: Enviamos result.recordset o un array vacío si es null
-        res.json(result.recordset || []); 
 
+        const prestamosCalculados = result.recordset.map(p => {
+            const deudaTotal = p.MontoPrestado + p.InteresAcumulado;
+            const saldoActual = deudaTotal - p.MontoPagado;
+
+            return {
+                ...p,
+                interesHoy: p.InteresAcumulado,
+                saldoHoy: saldoActual > 0 ? saldoActual : 0
+            };
+        });
+
+        res.json(prestamosCalculados);
     } catch (err) {
-        console.error("Error en detalle-prestamo:", err);
-        res.status(500).json([]);
+        res.status(500).json({ error: err.message });
     }
 });
 
