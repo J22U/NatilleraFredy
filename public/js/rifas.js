@@ -106,36 +106,31 @@ function generarCeldas(tableId, datos) {
 }
 
 // Agrupa todos los datos y los envía al servidor (Llamada general)
-function guardarTodo() {
+async function guardarTodo() {
     const status = document.getElementById('sync-status');
-    if (status) status.className = 'sync-saving';
+    if (status) {
+        status.className = 'sync-saving'; // Cambia el icono a "guardando"
+    }
 
-    const datos = {
-        info: {
-            nombre: document.getElementById('rifaName').value,
-            premio: document.getElementById('rifaPrize').value,
-            valor: document.getElementById('rifaCost').value,
-            fecha: document.getElementById('rifaDate').value
-        },
-        tablas: []
-    };
+    const datos = recolectarDatosPantalla();
 
-    document.querySelectorAll('.rifa-card').forEach(card => {
-        const id = card.id.replace('rifa-', '');
-        datos.tablas.push({
-            id: id,
-            titulo: card.querySelector('.input-table-title').value,
-            participantes: obtenerParticipantesDeTabla(card)
+    try {
+        const response = await fetch('/api/guardar-rifa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(datos)
         });
-    });
 
-    // CLAVE: Actualizamos el snapshot ANTES de enviar al servidor
-    localStorage.setItem('ultimo_snapshot_tablas', JSON.stringify(datos.tablas));
-    
-    // CLAVE: Marcamos el tiempo exacto de este cambio
-    ultimaSincronizacionManual = Date.now(); 
-
-    sincronizarConServidor(datos);
+        if (response.ok) {
+            console.log("✅ Guardado exitoso en la nube");
+            if (status) status.className = 'sync-idle';
+        } else {
+            throw new Error("Error en el servidor");
+        }
+    } catch (error) {
+        console.error("❌ Error al guardar:", error);
+        if (status) status.className = 'sync-error';
+    }
 }
 
 let timerDebounce;
@@ -606,7 +601,7 @@ function reordenarBadges() {
  * para guardarlos en el LocalStorage y enviarlos al servidor.
  */
 function recolectarDatosPantalla() {
-    const datosParaEnviar = {
+    const payload = {
         info: {
             nombre: document.getElementById('rifaName')?.value || '',
             premio: document.getElementById('rifaPrize')?.value || '',
@@ -615,31 +610,35 @@ function recolectarDatosPantalla() {
         }
     };
 
+    // Buscamos todas las tarjetas de rifa en pantalla
     document.querySelectorAll('.rifa-card').forEach((card, index) => {
-        const i = index + 1; // Tabla 1, 2, 3...
-        const titulo = card.querySelector('.input-table-title')?.value || `Tabla ${i}`;
+        const numeroDeTabla = index + 1;
+        const nombreTabla = card.querySelector('.input-table-title')?.value || `Tabla ${numeroDeTabla}`;
         const participantes = {};
 
+        // Recorremos los 100 slots de esta tabla
         card.querySelectorAll('.n-slot').forEach(slot => {
-            const numero = slot.querySelector('.n-number')?.textContent || '';
-            const nombre = slot.querySelector('.n-name')?.textContent || '';
-            
-            if (nombre.trim() !== "") {
-                participantes[numero] = {
-                    nombre: nombre,
-                    pago: slot.classList.contains('paid')
+            const numeroStr = slot.querySelector('.n-number')?.textContent;
+            const nombreParticipante = slot.querySelector('.n-name')?.textContent.trim();
+            const pagado = slot.classList.contains('paid');
+
+            // Solo guardamos si el slot tiene un nombre asignado
+            if (nombreParticipante && nombreParticipante !== "") {
+                participantes[numeroStr] = {
+                    nombre: nombreParticipante,
+                    pago: pagado
                 };
             }
         });
 
-        // IMPORTANTE: Guardamos como tabla1, tabla2, etc. para que cargarRifas los vea
-        datosParaEnviar[`tabla${i}`] = {
-            titulo: titulo,
+        // Guardamos con la llave exacta que espera cargarRifas: tabla1, tabla2...
+        payload[`tabla${numeroDeTabla}`] = {
+            titulo: nombreTabla,
             participantes: participantes
         };
     });
 
-    return datosParaEnviar;
+    return payload;
 }
 
 function abrirModalCompra(idTabla, numero) {
