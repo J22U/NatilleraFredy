@@ -378,8 +378,38 @@ app.post('/procesar-movimiento', async (req, res) => {
                     .query("INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento) VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda')");
             }
         } 
-        // --- CASO B: ES UN AHORRO ---
+        // --- CASO B: ES UN AHORRO (CON VALIDACIÓN DE DUPLICADOS) ---
         else if (tipoMovimiento === 'ahorro') {
+            
+            // VALIDACIÓN: Si no es abono general, verificar si las quincenas ya existen
+            if (mesesParaSQL !== "Abono General") {
+                const checkRes = await pool.request()
+                    .input('id', sql.Int, idPersona)
+                    .query("SELECT MesesCorrespondientes FROM Ahorros WHERE ID_Persona = @id");
+
+                const quincenasNuevas = mesesParaSQL.split(',').map(s => s.trim());
+                let duplicadas = [];
+
+                checkRes.recordset.forEach(reg => {
+                    if (reg.MesesCorrespondientes) {
+                        const existentes = reg.MesesCorrespondientes.split(',').map(s => s.trim());
+                        quincenasNuevas.forEach(q => {
+                            if (existentes.includes(q)) {
+                                duplicadas.push(q);
+                            }
+                        });
+                    }
+                });
+
+                if (duplicadas.length > 0) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        error: `Error: Las quincenas [${duplicadas.join(', ')}] ya fueron registradas anteriormente para este socio.` 
+                    });
+                }
+            }
+
+            // Si pasa la validación, procedemos al INSERT
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18, 2), m)
