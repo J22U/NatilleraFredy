@@ -298,15 +298,12 @@ app.get('/historial-ahorros/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query(`
-                SELECT 
-                    Monto, 
-                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
-                    CAST(MesesCorrespondientes AS VARCHAR(MAX)) as Detalle -- Lo forzamos como texto
-                FROM Ahorros 
-                WHERE ID_Persona = @id 
-                ORDER BY Fecha DESC
-            `);
+            .query(`SELECT Monto, 
+                           FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
+                           -- Forzamos el nombre a 'Detalle' para el frontend
+                           ISNULL(MesesCorrespondientes, 'Abono General') as Detalle 
+                    FROM Ahorros 
+                    WHERE ID_Persona = @id ORDER BY Fecha DESC`);
         res.json(result.recordset);
     } catch (err) { res.status(500).json([]); }
 });
@@ -381,32 +378,28 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 
 app.post('/procesar-movimiento', async (req, res) => {
     try {
-        // Log para ver en la terminal negra de VS Code qué está llegando exactamente
-        console.log("CUERPO RECIBIDO:", req.body);
-
-        // EXTRAER EL DATO (Probamos todas las combinaciones por si acaso)
-        const meses = req.body.MesesCorrespondientes || req.body.meses || "Abono General";
+        const pool = await poolPromise;
+        
+        // REVISIÓN DE SEGURIDAD: Intentamos capturar el dato de cualquier forma
+        const mesesParaSQL = req.body.MesesCorrespondientes || req.body.meses || "Abono General";
         const { idPersona, monto, tipoMovimiento } = req.body;
 
-        const pool = await poolPromise;
+        console.log("Dato que el servidor va a insertar:", mesesParaSQL);
 
         if (tipoMovimiento === 'ahorro') {
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18, 2), monto)
-                // Usamos la variable 'meses' que acabamos de extraer arriba
-                .input('txtMeses', sql.VarChar(sql.MAX), meses) 
+                // Usamos la variable mesesParaSQL que acabamos de validar
+                .input('txtMeses', sql.VarChar(sql.MAX), mesesParaSQL) 
                 .query(`
                     INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
                     VALUES (@id, @m, GETDATE(), @txtMeses)
                 `);
-            
-            console.log("¡Guardado en DB con éxito!: ", meses);
         }
-        
         res.json({ success: true });
     } catch (err) {
-        console.error("ERROR AL GUARDAR:", err.message);
+        console.error("Error en servidor:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
