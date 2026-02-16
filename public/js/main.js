@@ -1379,3 +1379,77 @@ function renderizarDeudaDinamica(prestamo) {
         </div>
     `;
 }
+
+// 1. FUNCIÓN PARA CAMBIAR EL ESTADO (ACTIVO/INACTIVO)
+async function cambiarEstadoSocio(id, nombre, estadoActual) {
+    const nuevoEstado = estadoActual === 'Activo' ? 'Inactivo' : 'Activo';
+    
+    const confirmacion = await Swal.fire({
+        title: `¿${nuevoEstado === 'Inactivo' ? 'Inhabilitar' : 'Habilitar'} socio?`,
+        text: `El socio #${id} (${nombre}) cambiará de estado.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Confirmar',
+        confirmButtonColor: nuevoEstado === 'Inactivo' ? '#f59e0b' : '#10b981',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (confirmacion.isConfirmed) {
+        try {
+            const res = await fetch('/api/cambiar-estado-socio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, nuevoEstado })
+            });
+
+            if (res.ok) {
+                Swal.fire('Éxito', `Estado actualizado correctamente`, 'success');
+                // Recargamos la lista principal y si estamos en el modal de inactivos, lo refrescamos
+                listarMiembros(); 
+                if (nuevoEstado === 'Activo') abrirVentanaInactivos(); 
+            }
+        } catch (error) {
+            console.error("Error cambiando estado:", error);
+        }
+    }
+}
+
+// 2. FUNCIÓN PARA MOSTRAR LA VENTANA DE SOCIOS INACTIVOS
+async function abrirVentanaInactivos() {
+    try {
+        const res = await fetch('/api/listar-inactivos');
+        const inactivos = await res.json();
+
+        let listadoHTML = inactivos.length === 0 
+            ? '<div class="text-center py-8 text-slate-400 italic">No hay socios inactivos</div>'
+            : inactivos.map(s => `
+                <div class="flex justify-between items-center p-4 bg-white border border-slate-100 rounded-2xl mb-2 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400">
+                            ${s.id || s.ID_Persona}
+                        </div>
+                        <div>
+                            <p class="text-sm font-black text-slate-700">${s.nombre || s.Nombre}</p>
+                            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest text-left">Inactivo</p>
+                        </div>
+                    </div>
+                    <button onclick="cambiarEstadoSocio(${s.id || s.ID_Persona}, '${s.nombre || s.Nombre}', 'Inactivo')" 
+                            class="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-600 hover:text-white transition-all">
+                        HABILITAR
+                    </button>
+                </div>
+            `).join('');
+
+        Swal.fire({
+            title: '<span class="text-xl font-black text-slate-800 tracking-tighter">Socios Inactivos</span>',
+            html: `
+                <div class="max-h-[60vh] overflow-y-auto pr-2 bg-slate-50/50 p-2 rounded-3xl mt-4">
+                    ${listadoHTML}
+                </div>`,
+            showConfirmButton: false,
+            customClass: { popup: 'rounded-[2.5rem]' }
+        });
+    } catch (error) {
+        console.error("Error al cargar inactivos:", error);
+    }
+}
