@@ -204,6 +204,53 @@ app.post('/procesar-movimiento', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false }); }
 });
 
+// --- 5.5 RUTA DE RETIRO DE AHORROS ---
+app.post('/api/retirar-ahorro', async (req, res) => {
+    const { id, tipo, monto } = req.body;
+    
+    try {
+        const pool = await poolPromise;
+
+        // 1. Obtener el saldo actual del socio
+        const resultSaldo = await pool.request()
+            .input('id', sql.Int, id)
+            .query('SELECT ISNULL(SUM(Monto), 0) as SaldoTotal FROM Ahorros WHERE ID_Persona = @id');
+        
+        const saldoActual = resultSaldo.recordset[0].SaldoTotal;
+
+        // 2. Determinar el monto final a retirar
+        let montoARetirar = (tipo === 'total') ? saldoActual : parseFloat(monto);
+
+        // 3. VALIDACIONES
+        if (montoARetirar > saldoActual) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Saldo insuficiente. Máximo disponible: $${saldoActual.toLocaleString()}` 
+            });
+        }
+
+        if (montoARetirar <= 0) {
+            return res.status(400).json({ success: false, message: "El monto debe ser mayor a 0." });
+        }
+
+        // 4. Insertar el retiro (Monto en NEGATIVO)
+        // Usamos una descripción para saber que fue un retiro
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('monto', sql.Decimal(18, 2), montoARetirar * -1)
+            .query(`
+                INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
+                VALUES (@id, @monto, GETDATE(), 'RETIRO DE AHORRO')
+            `);
+
+        res.json({ success: true, message: 'Retiro procesado con éxito' });
+
+    } catch (err) {
+        console.error("Error en retiro:", err);
+        res.status(500).json({ success: false, message: 'Error interno en el servidor' });
+    }
+});
+
 // --- 6. REPORTES Y ESTADOS ---
 
 app.get('/reporte-general', async (req, res) => {
@@ -348,13 +395,6 @@ app.post('/procesar-movimiento', async (req, res) => {
         res.json({ success: true });
     } catch (err) { 
         res.status(500).json({ success: false }); 
-    }
-});
-
-console.log("Rutas registradas:");
-app._router.stack.forEach((r) => {
-    if (r.route && r.route.path) {
-        console.log(`${Object.keys(r.route.methods)} ${r.route.path}`);
     }
 });
 
