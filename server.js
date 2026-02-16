@@ -115,41 +115,39 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
             SELECT 
                 P.ID_Persona as id, 
                 P.Nombre as nombre,
-                P.Cedula as cedula,      -- Agregamos Cedula
-                P.Tipo as tipo,          -- Agregamos Tipo
+                P.Documento as documento, -- Cambiado de Cedula a Documento según tu imagen
                 P.EsSocio,
-                -- Saldo Total (Ajusta 'Monto' si tu columna se llama diferente)
+                -- Determinamos el tipo basado en el booleano EsSocio
+                CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
+                -- Saldo Total (Asegúrate que en la tabla Ahorros la columna se llame Monto)
                 ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
-                -- Puntos de Esfuerzo (CASE)
+                -- Cálculo de Puntos por Quincena
                 ISNULL((
                     SELECT SUM(Monto * (
-                        CASE 
-                            WHEN MesesCorrespondientes LIKE '%Enero (Q1)%' THEN 24
-                            WHEN MesesCorrespondientes LIKE '%Enero (Q2)%' THEN 23
-                            WHEN MesesCorrespondientes LIKE '%Febrero (Q1)%' THEN 22
-                            WHEN MesesCorrespondientes LIKE '%Febrero (Q2)%' THEN 21
-                            WHEN MesesCorrespondientes LIKE '%Marzo (Q1)%' THEN 20
-                            WHEN MesesCorrespondientes LIKE '%Marzo (Q2)%' THEN 19
-                            WHEN MesesCorrespondientes LIKE '%Abril (Q1)%' THEN 18
-                            WHEN MesesCorrespondientes LIKE '%Abril (Q2)%' THEN 17
-                            WHEN MesesCorrespondientes LIKE '%Mayo (Q1)%' THEN 16
-                            WHEN MesesCorrespondientes LIKE '%Mayo (Q2)%' THEN 15
-                            WHEN MesesCorrespondientes LIKE '%Junio (Q1)%' THEN 14
-                            WHEN MesesCorrespondientes LIKE '%Junio (Q2)%' THEN 13
-                            WHEN MesesCorrespondientes LIKE '%Julio (Q1)%' THEN 12
-                            WHEN MesesCorrespondientes LIKE '%Julio (Q2)%' THEN 11
-                            WHEN MesesCorrespondientes LIKE '%Agosto (Q1)%' THEN 10
-                            WHEN MesesCorrespondientes LIKE '%Agosto (Q2)%' THEN 9
-                            WHEN MesesCorrespondientes LIKE '%Septiembre (Q1)%' THEN 8
-                            WHEN MesesCorrespondientes LIKE '%Septiembre (Q2)%' THEN 7
-                            WHEN MesesCorrespondientes LIKE '%Octubre (Q1)%' THEN 6
-                            WHEN MesesCorrespondientes LIKE '%Octubre (Q2)%' THEN 5
-                            WHEN MesesCorrespondientes LIKE '%Noviembre (Q1)%' THEN 4
-                            WHEN MesesCorrespondientes LIKE '%Noviembre (Q2)%' THEN 3
-                            WHEN MesesCorrespondientes LIKE '%Diciembre (Q1)%' THEN 2
-                            WHEN MesesCorrespondientes LIKE '%Diciembre (Q2)%' THEN 1
-                            ELSE 1 
-                        END
+                        (CASE WHEN MesesCorrespondientes LIKE '%Enero (Q1)%' THEN 24 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Enero (Q2)%' THEN 23 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Febrero (Q1)%' THEN 22 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Febrero (Q2)%' THEN 21 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Marzo (Q1)%' THEN 20 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Marzo (Q2)%' THEN 19 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Abril (Q1)%' THEN 18 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Abril (Q2)%' THEN 17 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Mayo (Q1)%' THEN 16 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Mayo (Q2)%' THEN 15 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Junio (Q1)%' THEN 14 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Junio (Q2)%' THEN 13 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Julio (Q1)%' THEN 12 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Julio (Q2)%' THEN 11 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Agosto (Q1)%' THEN 10 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Agosto (Q2)%' THEN 9 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Septiembre (Q1)%' THEN 8 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Septiembre (Q2)%' THEN 7 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Octubre (Q1)%' THEN 6 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Octubre (Q2)%' THEN 5 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Noviembre (Q1)%' THEN 4 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Noviembre (Q2)%' THEN 3 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Diciembre (Q1)%' THEN 2 ELSE 0 END) +
+                        (CASE WHEN MesesCorrespondientes LIKE '%Diciembre (Q2)%' THEN 1 ELSE 0 END)
                     ))
                     FROM Ahorros 
                     WHERE ID_Persona = P.ID_Persona
@@ -159,7 +157,7 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
         `);
         res.json(result.recordset);
     } catch (err) {
-        console.error("Error SQL:", err.message);
+        console.error("Error en /api/socios-esfuerzo:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
