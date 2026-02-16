@@ -191,15 +191,29 @@ async function verHistorialFechas(id, nombre) {
         const ab = await resAb.json();
         const totales = await resTotales.json();
 
-        // 1. Render de Ahorros (Corregido para manejar FechaFormateada)
+        // 1. Render de Ahorros MODIFICADO para mostrar Quincena/Mes
         const renderSimple = (data, key, color) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin movimientos</p>';
-            return data.map(m => `
-                <div class="flex justify-between p-2 border-b border-slate-100 text-[11px]">
-                    <span class="text-slate-500 font-medium">${m.FechaFormateada || m.Fecha || 'S/F'}</span>
-                    <span class="font-bold text-${color}-600">$${Number(m[key] || 0).toLocaleString()}</span>
+            return data.map(m => {
+                const esRetiro = Number(m[key]) < 0;
+                // Si es retiro, mostramos en rojo, si es ahorro en el color pasado (emerald)
+                const colorFinal = esRetiro ? 'rose' : color;
+                
+                return `
+                <div class="flex justify-between items-center p-3 border-b border-slate-100 text-[11px]">
+                    <div class="flex flex-col">
+                        <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
+                        <span class="text-[9px] font-black uppercase ${esRetiro ? 'text-rose-400' : 'text-indigo-400'} mt-0.5">
+                            ${m.Meses || 'Ahorro'}
+                        </span>
+                    </div>
+                    <div class="text-right">
+                        <span class="font-bold text-${colorFinal}-600">
+                            ${esRetiro ? '' : '+'}$${Math.abs(Number(m[key])).toLocaleString()}
+                        </span>
+                    </div>
                 </div>
-            `).join('');
+            `}).join('');
         };
 
         // 2. Render de Préstamos (Corregido para separar Capital de Interés)
@@ -310,7 +324,7 @@ async function verHistorialFechas(id, nombre) {
                             <i class="fas fa-chevron-down text-emerald-400 transition-transform duration-300"></i>
                         </button>
                         <div id="acc-ahorros" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out">
-                            <div class="p-3 border-t border-slate-50">${renderSimple(a, 'Monto', 'emerald')}</div>
+                            <div class="p-1 border-t border-slate-50">${renderSimple(a, 'Monto', 'emerald')}</div>
                         </div>
                     </div>
 
