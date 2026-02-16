@@ -237,21 +237,24 @@ body {
 }
 
 /* CUERPO DE LA TARJETA */
-.rifa-card-body {
-    max-height: 0;
+/* 1. Esto las oculta por defecto */
+.rifa-card .rifa-body {
+    display: none; 
+    visibility: hidden;
+    height: 0;
     overflow: hidden;
-    transition: max-height 0.4s ease-out, padding 0.3s ease;
-    padding: 0 15px;
 }
 
-.rifa-card.active .rifa-card-body {
-    max-height: 5000px;
-    padding: 15px;
-    border-top: 1px solid #f1f5f9;
+/* 2. Esto las muestra SOLO cuando haces clic (cuando JS pone la clase 'active') */
+.rifa-card.active .rifa-body {
+    display: block;
+    visibility: visible;
+    height: auto;
 }
 
-.rifa-card.active {
-    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+/* 3. Rotación de la flecha para saber si está abierta o cerrada */
+.rifa-card.active .arrow-icon {
+    transform: rotate(90deg);
 }
 
 /* GRILLA DE NÚMEROS */
