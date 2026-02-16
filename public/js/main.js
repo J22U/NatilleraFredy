@@ -1528,3 +1528,186 @@ async function abrirVentanaInactivos() {
         console.error("Error al cargar inactivos:", error);
     }
 }
+
+// --- 1. PAGO PARCIAL (CAPITALIZAR A UN SOCIO ESPECÍFICO) ---
+async function liquidarInteresParcial() {
+    // Usamos el ID que ya esté escrito en el campo principal de la pantalla
+    const numPantalla = document.getElementById('mov_id').value;
+    const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
+
+    if (!idReal) {
+        return Swal.fire('Atención', 'Ingresa el ID del socio en el campo de Abonos para procesar su interés.', 'warning');
+    }
+
+    const { value: monto } = await Swal.fire({
+        title: 'Capitalizar Interés Parcial',
+        input: 'number',
+        inputLabel: 'Monto a sumar al saldo del socio',
+        inputPlaceholder: 'Monto en $',
+        showCancelButton: true,
+        confirmButtonColor: '#4f46e5',
+        confirmButtonText: 'Sumar al Saldo'
+    });
+
+    if (monto) {
+        try {
+            // Se envía como tipo 'ahorro' para que el sistema lo sume al capital
+            await registrarMovimientoInteres(idReal, parseFloat(monto), 'Abono Parcial de Intereses', 'ahorro');
+            Swal.fire('¡Éxito!', 'El interés ha sido sumado al capital del socio.', 'success');
+            if (typeof cargarTodo === 'function') cargarTodo(); 
+        } catch (error) {
+            Swal.fire('Error', 'No se pudo registrar el interés.', 'error');
+        }
+    }
+}
+
+// --- 2. REPARTO GLOBAL (10% A TODOS LOS AHORRADORES) ---
+async function distribuirInteresesMasivos() {
+    try {
+        Swal.fire({ title: 'Calculando vista previa...', didOpen: () => { Swal.showLoading(); } });
+        
+        const resp = await fetch('/api/socios'); 
+        const socios = await resp.json();
+
+        let totalARepartir = 0;
+        let sociosAptos = [];
+        let filasTablaHTML = "";
+
+        // 1. Cálculos y preparación de datos
+        socios.forEach(socio => {
+            const esAhorrador = socio.es_socio === 1 || socio.esSocio === 1;
+            const saldo = socio.total_ahorro || socio.totalAhorrado || 0;
+
+            if (esAhorrador && saldo > 0) {
+                const interes = saldo * 0.10;
+                totalARepartir += interes;
+                sociosAptos.push({ 
+                    id: socio.id, 
+                    nombre: socio.nombre, 
+                    saldoAnterior: saldo, 
+                    interes: interes 
+                });
+
+                filasTablaHTML += `
+                    <tr class="border-b border-slate-50">
+                        <td class="p-2 text-left font-medium text-slate-700">${socio.nombre}</td>
+                        <td class="p-2 text-right text-slate-400 font-mono">$${saldo.toLocaleString()}</td>
+                        <td class="p-2 text-right font-bold text-emerald-600 font-mono">+$${interes.toLocaleString()}</td>
+                    </tr>`;
+            }
+        });
+
+        // 2. Construcción del modal con botón de PDF
+        let listaHTML = `
+            <div class="mt-4">
+                <div class="max-h-60 overflow-y-auto border border-slate-100 rounded-xl mb-4 custom-scroll">
+                    <table class="w-full text-[10px] border-collapse">
+                        <thead class="sticky top-0 bg-slate-50 shadow-sm">
+                            <tr>
+                                <th class="p-2 text-left text-slate-500 uppercase">Socio</th>
+                                <th class="p-2 text-right text-slate-500 uppercase">Ahorro</th>
+                                <th class="p-2 text-right text-emerald-600 uppercase">Interés</th>
+                            </tr>
+                        </thead>
+                        <tbody>${filasTablaHTML}</tbody>
+                    </table>
+                </div>
+                <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex justify-between items-center">
+                    <div class="text-left">
+                        <p class="text-[9px] uppercase font-black text-emerald-700">Total a distribuir</p>
+                        <p class="text-xl font-black text-emerald-900">$ ${totalARepartir.toLocaleString()}</p>
+                    </div>
+                    <button onclick="generarPDFVistaPreviaIntereses()" class="bg-white text-slate-700 p-2 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all flex items-center gap-2 text-[10px] font-bold shadow-sm">
+                        <i class="fas fa-file-pdf text-red-500 text-sm"></i> Descargar Reporte
+                    </button>
+                </div>
+            </div>`;
+
+        // Guardamos los datos temporalmente para que el PDF los pueda leer
+        window.datosRepartoTemporal = { socios: sociosAptos, total: totalARepartir };
+
+        const { isConfirmed } = await Swal.fire({
+            title: 'Reparto de Ganancias (10%)',
+            html: listaHTML,
+            width: '550px',
+            showCancelButton: true,
+            confirmButtonText: 'Confirmar y Aplicar',
+            cancelButtonText: 'Cerrar',
+            confirmButtonColor: '#059669',
+            cancelButtonColor: '#64748b'
+        });
+
+        if (!isConfirmed) return;
+
+        // 3. Ejecución del reparto real
+        Swal.fire({ title: 'Capitalizando intereses...', didOpen: () => { Swal.showLoading(); } });
+
+        for (const s of sociosAptos) {
+            const detalle = `Capitalización 10% Intereses (Ciclo ${new Date().getFullYear()})`;
+            await registrarMovimientoInteres(s.id, s.interes, detalle, 'ahorro');
+        }
+
+        Swal.fire('¡Éxito!', `Se capitalizaron intereses para ${sociosAptos.length} socios.`, 'success');
+        if (typeof cargarTodo === 'function') cargarTodo();
+
+    } catch (error) {
+        console.error("Error:", error);
+        Swal.fire('Error', 'No se pudo generar la vista previa.', 'error');
+    }
+}
+
+// --- FUNCIÓN PARA GENERAR EL PDF DEL REPARTO ---
+function generarPDFVistaPreviaIntereses() {
+    const data = window.datosRepartoTemporal;
+    if (!data) return;
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const fecha = new Date().toLocaleDateString();
+
+    doc.setFontSize(18);
+    doc.text("REPORTE DE DISTRIBUCIÓN DE INTERESES", 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Natillera - Ciclo Fiscal ${new Date().getFullYear()}`, 14, 30);
+    doc.text(`Fecha de generación: ${fecha}`, 14, 35);
+
+    const columnas = ["SOCIO", "AHORRO BASE", "INTERÉS (10%)", "NUEVO SALDO"];
+    const filas = data.socios.map(s => [
+        s.nombre,
+        `$${s.saldoAnterior.toLocaleString()}`,
+        `$${s.interes.toLocaleString()}`,
+        `$${(s.saldoAnterior + s.interes).toLocaleString()}`
+    ]);
+
+    doc.autoTable({
+        startY: 45,
+        head: [columnas],
+        body: filas,
+        theme: 'striped',
+        headStyles: { fillColor: [5, 150, 105] }, // Color verde emerald
+        foot: [["TOTALES", "", `$${data.total.toLocaleString()}`, ""]],
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+
+    doc.save(`Reparto_Intereses_${new Date().getFullYear()}.pdf`);
+}
+
+// --- 3. FUNCIÓN PUENTE (ENVÍO AL SERVIDOR) ---
+// Centralizamos el fetch aquí para evitar repetir código
+async function registrarMovimientoInteres(socioId, monto, concepto, tipoMovimiento) {
+    const respuesta = await fetch('/api/movimientos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            socio_id: socioId,
+            monto: monto,
+            tipo: tipoMovimiento, 
+            detalle: concepto,
+            fecha: new Date().toISOString()
+        })
+    });
+    if (!respuesta.ok) throw new Error('Fallo en el servidor');
+    return respuesta.json();
+}
