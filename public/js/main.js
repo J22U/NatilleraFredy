@@ -435,11 +435,10 @@ if (tipo === 'ahorro') {
         const resultado = await respuesta.json();
 
         if (resultado.success) {
-            Swal.fire('¡Éxito!', 'Registrado correctamente', 'success');
-            montoInput.value = '';
-            document.querySelectorAll('#contenedor-meses button').forEach(btn => {
-                btn.classList.remove('bg-amber-500', 'text-white', 'border-amber-500', 'active');
-            });
+    // ... tu código de éxito ...
+    document.querySelectorAll('.btn-quincena').forEach(btn => {
+        btn.classList.remove('active', 'bg-red-500', 'text-white', 'border-red-500');
+    });
             if (typeof cargarTodo === 'function') cargarTodo();
         } else {
             Swal.fire('Error', 'No se pudo guardar', 'error');

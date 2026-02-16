@@ -377,27 +377,31 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 
 app.post('/procesar-movimiento', async (req, res) => {
     try {
-        const { idPersona, monto, tipoMovimiento, idPrestamo, meses } = req.body; 
+        // 1. Extraemos los datos
+        const { idPersona, monto, tipoMovimiento, meses } = req.body;
+        
+        // 2. VERIFICACIÓN CRÍTICA EN TU CONSOLA DE NODE:
+        console.log("¿Llegó el dato al servidor?:", meses);
+
         const pool = await poolPromise;
         
-        // Log para ver en la consola si los datos llegan
-        console.log("Datos a insertar:", { idPersona, monto, meses });
+        // 3. Si 'meses' es undefined o vacío, le ponemos un texto para saber que falló el envío
+        const valorFinal = (meses && meses.toString().trim() !== "") ? meses : "ERROR: DATO VACIO";
 
         if (tipoMovimiento === 'ahorro') {
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18,2), monto)
-                .input('meses', sql.VarChar, meses || 'Abono General')
-                .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
-                        VALUES (@id, @m, GETDATE(), @meses)`);
-        } else {
-            // Aquí iría tu lógica de deuda (prestamos)...
+                .input('txtMeses', sql.VarChar, valorFinal) // Usamos un nombre de parámetro claro
+                .query(`
+                    INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
+                    VALUES (@id, @m, GETDATE(), @txtMeses)
+                `);
         }
-
         res.json({ success: true });
-    } catch (err) { 
-        console.error("Error en el servidor:", err);
-        res.status(500).json({ success: false, error: err.message }); 
+    } catch (err) {
+        console.error("ERROR EN SQL:", err);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
