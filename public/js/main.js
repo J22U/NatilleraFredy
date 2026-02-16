@@ -318,7 +318,7 @@ async function verHistorialFechas(id, nombre) {
                         <p class="font-black text-emerald-700 text-sm">$${Number(totales.totalAhorrado || 0).toLocaleString()}</p>
                     </div>
                     <div class="bg-rose-50 p-2 rounded-xl text-center border border-rose-100 shadow-sm">
-                        <p class="text-[8px] uppercase font-bold text-rose-600">Deuda (Solo Capital)</p>
+                        <p class="text-[8px] uppercase font-bold text-rose-600">Deuda</p>
                         <p class="font-black text-rose-700 text-sm">$${Number(totales.deudaTotal || 0).toLocaleString()}</p>
                     </div>
                 </div>

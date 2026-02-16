@@ -319,7 +319,6 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
 });
 
 // Agrega esta ruta para los detalles de préstamos (el error 404 de tu imagen)
-// Cambiamos el nombre de la ruta para que el frontend la encuentre (sin el /api y sin la 's' final)
 app.get('/detalle-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -330,32 +329,39 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ID_Prestamo,
                     MontoPrestado,
                     MontoPagado,
-                    TasaInteres as TasaInteresMensual, -- Ajustado al nombre de tu DB
-                    FechaInicio as FechaPrestamo,      -- Ajustado al nombre de tu DB
-                    -- Calculamos días transcurridos hasta hoy
+                    TasaInteres,         -- Nombre real en tu DB
+                    FechaInicio,         -- Nombre real en tu DB
+                    -- Cálculo de días y de interés acumulado (100.0 y 30.0 para forzar decimales)
                     DATEDIFF(DAY, FechaInicio, GETDATE()) as DiasTranscurridos,
-                    -- Calculamos el interés acumulado a hoy
                     (MontoPrestado * (TasaInteres / 100.0 / 30.0) * DATEDIFF(DAY, FechaInicio, GETDATE())) as InteresAcumulado
                 FROM Prestamos 
-                WHERE ID_Persona = @id -- Quitamos el filtro de 'Activo' para que aparezcan en el historial general
+                WHERE ID_Persona = @id
             `);
 
         const prestamosCalculados = result.recordset.map(p => {
-            const deudaTotal = p.MontoPrestado + (p.InteresAcumulado || 0);
-            const saldoActual = deudaTotal - p.MontoPagado;
+            // Aseguramos que los valores sean números para evitar el 'undefined'
+            const capital = Number(p.MontoPrestado || 0);
+            const interes = Number(p.InteresAcumulado || 0);
+            const pagado = Number(p.MontoPagado || 0);
+            
+            const saldoActual = (capital + interes) - pagado;
 
             return {
-                ...p,
-                interesHoy: p.InteresAcumulado || 0,
+                ID_Prestamo: p.ID_Prestamo,
+                MontoPrestado: capital,
+                MontoPagado: pagado,
+                TasaInteres: p.TasaInteres, // Este es el que el frontend busca para el %
+                FechaInicio: p.FechaInicio,
+                DiasTranscurridos: p.DiasTranscurridos || 0,
+                InteresGenerado: interes,    // Nombre que espera tu función renderPrestamos
                 saldoHoy: saldoActual > 0 ? saldoActual : 0,
-                // Añadimos esto para que tu función renderPrestamos en main.js no falle
-                FechaInicioFormateada: p.FechaPrestamo ? new Date(p.FechaPrestamo).toLocaleDateString('es-CO') : 'S/F'
+                FechaInicioFormateada: p.FechaInicio ? new Date(p.FechaInicio).toLocaleDateString('es-CO') : 'S/F'
             };
         });
 
         res.json(prestamosCalculados);
     } catch (err) {
-        console.error("Error en detalle-prestamo:", err.message);
+        console.error("Error detallado:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
