@@ -253,7 +253,7 @@ async function verHistorialFechas(id, nombre) {
 
                     <div class="flex gap-2 mb-3">
                         <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
-                            <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}% (Mensual)
+                            <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}%
                         </span>
                         ${m.DiasTranscurridos ? `
                         <span class="bg-indigo-50 text-[9px] font-bold text-indigo-600 px-2 py-1 rounded-lg border border-indigo-100">
