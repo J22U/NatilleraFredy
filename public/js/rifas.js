@@ -607,30 +607,33 @@ function reordenarBadges() {
  * para guardarlos en el LocalStorage y enviarlos al servidor.
  */
 function recolectarDatosPantalla() {
+    // 1. Recolectamos la información general del banner
     const payload = {
         info: {
             nombre: document.getElementById('rifaName')?.value || '',
             premio: document.getElementById('rifaPrize')?.value || '',
             valor: document.getElementById('rifaCost')?.value || '',
             fecha: document.getElementById('rifaDate')?.value || '',
-            inversion: document.getElementById('costoPremio').value || ''
+            inversion: document.getElementById('costoPremio')?.value || ''
         }
     };
 
-    // Buscamos todas las tarjetas de rifa en pantalla
-    document.querySelectorAll('.rifa-card').forEach((card, index) => {
+    // 2. Buscamos todas las tarjetas de rifa (tablas) en pantalla
+    const tablas = document.querySelectorAll('.rifa-card');
+    
+    tablas.forEach((card, index) => {
         const numeroDeTabla = index + 1;
         const nombreTabla = card.querySelector('.input-table-title')?.value || `Tabla ${numeroDeTabla}`;
         const participantes = {};
 
-        // Recorremos los 100 slots de esta tabla
+        // 3. Recorremos los slots (números) de cada tabla
         card.querySelectorAll('.n-slot').forEach(slot => {
             const numeroStr = slot.querySelector('.n-number')?.textContent;
             const nombreParticipante = slot.querySelector('.n-name')?.textContent.trim();
             const pagado = slot.classList.contains('paid');
 
-            // Solo guardamos si el slot tiene un nombre asignado
-            if (nombreParticipante && nombreParticipante !== "") {
+            // Solo guardamos si el slot tiene un nombre asignado (está vendido o reservado)
+            if (nombreParticipante) {
                 participantes[numeroStr] = {
                     nombre: nombreParticipante,
                     pago: pagado
@@ -638,7 +641,7 @@ function recolectarDatosPantalla() {
             }
         });
 
-        // Guardamos con la llave exacta que espera cargarRifas: tabla1, tabla2...
+        // 4. Guardamos la tabla con la llave dinámica (tabla1, tabla2, etc.)
         payload[`tabla${numeroDeTabla}`] = {
             titulo: nombreTabla,
             participantes: participantes
@@ -746,12 +749,16 @@ function actualizarContadoresVisuales() {
 
 function actualizarContadoresRifa() {
     const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
-    const inversionPremio = parseFloat(document.getElementById('costoPremio').value) || 0;
+    const inversionPorTabla = parseFloat(document.getElementById('costoPremio').value) || 0;
+    
+    // Contamos cuántas tablas hay actualmente en el contenedor
+    const cantidadTablas = document.querySelectorAll('.rifa-card').length;
+    const inversionTotalPremios = inversionPorTabla * cantidadTablas;
     
     let potencialTotal = 0; 
     let totalRecogido = 0;  
 
-    // Escaneamos todos los slots para los cálculos
+    // Escaneamos todos los slots
     document.querySelectorAll('.n-slot').forEach(slot => {
         potencialTotal += costoPuesto;
         if (slot.classList.contains('paid')) {
@@ -759,26 +766,20 @@ function actualizarContadoresRifa() {
         }
     });
 
-    // CÁLCULO DE GANANCIA REAL: Dinero en mano menos lo que te costó el premio
-    const gananciaReal = totalRecogido - inversionPremio;
+    // NUEVO CÁLCULO: Recogido menos (Inversión unidad * número de tablas)
+    const gananciaReal = totalRecogido - inversionTotalPremios;
 
     const formato = new Intl.NumberFormat('es-CO', {
         style: 'currency', currency: 'COP', maximumFractionDigits: 0
     });
 
-    // Actualizamos los textos
+    // Actualizar la interfaz
     document.getElementById('stats-total-debe').innerText = formato.format(potencialTotal);
     document.getElementById('stats-total-pago').innerText = formato.format(totalRecogido);
     
     const txtGanancia = document.getElementById('stats-ganancia');
     txtGanancia.innerText = formato.format(gananciaReal);
     
-    // Cambiamos el color según el estado financiero
-    if (gananciaReal < 0) {
-        txtGanancia.style.color = "#e74c3c"; // Rojo: Aún no recuperas la inversión
-    } else if (gananciaReal > 0) {
-        txtGanancia.style.color = "#00b894"; // Verde: ¡Ya tienes ganancias!
-    } else {
-        txtGanancia.style.color = "#2d3436"; // Gris oscuro: Punto de equilibrio
-    }
+    // Feedback visual
+    txtGanancia.style.color = gananciaReal < 0 ? "#e74c3c" : (gananciaReal > 0 ? "#00b894" : "#2d3436");
 }
