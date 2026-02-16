@@ -1564,23 +1564,35 @@ async function liquidarInteresParcial() {
 // --- 2. REPARTO GLOBAL (10% A TODOS LOS AHORRADORES) ---
 async function distribuirInteresesMasivos() {
     try {
-        Swal.fire({ title: 'Calculando vista previa...', didOpen: () => { Swal.showLoading(); } });
+        // 1. Iniciando carga
+        Swal.fire({ 
+            title: 'Calculando vista previa...', 
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); } 
+        });
         
         const resp = await fetch('/api/socios'); 
+        if (!resp.ok) throw new Error("No se pudo obtener la lista de socios");
+        
         const socios = await resp.json();
 
         let totalARepartir = 0;
         let sociosAptos = [];
         let filasTablaHTML = "";
 
-        // 1. Cálculos y preparación de datos
+        // 2. Cálculos y preparación de datos con filtros flexibles
         socios.forEach(socio => {
-            const esAhorrador = socio.es_socio === 1 || socio.esSocio === 1;
-            const saldo = socio.total_ahorro || socio.totalAhorrado || 0;
+            // CORRECCIÓN: == permite que 1 sea igual a true. Verificamos varios nombres posibles.
+            const esAhorrador = socio.esSocio == 1 || socio.esSocio === true || socio.es_socio == 1;
+            
+            // CORRECCIÓN: Aseguramos que el saldo sea numérico y probamos ambos nombres de columna
+            const saldo = parseFloat(socio.totalAhorrado || socio.total_ahorro || 0);
 
+            // Solo entran al reparto si son socios activos y tienen dinero ahorrado
             if (esAhorrador && saldo > 0) {
                 const interes = saldo * 0.10;
                 totalARepartir += interes;
+                
                 sociosAptos.push({ 
                     id: socio.id, 
                     nombre: socio.nombre, 
@@ -1590,14 +1602,19 @@ async function distribuirInteresesMasivos() {
 
                 filasTablaHTML += `
                     <tr class="border-b border-slate-50">
-                        <td class="p-2 text-left font-medium text-slate-700">${socio.nombre}</td>
+                        <td class="p-2 text-left font-medium text-slate-700">${socio.nombre || 'Sin nombre'}</td>
                         <td class="p-2 text-right text-slate-400 font-mono">$${saldo.toLocaleString()}</td>
                         <td class="p-2 text-right font-bold text-emerald-600 font-mono">+$${interes.toLocaleString()}</td>
                     </tr>`;
             }
         });
 
-        // 2. Construcción del modal con botón de PDF
+        // Caso de seguridad: Si nadie tiene ahorros
+        if (sociosAptos.length === 0) {
+            filasTablaHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-500">No hay socios con ahorros para distribuir.</td></tr>`;
+        }
+
+        // 3. Construcción del modal
         let listaHTML = `
             <div class="mt-4">
                 <div class="max-h-60 overflow-y-auto border border-slate-100 rounded-xl mb-4 custom-scroll">
@@ -1606,7 +1623,7 @@ async function distribuirInteresesMasivos() {
                             <tr>
                                 <th class="p-2 text-left text-slate-500 uppercase">Socio</th>
                                 <th class="p-2 text-right text-slate-500 uppercase">Ahorro</th>
-                                <th class="p-2 text-right text-emerald-600 uppercase">Interés</th>
+                                <th class="p-2 text-right text-emerald-600 uppercase">Interés (10%)</th>
                             </tr>
                         </thead>
                         <tbody>${filasTablaHTML}</tbody>
@@ -1623,7 +1640,7 @@ async function distribuirInteresesMasivos() {
                 </div>
             </div>`;
 
-        // Guardamos los datos temporalmente para que el PDF los pueda leer
+        // Guardamos los datos para el PDF
         window.datosRepartoTemporal = { socios: sociosAptos, total: totalARepartir };
 
         const { isConfirmed } = await Swal.fire({
@@ -1637,22 +1654,35 @@ async function distribuirInteresesMasivos() {
             cancelButtonColor: '#64748b'
         });
 
-        if (!isConfirmed) return;
+        if (!isConfirmed || sociosAptos.length === 0) return;
 
-        // 3. Ejecución del reparto real
-        Swal.fire({ title: 'Capitalizando intereses...', didOpen: () => { Swal.showLoading(); } });
+        // 4. Ejecución del reparto real
+        Swal.fire({ 
+            title: 'Capitalizando intereses...', 
+            text: 'Por favor no cierres la ventana',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); } 
+        });
 
+        let procesados = 0;
         for (const s of sociosAptos) {
             const detalle = `Capitalización 10% Intereses (Ciclo ${new Date().getFullYear()})`;
-            await registrarMovimientoInteres(s.id, s.interes, detalle, 'ahorro');
+            // Asegúrate de que esta función exista en tu main.js
+            try {
+                await registrarMovimientoInteres(s.id, s.interes, detalle, 'ahorro');
+                procesados++;
+            } catch (err) {
+                console.error(`Error procesando a ID ${s.id}:`, err);
+            }
         }
 
-        Swal.fire('¡Éxito!', `Se capitalizaron intereses para ${sociosAptos.length} socios.`, 'success');
-        if (typeof cargarTodo === 'function') cargarTodo();
+        await Swal.fire('¡Éxito!', `Se capitalizaron intereses para ${procesados} socios correctamente.`, 'success');
+        
+        if (typeof cargarTodo === 'function') cargarTodo(); // Recargar el dashboard
 
     } catch (error) {
-        console.error("Error:", error);
-        Swal.fire('Error', 'No se pudo generar la vista previa.', 'error');
+        console.error("Error General:", error);
+        Swal.fire('Error', 'Hubo un fallo al generar la vista previa: ' + error.message, 'error');
     }
 }
 
