@@ -774,8 +774,8 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const doc = new jsPDF();
     const fechaDoc = new Date().toLocaleDateString();
 
-    // 1. ENCABEZADO
-    doc.setFillColor(99, 102, 241); 
+    // 1. ENCABEZADO (Mismo diseño elegante)
+    doc.setFillColor(31, 41, 55); // Un azul pizarra más oscuro para profesionalismo
     doc.rect(0, 0, 210, 40, 'F');
     doc.setFontSize(22);
     doc.setTextColor(255, 255, 255);
@@ -796,11 +796,11 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
             ['DEUDA PENDIENTE (Capital + Intereses)', `$ ${Number(totales.deudaTotal || 0).toLocaleString()}`]
         ],
         theme: 'striped',
-        headStyles: { fillStyle: [31, 41, 55], fontStyle: 'bold' },
+        headStyles: { fillStyle: [79, 70, 229], fontStyle: 'bold' },
         styles: { fontSize: 10, cellPadding: 3 }
     });
 
-    // --- LÓGICA DE ORDENAMIENTO POR ID ---
+    // --- LÓGICA DE ORDENAMIENTO POR ID (Ahorros) ---
     const movimientosAhorro = [...ahorros].sort((a, b) => {
         const fechaA = new Date(a.FechaRaw || a.Fecha || a.FechaAporte);
         const fechaB = new Date(b.FechaRaw || b.Fecha || b.FechaAporte);
@@ -808,7 +808,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         return (a.ID_Ahorro || a.id) - (b.ID_Ahorro || b.id);
     });
 
-    // 3. TABLA DE MOVIMIENTOS
+    // 3. TABLA DE MOVIMIENTOS DE AHORRO
     doc.setFontSize(12);
     doc.setTextColor(16, 185, 129);
     doc.text("1. DETALLE DE MOVIMIENTOS DE AHORRO", 14, doc.lastAutoTable.finalY + 12);
@@ -829,27 +829,26 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         headStyles: { fillStyle: [16, 185, 129] },
         styles: { fontSize: 9 },
         didParseCell: function(data) {
-            if (data.section === 'body') {
-                const rowData = data.row.raw;
-                if (rowData[2] === 'RETIRO DE AHORRO') {
+            if (data.section === 'body' && data.column.index === 2) {
+                if (data.cell.raw === 'RETIRO DE AHORRO') {
                     data.cell.styles.textColor = [220, 38, 38];
                 }
             }
         }
     });
 
-    // 4. TABLA DE PRÉSTAMOS
+    // 4. TABLA DE PRÉSTAMOS (CORREGIDA CON ID FIJO)
     doc.setFontSize(12);
     doc.setTextColor(59, 130, 246);
     doc.text("2. DETALLE DE PRÉSTAMOS", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['ID', 'Fecha', 'Tasa', 'Cuotas', 'Capital', 'Total con Int.', 'Saldo Act.', 'Estado']],
-        body: prestamos.map((item, index) => [
-            `#${index + 1}`, // Aquí se genera el #1 que se ve en pantalla
+        head: [['ID REF', 'Fecha', 'Tasa', 'Cuotas', 'Capital', 'Total con Int.', 'Saldo Act.', 'Estado']],
+        body: prestamos.map((item) => [
+            `#${item.ID_Prestamo}`, // ID Real de la base de datos (FIJO)
             item.FechaPrestamo || 'S/F',
-            `${item.TasaInteres || 5}%`,
+            `${item.TasaInteres || item.interes || 0}%`, // Corregido para evitar undefined%
             item.Cuotas || 1,
             `$ ${Number(item.MontoPrestado || 0).toLocaleString()}`,
             `$ ${(Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0)).toLocaleString()}`,
@@ -860,7 +859,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 7.5 }
     });
 
-    // 5. TABLA DE ABONOS A DEUDA (CON REFERENCIA VISUAL COINCIDENTE)
+    // 5. TABLA DE ABONOS A DEUDA (CORREGIDA CON REFERENCIA FIJA)
     doc.setFontSize(12);
     doc.setTextColor(244, 63, 94);
     doc.text("3. HISTORIAL DE PAGOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
@@ -869,21 +868,25 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['Fecha', 'Valor Abono', 'Referencia']],
-        body: abonosOrdenados.map(i => {
-            // Buscamos la posición del préstamo en el arreglo original para que coincida con el #1, #2, etc.
-            const indexPrestamo = prestamos.findIndex(p => p.ID_Prestamo === i.ID_Prestamo);
-            const numeroVisual = indexPrestamo !== -1 ? indexPrestamo + 1 : 1;
-            
-            return [
-                i.FechaFormateada || 'S/F', 
-                `$ ${Number(i.Monto_Abonado || i.Monto_Pagado || 0).toLocaleString()}`,
-                `Abono a Préstamo #${numeroVisual}` // Ahora dirá #1 si es el primer préstamo de la lista
-            ];
-        }),
+        head: [['Fecha', 'Valor Abono', 'Referencia Préstamo']],
+        body: abonosOrdenados.map(i => [
+            i.FechaFormateada || 'S/F', 
+            `$ ${Number(i.Monto_Abonado || i.Monto_Pagado || 0).toLocaleString()}`,
+            `PAGO A PRÉSTAMO #${i.ID_Prestamo}` // Referencia directa al ID fijo
+        ]),
         headStyles: { fillStyle: [244, 63, 94] }, 
         styles: { fontSize: 9 }
     });
+
+    // Pie de página con ID del cliente para control
+    const pageCount = doc.internal.getNumberOfPages();
+    for(let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Comprobante generado para control interno - Cliente #${totales.idSocio || 'S/ID'}`, 14, 285);
+        doc.text(`Página ${i} de ${pageCount}`, 180, 285);
+    }
 
     doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}.pdf`);
 }
