@@ -1195,35 +1195,61 @@ async function abrirModalMeses() {
 
 function dibujarBotonesModal(pagas = []) {
     const contenedor = document.getElementById('contenedorMesesModal');
+    if (!contenedor) return;
+
     contenedor.innerHTML = ""; // Limpiar
 
-    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    const añoActual = new Date().getFullYear(); // 2026
+    const añoPasado = añoActual - 1; // 2025
 
-    meses.forEach(mes => {
-        for (let q = 1; q <= 2; q++) {
-            const nombreQ = `${mes} (Q${q})`;
-            const estaPaga = pagas.includes(nombreQ); // ¿Está en la lista del servidor?
+    // Definimos el ciclo exacto: Desde Diciembre del año pasado (Q2)
+    const estructuraCiclo = [
+        { mes: "Diciembre", año: añoPasado, qs: ["Q2"], label: `Diciembre ${añoPasado} (Inicio)` },
+        { mes: "Enero", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Febrero", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Marzo", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Abril", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Mayo", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Junio", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Julio", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Agosto", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Septiembre", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Octubre", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Noviembre", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Diciembre", año: añoActual, qs: ["Q1"], label: `Diciembre ${añoActual} (Cierre)` }
+    ];
+
+    estructuraCiclo.forEach(item => {
+        // Título del mes/periodo
+        const divEtiqueta = document.createElement("div");
+        divEtiqueta.className = "col-span-2 mb-1";
+        const titulo = item.label ? item.label : `${item.mes} ${item.año}`;
+        divEtiqueta.innerHTML = `<p class="text-[9px] font-black text-slate-400 uppercase mt-2 border-b border-slate-100">${titulo}</p>`;
+        contenedor.appendChild(divEtiqueta);
+
+        item.qs.forEach(q => {
+            const nombreQ = `${item.mes} ${item.año} (${q})`;
+            const estaPaga = pagas.includes(nombreQ);
 
             const btn = document.createElement("button");
             btn.type = "button";
-            btn.innerText = nombreQ;
+            btn.innerText = q;
             btn.value = nombreQ;
 
             if (estaPaga) {
-                // Si ya está registrada, la pintamos de rojo y la bloqueamos
-                btn.className = "btn-registrado p-2 text-[10px] font-bold border rounded-lg shadow-sm";
+                // Estilo para quincenas ya registradas (Rojo)
+                btn.className = "p-2 text-[10px] font-bold border bg-red-50 text-red-500 border-red-200 cursor-not-allowed line-through rounded-xl opacity-70";
                 btn.onclick = () => Swal.fire('Ya registrado', `Este socio ya pagó ${nombreQ}`, 'info');
             } else {
-                // Si está disponible, botón normal
-                btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-lg hover:bg-indigo-50 transition-all";
+                // Estilo para disponibles (Indigo)
+                btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-xl hover:bg-indigo-50 transition-all text-slate-600 shadow-sm";
                 btn.onclick = () => {
                     btn.classList.toggle("active");
-                    btn.classList.toggle("bg-indigo-600");
-                    btn.classList.toggle("text-white");
+                    // Nota: Las clases active ya las tienes en tu <style> en el HTML
                 };
             }
             contenedor.appendChild(btn);
-        }
+        });
     });
 }
 
