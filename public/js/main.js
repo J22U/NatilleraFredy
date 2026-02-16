@@ -1034,11 +1034,68 @@ function cargarMesesEnInterfaz() {
     });
 }
 
-function abrirModalMeses() {
-    const modal = document.getElementById('modalMeses');
-    modal.classList.remove('hidden');
-    // Reutilizamos tu lógica de cargar botones, pero apuntando al modal
-    cargarMesesEnContenedor('contenedorMesesModal'); 
+async function abrirModalMeses() {
+    const numPantalla = document.getElementById('mov_id').value;
+    const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
+
+    if (!idReal) {
+        return Swal.fire('Atención', 'Ingresa un ID de socio válido para verificar pagos.', 'warning');
+    }
+
+    try {
+        // 1. Consultar al servidor qué quincenas ya están registradas
+        const resp = await fetch(`/api/quincenas-pagas/${idReal}`);
+        const quincenasPagas = await resp.json();
+
+        // 2. Mostrar el modal
+        const modal = document.getElementById('modalMeses');
+        modal.classList.remove('hidden');
+
+        // 3. Dibujar botones pasando la lista de lo que ya se pagó
+        cargarMesesEnContenedor('contenedorMesesModal', quincenasPagas);
+    } catch (error) {
+        console.error("Error:", error);
+        Swal.fire('Error', 'No se pudo conectar con la base de datos', 'error');
+    }
+}
+
+function cargarMesesEnContenedor(idContenedor, quincenasPagas = []) {
+    const contenedor = document.getElementById(idContenedor);
+    if (!contenedor) return;
+
+    const meses = [
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+
+    contenedor.innerHTML = ""; 
+
+    meses.forEach(mes => {
+        for (let q = 1; q <= 2; q++) {
+            const nombreQ = `${mes} (Q${q})`;
+            const yaPaga = quincenasPagas.includes(nombreQ);
+            
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.value = nombreQ;
+            btn.innerText = nombreQ;
+
+            if (yaPaga) {
+                // ESTILO PARA YA PAGADAS (Bloqueado)
+                btn.className = "p-2 text-[10px] font-bold border bg-red-50 text-red-400 border-red-100 cursor-not-allowed line-through rounded-lg opacity-60";
+                btn.onclick = () => Swal.fire('Periodo Ocupado', `La quincena ${nombreQ} ya fue pagada anteriormente.`, 'info');
+            } else {
+                // ESTILO PARA DISPONIBLES
+                btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-lg hover:bg-indigo-50 transition-all";
+                btn.onclick = () => {
+                    btn.classList.toggle("active");
+                    btn.classList.toggle("bg-indigo-600");
+                    btn.classList.toggle("text-white");
+                };
+            }
+            contenedor.appendChild(btn);
+        }
+    });
 }
 
 function cerrarModalMeses() {
@@ -1047,13 +1104,13 @@ function cerrarModalMeses() {
 
 function confirmarSeleccionMeses() {
     const activos = document.querySelectorAll('#contenedorMesesModal .btn-quincena.active');
+    
     if (activos.length > 0) {
         mesesSeleccionadosTemporales = Array.from(activos).map(btn => btn.value).join(', ');
     } else {
         mesesSeleccionadosTemporales = "Abono General";
     }
     
-    // Mostramos un pequeño feedback en la pantalla principal
     const indicador = document.getElementById('indicadorMeses');
     if(indicador) indicador.textContent = mesesSeleccionadosTemporales;
     

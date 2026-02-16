@@ -397,6 +397,29 @@ app.post('/procesar-movimiento', async (req, res) => {
     }
 });
 
+app.get('/api/quincenas-pagas/:idPersona', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.idPersona)
+            .query("SELECT MesesCorrespondientes FROM Ahorros WHERE ID_Persona = @id");
+
+        // Convertimos todos los registros en una sola lista de quincenas
+        let pagas = [];
+        result.recordset.forEach(reg => {
+            if (reg.MesesCorrespondientes) {
+                // Separamos por coma y limpiamos espacios
+                const lista = reg.MesesCorrespondientes.split(',').map(s => s.trim());
+                pagas = pagas.concat(lista);
+            }
+        });
+
+        res.json(pagas); // Devuelve algo como ["Enero (Q1)", "Enero (Q2)"]
+    } catch (err) {
+        res.status(500).json([]);
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
