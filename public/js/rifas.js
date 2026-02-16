@@ -3,80 +3,59 @@ let ultimaSincronizacionManual = 0;
 
 // --- LÓGICA DE TABLAS ---
 
-function crearTabla(t = {}) {
+function crearTabla(t) {
     const container = document.getElementById('rifasContainer');
-    // Si no hay idTabla, usamos el conteo de hijos + 1
-    const idTabla = t.idTabla || (container.children.length + 1);
-    const participantes = t.participantes || {};
+    const idTabla = t.idTabla;
 
-    // 1. Creamos la estructura del Acordeón (rifa-card)
     const card = document.createElement('div');
-card.id = `rifa-${idTabla}`; // Esto es vital para que toggleTabla funcione
-card.className = 'rifa-card active'; 
+    card.id = `rifa-${idTabla}`;
+    // ELIMINADO 'active' para que inicie cerrada
+    card.className = 'rifa-card'; 
 
-    // 2. Cabecera de la tarjeta
-    const header = document.createElement('div');
-    header.className = 'rifa-card-header';
-    header.style.cursor = 'pointer'; // Para que sepa que es un botón
-    header.innerHTML = `
-        <div>
-            <span class="tabla-badge">${idTabla}</span>
-            <input type="text" class="input-table-title" 
-                   value="${t.nombre || t.titulo || 'Tabla ' + idTabla}" 
-                   onclick="event.stopPropagation()">
+    card.innerHTML = `
+        <div class="rifa-header" onclick="toggleTabla(${idTabla})">
+            <div class="header-left">
+                <span class="tabla-badge">#${idTabla}</span>
+                <input type="text" class="input-table-title" value="${t.nombre}" 
+                    onclick="event.stopPropagation()" onchange="guardarTodo()">
+            </div>
+            <div class="header-actions-table">
+                <button class="btn-delete-table" onclick="event.stopPropagation(); eliminarTabla(${idTabla})">
+                    <i class="fas fa-trash"></i>
+                </button>
+                <i class="fas fa-chevron-right arrow-icon" id="arrow-${idTabla}"></i>
+            </div>
         </div>
-        <i class="fas fa-chevron-down arrow-icon"></i>
+        <div class="rifa-body">
+            <div class="numeros-grid" id="grid-${idTabla}"></div>
+        </div>
     `;
 
-    // --- LÓGICA PARA DESPLEGAR/CONTRAER ---
-    header.onclick = () => {
-        card.classList.toggle('active');
-    };
+    container.appendChild(card);
 
-    // 3. Cuerpo de la tarjeta
-    const body = document.createElement('div');
-    body.className = 'rifa-card-body';
-    
-    // 4. LA GRILLA
-    const grid = document.createElement('div');
-    grid.className = 'numeros-grid';
-
-    // 5. Generar los 100 slots
+    // Generar los 100 números
+    const grid = document.getElementById(`grid-${idTabla}`);
     for (let i = 0; i < 100; i++) {
         const numStr = i.toString().padStart(2, '0');
         const slot = document.createElement('div');
-        slot.className = 'n-slot';
         slot.id = `t${idTabla}-${numStr}`;
-
-        const p = participantes[numStr];
-        if (p) {
-            if (p.pago) slot.classList.add('paid');
-            else slot.classList.add('reserved');
-            
-            slot.innerHTML = `
-                <span class="n-number">${numStr}</span>
-                <div class="n-name">${p.nombre}</div>
-            `;
-        } else {
-            slot.innerHTML = `
-                <span class="n-number">${numStr}</span>
-                <div class="n-name"></div>
-            `;
+        slot.className = 'n-slot';
+        
+        const p = t.participantes ? t.participantes[numStr] : null;
+        
+        // Aplicar clases de estado si existen datos
+        if (p && p.nombre) {
+            slot.classList.add(p.pago ? 'paid' : 'reserved');
         }
 
-        // Evento para abrir el modal
-        slot.onclick = (e) => {
-            e.stopPropagation(); // IMPORTANTE: evita que al elegir número se cierre la tabla
-            abrirModalCompra(idTabla, numStr);
-        };
-        
+        slot.innerHTML = `
+            <div class="n-number">${numStr}</div>
+            <div class="n-name">${p ? p.nombre : ''}</div>
+        `;
+
+        slot.onclick = () => abrirModalCompra(idTabla, numStr);
         grid.appendChild(slot);
     }
-
-    body.appendChild(grid);
-    card.appendChild(header);
-    card.appendChild(body);
-    container.appendChild(card);
 }
 
 function generarCeldas(tableId, datos) {
