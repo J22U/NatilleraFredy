@@ -1291,33 +1291,38 @@ function cargarMesesEnContenedor(idContenedor, quincenasPagas = []) {
 
     contenedor.innerHTML = ""; 
 
-    // ESTRUCTURA EXACTA: Diciembre Q2 -> Enero a Noviembre -> Diciembre Q1
+    const añoActual = new Date().getFullYear();
+    const añoPasado = añoActual - 1;
+    const añoProximo = añoActual + 1;
+
+    // Estructura con años específicos
     const estructuraCiclo = [
-        { mes: "Diciembre", qs: ["Q2"], etiqueta: "Inicio Ciclo" }, 
-        { mes: "Enero", qs: ["Q1", "Q2"] },
-        { mes: "Febrero", qs: ["Q1", "Q2"] },
-        { mes: "Marzo", qs: ["Q1", "Q2"] },
-        { mes: "Abril", qs: ["Q1", "Q2"] },
-        { mes: "Mayo", qs: ["Q1", "Q2"] },
-        { mes: "Junio", qs: ["Q1", "Q2"] },
-        { mes: "Julio", qs: ["Q1", "Q2"] },
-        { mes: "Agosto", qs: ["Q1", "Q2"] },
-        { mes: "Septiembre", qs: ["Q1", "Q2"] },
-        { mes: "Octubre", qs: ["Q1", "Q2"] },
-        { mes: "Noviembre", qs: ["Q1", "Q2"] },
-        { mes: "Diciembre", qs: ["Q1"], etiqueta: "Cierre Ciclo" }
+        { mes: "Diciembre", año: añoPasado, qs: ["Q2"], label: `Diciembre ${añoPasado} (Inicio)` },
+        { mes: "Enero", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Febrero", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Marzo", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Abril", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Mayo", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Junio", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Julio", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Agosto", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Septiembre", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Octubre", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Noviembre", año: añoActual, qs: ["Q1", "Q2"] },
+        { mes: "Diciembre", año: añoActual, qs: ["Q1"], label: `Diciembre ${añoActual} (Cierre)` }
     ];
 
     estructuraCiclo.forEach(item => {
-        // Título del mes/periodo
         const divMes = document.createElement("div");
         divMes.className = "col-span-2 mb-1";
-        const textoEtiqueta = item.etiqueta ? `${item.mes} (${item.etiqueta})` : item.mes;
-        divMes.innerHTML = `<p class="text-[9px] font-black text-slate-400 uppercase mt-2 border-b border-slate-100">${textoEtiqueta}</p>`;
+        // Si no hay label especial, usamos el nombre del mes y el año
+        const titulo = item.label ? item.label : `${item.mes} ${item.año}`;
+        divMes.innerHTML = `<p class="text-[9px] font-black text-slate-400 uppercase mt-2 border-b border-slate-100">${titulo}</p>`;
         contenedor.appendChild(divMes);
 
         item.qs.forEach(q => {
-            const nombreQ = `${item.mes} (${q})`;
+            // EL NOMBRE AHORA INCLUYE EL AÑO: "Enero 2026 (Q1)"
+            const nombreQ = `${item.mes} ${item.año} (${q})`;
             const yaPaga = quincenasPagas.includes(nombreQ);
             
             const btn = document.createElement("button");
@@ -1326,11 +1331,9 @@ function cargarMesesEnContenedor(idContenedor, quincenasPagas = []) {
             btn.innerText = q; 
 
             if (yaPaga) {
-                // Estilo rojo (Ya pagado) - Como se ve en tu imagen
                 btn.className = "p-2 text-[10px] font-bold border bg-red-50 text-red-500 border-red-200 cursor-not-allowed line-through rounded-xl opacity-70";
-                btn.onclick = () => Swal.fire('Periodo Ocupado', `${nombreQ} ya fue pagada.`, 'info');
+                btn.onclick = () => Swal.fire('Ya registrado', `${nombreQ} ya fue pagada.`, 'info');
             } else {
-                // Estilo normal (Disponible)
                 btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-xl hover:bg-indigo-50 transition-all text-slate-600";
                 btn.onclick = () => {
                     btn.classList.toggle("active");
