@@ -395,35 +395,31 @@ function toggleAcordeon(id, btn) {
 
     if (!idReal || isNaN(monto)) return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
 
-    // --- 1. CAPTURAR LOS MESES ANTES DE LA CONFIRMACIÓN ---
+    // --- 1. CAPTURAR MESES ---
     let mesesParaEnviar = "Abono General";
     if (tipo === 'ahorro') {
-        // Buscamos los botones que tengan la clase 'active'
-        const botonesActivos = document.querySelectorAll('.btn-quincena.active');
+        // Buscamos botones que tengan la clase active O el fondo rojo
+        const activos = Array.from(document.querySelectorAll('.btn-quincena'))
+                             .filter(btn => btn.classList.contains('active') || btn.classList.contains('bg-red-500'));
         
-        if (botonesActivos.length > 0) {
-            // Intentamos obtener .value, y si falla, usamos .textContent
-            mesesParaEnviar = Array.from(botonesActivos)
-                .map(btn => btn.value || btn.textContent.trim()) 
-                .join(', ');
+        if (activos.length > 0) {
+            mesesParaEnviar = activos.map(btn => btn.value).join(', ');
         }
     }
 
-    // --- 2. PEDIR CONFIRMACIÓN (Swal) ---
+    // --- 2. CONFIRMACIÓN ---
     const confirmacion = await Swal.fire({
         title: '¿Confirmar movimiento?',
-        text: `Se registrará un ${tipo} por $${monto.toLocaleString()} para ${mesesParaEnviar}`,
+        text: `Registro de ${tipo} por $${monto.toLocaleString()} (${mesesParaEnviar})`,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#f59e0b', // Naranja
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'Sí, registrar',
-        cancelButtonText: 'Cancelar'
+        confirmButtonColor: '#f59e0b',
+        confirmButtonText: 'Sí, registrar'
     });
 
     if (!confirmacion.isConfirmed) return;
 
-    // --- 3. ENVÍO AL SERVIDOR ---
+    // --- 3. ENVÍO ---
     try {
         const respuesta = await fetch('/procesar-movimiento', {
             method: 'POST',
@@ -433,24 +429,22 @@ function toggleAcordeon(id, btn) {
                 monto: monto,
                 tipoMovimiento: tipo,
                 idPrestamo: (tipo === 'deuda') ? selectDeuda.value : null,
-                MesesCorrespondientes: mesesParaEnviar 
+                MesesCorrespondientes: mesesParaEnviar // NOMBRE EXACTO
             })
         });
 
         const resultado = await respuesta.json();
 
         if (resultado.success) {
-            Swal.fire('¡Éxito!', 'Movimiento guardado', 'success');
+            Swal.fire('¡Éxito!', 'Guardado correctamente', 'success');
             montoInput.value = '';
-            
-            // Limpiamos los botones rojos
+            // Limpiar botones
             document.querySelectorAll('.btn-quincena').forEach(btn => {
                 btn.classList.remove('active', 'bg-red-500', 'text-white', 'border-red-500');
             });
-
             cargarTodo();
         } else {
-            Swal.fire('Error', 'No se pudo guardar: ' + (resultado.error || ''), 'error');
+            Swal.fire('Error', resultado.error || 'Error desconocido', 'error');
         }
     } catch (error) {
         console.error("Error:", error);
@@ -1003,6 +997,8 @@ function cargarMesesEnInterfaz() {
     if (!contenedor) return;
     contenedor.innerHTML = '';
 
+    const mesesDelAño = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
     mesesDelAño.forEach(mes => {
         const grupoMes = document.createElement('div');
         grupoMes.className = 'col-span-3 mb-2';
@@ -1011,23 +1007,23 @@ function cargarMesesEnInterfaz() {
         const botonesCont = document.createElement('div');
         botonesCont.className = 'grid grid-cols-2 gap-1';
 
-        // Busca esta parte en cargarMesesEnInterfaz y reemplázala:
-['Q1', 'Q2'].forEach(q => {
-    const btn = document.createElement('button');
-    btn.textContent = q;
-    btn.value = `${mes} (${q})`; 
-    btn.className = 'btn-quincena py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-red-50 transition-all';
-    
-    btn.onclick = (e) => {
-        e.preventDefault();
-        // Cambiamos a rojo para diferenciar del botón "Procesar"
-        btn.classList.toggle('active'); 
-        btn.classList.toggle('bg-red-500');
-        btn.classList.toggle('text-white');
-        btn.classList.toggle('border-red-500');
-    };
-    botonesCont.appendChild(btn);
-});
+        ['Q1', 'Q2'].forEach(q => {
+            const btn = document.createElement('button');
+            btn.type = 'button'; // Evita que el formulario se envíe solo
+            btn.textContent = q;
+            btn.value = `${mes} (${q})`; 
+            btn.className = 'btn-quincena py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-red-50 transition-all';
+            
+            btn.onclick = (e) => {
+                e.preventDefault();
+                // Toggle de clases
+                btn.classList.toggle('active'); 
+                btn.classList.toggle('bg-red-500');
+                btn.classList.toggle('text-white');
+                btn.classList.toggle('border-red-500');
+            };
+            botonesCont.appendChild(btn);
+        });
 
         grupoMes.appendChild(botonesCont);
         contenedor.appendChild(grupoMes);
