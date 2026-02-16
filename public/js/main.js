@@ -385,50 +385,37 @@ function toggleAcordeon(id, btn) {
 }
 
         async function registrarMovimiento() {
-    const numPantalla = document.getElementById('mov_id').value;
-    const montoInput = document.getElementById('mov_monto');
-    const monto = parseFloat(montoInput.value);
-    const tipo = document.getElementById('mov_tipo').value;
-    const selectDeuda = document.getElementById('mov_prestamo_id');
-    const idReal = window.mapeoIdentificadores[numPantalla];
-
-    if (!idReal || isNaN(monto)) return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
-
-    // 1. CAPTURAR MESES/QUINCENAS (Corregido para leer botones naranjas)
-    let mesesParaEnviar = "";
-    if (tipo === 'ahorro') {
-        // Seleccionamos los botones que tienen el color naranja (bg-amber-500)
-        const botonesSeleccionados = document.querySelectorAll('#contenedor-meses button.bg-amber-500');
-        
-        const valores = Array.from(botonesSeleccionados).map(btn => {
-            // Buscamos el nombre del mes que está en el párrafo (p) justo antes del grupo de botones
-            const nombreMes = btn.closest('.col-span-3').querySelector('p').textContent.trim();
-            const quincena = btn.textContent.trim();
-            return `${nombreMes} (${quincena})`;
-        });
-
-        if (valores.length > 0) {
-            mesesParaEnviar = valores.join(', ');
-        } else {
-            mesesParaEnviar = "Abono General";
-        }
-    }
-
-    // 2. VALIDACIÓN DE DEUDA
-    if (tipo === 'deuda') {
-        if (!selectDeuda.value) return Toast.fire({ icon: 'error', title: 'Selecciona una deuda' });
-        const saldoMaximo = parseFloat(selectDeuda.options[selectDeuda.selectedIndex].getAttribute('data-saldo'));
-        if (monto > saldoMaximo) {
-            return Swal.fire({
-                icon: 'error',
-                title: 'Monto excedido',
-                text: `Máximo permitido: $${saldoMaximo.toLocaleString()}`
-            });
-        }
-    }
-
-    // 3. ENVÍO AL SERVIDOR
     try {
+        const numPantalla = document.getElementById('mov_id').value;
+        const montoInput = document.getElementById('mov_monto');
+        const monto = parseFloat(montoInput.value);
+        const tipo = document.getElementById('mov_tipo').value;
+        const selectDeuda = document.getElementById('mov_prestamo_id');
+        const idReal = window.mapeoIdentificadores[numPantalla];
+
+        if (!idReal || isNaN(monto)) {
+            return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
+        }
+
+        // --- CAPTURA DE MESES ---
+        let mesesParaEnviar = "Abono General"; 
+        if (tipo === 'ahorro') {
+            const botonesSeleccionados = document.querySelectorAll('#contenedor-meses button.bg-amber-500');
+            if (botonesSeleccionados.length > 0) {
+                mesesParaEnviar = Array.from(botonesSeleccionados)
+                    .map(btn => btn.value) // Usamos el .value que asignamos en cargarMeses
+                    .join(', ');
+            }
+        }
+
+        if (tipo === 'deuda') {
+            if (!selectDeuda.value) return Toast.fire({ icon: 'error', title: 'Selecciona una deuda' });
+            const saldoMaximo = parseFloat(selectDeuda.options[selectDeuda.selectedIndex].getAttribute('data-saldo'));
+            if (monto > saldoMaximo) {
+                return Swal.fire({ icon: 'error', title: 'Monto excedido', text: `Máximo: $${saldoMaximo}` });
+            }
+        }
+
         const respuesta = await fetch('/procesar-movimiento', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -436,7 +423,7 @@ function toggleAcordeon(id, btn) {
                 idPersona: idReal,
                 monto: monto,
                 tipoMovimiento: tipo,
-                idPrestamo: selectDeuda.value || null,
+                idPrestamo: (tipo === 'deuda') ? selectDeuda.value : null,
                 meses: mesesParaEnviar 
             })
         });
@@ -444,21 +431,18 @@ function toggleAcordeon(id, btn) {
         const resultado = await respuesta.json();
 
         if (resultado.success) {
-            Swal.fire('¡Éxito!', 'Movimiento registrado correctamente', 'success');
+            Swal.fire('¡Éxito!', 'Registrado correctamente', 'success');
             montoInput.value = '';
-            
-            // Limpiar selección de botones después del éxito
             document.querySelectorAll('#contenedor-meses button').forEach(btn => {
-                btn.classList.remove('bg-amber-500', 'text-white', 'border-amber-500');
+                btn.classList.remove('bg-amber-500', 'text-white', 'border-amber-500', 'active');
             });
-            
-            cargarTodo(); 
+            if (typeof cargarTodo === 'function') cargarTodo();
         } else {
-            Swal.fire('Error', 'No se pudo guardar: ' + (resultado.error || 'Error desconocido'), 'error');
+            Swal.fire('Error', 'No se pudo guardar', 'error');
         }
     } catch (error) {
-        console.error("Error en fetch:", error);
-        Swal.fire('Error', 'Falla de conexión con el servidor', 'error');
+        console.error("Error completo:", error);
+        Swal.fire('Error', 'Falla en la comunicación con el servidor', 'error');
     }
 }
 
