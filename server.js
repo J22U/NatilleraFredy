@@ -118,14 +118,17 @@ app.get('/listar-miembros', async (req, res) => {
         const result = await pool.request()
             .query(`
                 SELECT 
-                    ID_Persona as id, -- Este es el ID que no cambia
-                    Nombre as nombre, 
-                    Documento as cedula, 
-                    CASE WHEN EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
-                    Estado
-                FROM Personas 
-                WHERE Estado = 'Activo'
-                ORDER BY ID_Persona ASC
+                    P.ID_Persona as id, 
+                    P.Nombre as nombre, 
+                    P.Documento as cedula, 
+                    P.EsSocio as esSocio, -- Esto servirá para el filtro del frontend
+                    CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
+                    P.Estado,
+                    -- Esta subconsulta trae la suma real de la tabla Ahorros
+                    ISNULL((SELECT SUM(A.Monto) FROM Ahorros A WHERE A.ID_Persona = P.ID_Persona), 0) as totalAhorrado
+                FROM Personas P
+                WHERE P.Estado = 'Activo'
+                ORDER BY P.Nombre ASC
             `);
         res.json(result.recordset);
     } catch (err) {

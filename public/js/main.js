@@ -1583,7 +1583,7 @@ async function distribuirInteresesMasivos() {
         // 2. Cálculos y preparación de datos con filtros flexibles
         socios.forEach(socio => {
             // CORRECCIÓN: == permite que 1 sea igual a true. Verificamos varios nombres posibles.
-            const esAhorrador = socio.esSocio == 1 || socio.esSocio === true || socio.es_socio == 1;
+            const esAhorrador = socio.tipo === 'SOCIO' || socio.esSocio == 1;
             
             // CORRECCIÓN: Aseguramos que el saldo sea numérico y probamos ambos nombres de columna
             const saldo = parseFloat(socio.totalAhorrado || socio.total_ahorro || 0);
