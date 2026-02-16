@@ -28,7 +28,8 @@ async function cargarDashboard() {
         async function listarMiembros() {
     try {
         const res = await fetch('/api/socios-esfuerzo');
-        // Usamos la variable global
+        if (!res.ok) throw new Error("Error en la respuesta del servidor");
+        
         miembrosGlobal = await res.json(); 
         
         const tbody = document.getElementById('tabla-recientes');
@@ -38,42 +39,39 @@ async function cargarDashboard() {
         let cAhorro = 0, cExtra = 0;
         const totalMiembros = miembrosGlobal.length;
 
-        // Clonamos y volteamos para mostrar los últimos primero
         [...miembrosGlobal].reverse().forEach((m, index) => {
             const numPantalla = totalMiembros - index;
-            
-            // Guardamos el ID real vinculado al número que ve el usuario
             window.mapeoIdentificadores[numPantalla] = m.id; 
 
-            const esSocioReal = (m.tipo === 'SOCIO'); 
+            // Aseguramos que tipo y cedula tengan valor por defecto si vienen nulos
+            const tipoSocio = m.tipo || (m.EsSocio ? 'SOCIO' : 'EXTERNO');
+            const cedulaSocio = m.cedula || 'N/A';
+            const esSocioReal = (tipoSocio === 'SOCIO'); 
+            
             esSocioReal ? cAhorro++ : cExtra++;
 
             tbody.innerHTML += `
-    <tr class="hover:bg-slate-50 transition-colors item-socio">
-        <td class="px-8 py-5 font-black text-indigo-500 text-xl">#${m.id}</td>
-        <td class="px-8 py-5">
-            <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
+                <tr class="hover:bg-slate-50 transition-colors item-socio">
+                    <td class="px-8 py-5 font-black text-indigo-500 text-xl">#${m.id}</td>
+                    <td class="px-8 py-5">
+                        <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
                         <div class="text-[10px] text-slate-400 uppercase tracking-tighter">
-                            DOC: ${m.cedula} | 
+                            DOC: ${cedulaSocio} | 
                             <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
-                                ${m.tipo}
+                                ${tipoSocio}
                             </span>
                         </div>
                     </td>
                     <td class="px-8 py-5 text-center">
                         <div class="flex justify-center gap-3 items-center">
                             <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
-                            
                             <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-2">
                                 <i class="fas fa-hand-holding-usd"></i> Retirar
                             </button>
-
-                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}', '${m.tipo}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
-                            
+                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${cedulaSocio}', '${tipoSocio}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
                             <button onclick="cambiarEstadoSocio(${m.id}, '${m.nombre}', 'Activo')" class="text-slate-400 p-2 hover:text-orange-500 hover:scale-110 transition-all" title="Inhabilitar Socio">
                                 <i class="fas fa-user-slash"></i>
                             </button>
-
                             <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2 hover:scale-110 transition-transform"><i class="fas fa-trash"></i></button>
                         </div>
                     </td>
@@ -85,7 +83,6 @@ async function cargarDashboard() {
         console.error("Error al listar miembros:", err); 
     }
 }
-
 async function abrirModalRetiro(id, nombre) {
     const { value: formValues } = await Swal.fire({
         title: `<span class="text-sm font-black">RETIRAR AHORROS: ${nombre}</span>`,

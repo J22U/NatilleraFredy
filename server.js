@@ -115,15 +115,39 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
             SELECT 
                 P.ID_Persona as id, 
                 P.Nombre as nombre,
+                P.Cedula as cedula,      -- Agregamos Cedula
+                P.Tipo as tipo,          -- Agregamos Tipo
                 P.EsSocio,
-                -- Cambia 'Monto' por el nombre real de tu columna si es distinto
-                ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as saldoTotal,
+                -- Saldo Total (Ajusta 'Monto' si tu columna se llama diferente)
+                ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
+                -- Puntos de Esfuerzo (CASE)
                 ISNULL((
                     SELECT SUM(Monto * (
                         CASE 
-                            WHEN MesesCorrespondientes LIKE '%Enero (Q1)%' THEN 24 
+                            WHEN MesesCorrespondientes LIKE '%Enero (Q1)%' THEN 24
                             WHEN MesesCorrespondientes LIKE '%Enero (Q2)%' THEN 23
-                            -- ... Agrega un par más para probar ...
+                            WHEN MesesCorrespondientes LIKE '%Febrero (Q1)%' THEN 22
+                            WHEN MesesCorrespondientes LIKE '%Febrero (Q2)%' THEN 21
+                            WHEN MesesCorrespondientes LIKE '%Marzo (Q1)%' THEN 20
+                            WHEN MesesCorrespondientes LIKE '%Marzo (Q2)%' THEN 19
+                            WHEN MesesCorrespondientes LIKE '%Abril (Q1)%' THEN 18
+                            WHEN MesesCorrespondientes LIKE '%Abril (Q2)%' THEN 17
+                            WHEN MesesCorrespondientes LIKE '%Mayo (Q1)%' THEN 16
+                            WHEN MesesCorrespondientes LIKE '%Mayo (Q2)%' THEN 15
+                            WHEN MesesCorrespondientes LIKE '%Junio (Q1)%' THEN 14
+                            WHEN MesesCorrespondientes LIKE '%Junio (Q2)%' THEN 13
+                            WHEN MesesCorrespondientes LIKE '%Julio (Q1)%' THEN 12
+                            WHEN MesesCorrespondientes LIKE '%Julio (Q2)%' THEN 11
+                            WHEN MesesCorrespondientes LIKE '%Agosto (Q1)%' THEN 10
+                            WHEN MesesCorrespondientes LIKE '%Agosto (Q2)%' THEN 9
+                            WHEN MesesCorrespondientes LIKE '%Septiembre (Q1)%' THEN 8
+                            WHEN MesesCorrespondientes LIKE '%Septiembre (Q2)%' THEN 7
+                            WHEN MesesCorrespondientes LIKE '%Octubre (Q1)%' THEN 6
+                            WHEN MesesCorrespondientes LIKE '%Octubre (Q2)%' THEN 5
+                            WHEN MesesCorrespondientes LIKE '%Noviembre (Q1)%' THEN 4
+                            WHEN MesesCorrespondientes LIKE '%Noviembre (Q2)%' THEN 3
+                            WHEN MesesCorrespondientes LIKE '%Diciembre (Q1)%' THEN 2
+                            WHEN MesesCorrespondientes LIKE '%Diciembre (Q2)%' THEN 1
                             ELSE 1 
                         END
                     ))
@@ -135,9 +159,8 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
         `);
         res.json(result.recordset);
     } catch (err) {
-        // Esto es CLAVE: Si hay error, lo logueamos en la consola de Render
-        console.error("ERROR SQL EN LISTAR:", err.message);
-        res.status(500).json({ error: "Error interno", detalle: err.message });
+        console.error("Error SQL:", err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 
