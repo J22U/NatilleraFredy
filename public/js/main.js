@@ -773,122 +773,128 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const fechaDoc = new Date().toLocaleDateString();
+    const horaDoc = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // 1. ENCABEZADO (Mismo diseño elegante)
-    doc.setFillColor(31, 41, 55); // Un azul pizarra más oscuro para profesionalismo
-    doc.rect(0, 0, 210, 40, 'F');
-    doc.setFontSize(22);
-    doc.setTextColor(255, 255, 255);
-    doc.text("EXTRACTO DE CUENTA", 14, 20);
-    doc.setFontSize(10);
-    doc.text("SISTEMA DE GESTIÓN NATILLERA", 14, 28);
-
-    doc.setFontSize(12);
-    doc.text(`CLIENTE: ${nombre.toUpperCase()}`, 120, 20);
-    doc.text(`FECHA: ${fechaDoc}`, 120, 28);
-
-    // 2. RESUMEN DE TOTALES
-    doc.autoTable({
-        startY: 45,
-        head: [['RESUMEN GENERAL', 'VALOR TOTAL']],
-        body: [
-            ['TOTAL AHORRADO A LA FECHA', `$ ${Number(totales.totalAhorrado || 0).toLocaleString()}`],
-            ['DEUDA PENDIENTE (Capital + Intereses)', `$ ${Number(totales.deudaTotal || 0).toLocaleString()}`]
-        ],
-        theme: 'striped',
-        headStyles: { fillStyle: [79, 70, 229], fontStyle: 'bold' },
-        styles: { fontSize: 10, cellPadding: 3 }
-    });
-
-    // --- LÓGICA DE ORDENAMIENTO POR ID (Ahorros) ---
-    const movimientosAhorro = [...ahorros].sort((a, b) => {
-        const fechaA = new Date(a.FechaRaw || a.Fecha || a.FechaAporte);
-        const fechaB = new Date(b.FechaRaw || b.Fecha || b.FechaAporte);
-        if (fechaA - fechaB !== 0) return fechaA - fechaB;
-        return (a.ID_Ahorro || a.id) - (b.ID_Ahorro || b.id);
-    });
-
-    // 3. TABLA DE MOVIMIENTOS DE AHORRO
-    doc.setFontSize(12);
-    doc.setTextColor(16, 185, 129);
-    doc.text("1. DETALLE DE MOVIMIENTOS DE AHORRO", 14, doc.lastAutoTable.finalY + 12);
+    // 1. ENCABEZADO CORPORATIVO
+    doc.setFillColor(15, 23, 42); // Slate-900
+    doc.rect(0, 0, 210, 45, 'F');
     
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.text("EXTRACTO FINANCIERO", 14, 22);
+    
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(148, 163, 184); // Slate-400
+    doc.text(`GENERADO EL: ${fechaDoc} a las ${horaDoc}`, 14, 30);
+    doc.text("SISTEMA DE GESTIÓN NATILLERA V3.0", 14, 35);
+
+    // Bloque de información del Cliente
+    doc.setFillColor(30, 41, 59); // Slate-800
+    doc.roundedRect(110, 10, 85, 28, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text(`TITULAR: ${nombre.toUpperCase()}`, 115, 18);
+    doc.text(`ID SOCIO: #${totales.idSocio || 'N/A'}`, 115, 25);
+    doc.text(`TIPO: ${totales.tipoMiembro || 'MIEMBRO'}`, 115, 32);
+
+    // 2. RESUMEN DE SALDOS (Tarjetas de totales)
     doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 15,
-        head: [['#', 'Fecha', 'Descripción', 'Monto']],
-        body: movimientosAhorro.map((item, index) => {
-            const monto = Number(item.Monto);
-            const esRetiro = monto < 0;
-            return [
-                index + 1,
+        startY: 50,
+        head: [['ESTADO DE CUENTA ACTUAL', 'VALOR']],
+        body: [
+            ['(+) TOTAL AHORROS DISPONIBLES', `$ ${Number(totales.totalAhorrado || 0).toLocaleString()}`],
+            ['(-) CAPITAL DE PRESTAMOS ACTIVOS', `$ ${Number(totales.capitalPendiente || 0).toLocaleString()}`],
+            ['(-) INTERESES PROYECTADOS', `$ ${Number(totales.interesesPendientes || 0).toLocaleString()}`],
+            ['(=) DEUDA TOTAL PENDIENTE', `$ ${Number(totales.deudaTotal || 0).toLocaleString()}`]
+        ],
+        theme: 'grid',
+        headStyles: { fillStyle: [79, 70, 229], fontStyle: 'bold', halign: 'center' },
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+    });
+
+    // 3. DETALLE DE AHORROS (Solo si tiene ahorros)
+    if (ahorros && ahorros.length > 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(16, 185, 129); // Emerald-600
+        doc.text("1. MOVIMIENTOS DE AHORRO", 14, doc.lastAutoTable.finalY + 15);
+        
+        const dataAhorros = [...ahorros].sort((a,b) => (a.ID_Ahorro || 0) - (b.ID_Ahorro || 0));
+
+        doc.autoTable({
+            startY: doc.lastAutoTable.finalY + 18,
+            head: [['ID', 'Fecha', 'Tipo de Movimiento', 'Valor']],
+            body: dataAhorros.map(item => [
+                `#${item.ID_Ahorro || '---'}`,
                 item.FechaFormateada || new Date(item.FechaAporte || item.Fecha).toLocaleDateString(),
-                esRetiro ? 'RETIRO DE AHORRO' : 'APORTE DE AHORRO',
-                `$ ${monto.toLocaleString()}`
-            ];
-        }),
-        headStyles: { fillStyle: [16, 185, 129] },
-        styles: { fontSize: 9 },
-        didParseCell: function(data) {
-            if (data.section === 'body' && data.column.index === 2) {
-                if (data.cell.raw === 'RETIRO DE AHORRO') {
-                    data.cell.styles.textColor = [220, 38, 38];
-                }
-            }
-        }
-    });
-
-    // 4. TABLA DE PRÉSTAMOS (CORREGIDA CON ID FIJO)
-    doc.setFontSize(12);
-    doc.setTextColor(59, 130, 246);
-    doc.text("2. DETALLE DE PRÉSTAMOS", 14, doc.lastAutoTable.finalY + 12);
-
-    doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 15,
-        head: [['ID REF', 'Fecha', 'Tasa', 'Cuotas', 'Capital', 'Total con Int.', 'Saldo Act.', 'Estado']],
-        body: prestamos.map((item) => [
-            `#${item.ID_Prestamo}`, // ID Real de la base de datos (FIJO)
-            item.FechaPrestamo || 'S/F',
-            `${item.TasaInteres || item.interes || 0}%`, // Corregido para evitar undefined%
-            item.Cuotas || 1,
-            `$ ${Number(item.MontoPrestado || 0).toLocaleString()}`,
-            `$ ${(Number(item.MontoPrestado || 0) + Number(item.MontoInteres || 0)).toLocaleString()}`,
-            `$ ${Number(item.SaldoActual || 0).toLocaleString()}`,
-            (item.Estado || 'Activo').toUpperCase()
-        ]),
-        headStyles: { fillStyle: [59, 130, 246] },
-        styles: { fontSize: 7.5 }
-    });
-
-    // 5. TABLA DE ABONOS A DEUDA (CORREGIDA CON REFERENCIA FIJA)
-    doc.setFontSize(12);
-    doc.setTextColor(244, 63, 94);
-    doc.text("3. HISTORIAL DE PAGOS A DEUDA", 14, doc.lastAutoTable.finalY + 12);
-
-    const abonosOrdenados = [...abonos].sort((a, b) => new Date(a.FechaRaw || a.Fecha) - new Date(b.FechaRaw || b.Fecha));
-
-    doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 15,
-        head: [['Fecha', 'Valor Abono', 'Referencia Préstamo']],
-        body: abonosOrdenados.map(i => [
-            i.FechaFormateada || 'S/F', 
-            `$ ${Number(i.Monto_Abonado || i.Monto_Pagado || 0).toLocaleString()}`,
-            `PAGO A PRÉSTAMO #${i.ID_Prestamo}` // Referencia directa al ID fijo
-        ]),
-        headStyles: { fillStyle: [244, 63, 94] }, 
-        styles: { fontSize: 9 }
-    });
-
-    // Pie de página con ID del cliente para control
-    const pageCount = doc.internal.getNumberOfPages();
-    for(let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(`Comprobante generado para control interno - Cliente #${totales.idSocio || 'S/ID'}`, 14, 285);
-        doc.text(`Página ${i} de ${pageCount}`, 180, 285);
+                Number(item.Monto) < 0 ? 'RETIRO DE FONDOS' : 'APORTE QUINCENAL',
+                `$ ${Number(item.Monto).toLocaleString()}`
+            ]),
+            headStyles: { fillStyle: [16, 185, 129] },
+            styles: { fontSize: 9 },
+            columnStyles: { 3: { halign: 'right' } }
+        });
     }
 
-    doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}.pdf`);
+    // 4. DETALLE DE PRÉSTAMOS (Con IDs Reales)
+    if (prestamos && prestamos.length > 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(59, 130, 246); // Blue-600
+        doc.text("2. CRÉDITOS Y OBLIGACIONES", 14, doc.lastAutoTable.finalY + 15);
+
+        doc.autoTable({
+            startY: doc.lastAutoTable.finalY + 18,
+            head: [['REF ID', 'Fecha', '% Int', 'Capital', 'Int. Totales', 'Saldo Actual', 'Estado']],
+            body: prestamos.map(p => [
+                `PR-${p.ID_Prestamo}`,
+                p.FechaPrestamo || 'S/F',
+                `${p.TasaInteres || p.interes || 0}%`,
+                `$ ${Number(p.MontoPrestado).toLocaleString()}`,
+                `$ ${Number(p.MontoInteres).toLocaleString()}`,
+                `$ ${Number(p.SaldoActual).toLocaleString()}`,
+                (p.Estado || 'ACTIVO').toUpperCase()
+            ]),
+            headStyles: { fillStyle: [59, 130, 246] },
+            styles: { fontSize: 8.5 },
+            columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } }
+        });
+    }
+
+    // 5. HISTORIAL DE PAGOS REALIZADOS (Abonos)
+    if (abonos && abonos.length > 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(244, 63, 94); // Rose-500
+        doc.text("3. HISTORIAL DE ABONOS A CAPITAL/INTERÉS", 14, doc.lastAutoTable.finalY + 15);
+
+        doc.autoTable({
+            startY: doc.lastAutoTable.finalY + 18,
+            head: [['Fecha de Pago', 'Valor del Abono', 'Referencia de Obligación']],
+            body: abonos.map(a => [
+                a.FechaFormateada || 'S/F', 
+                `$ ${Number(a.Monto_Abonado || a.Monto_Pagado || 0).toLocaleString()}`,
+                `Abono a Préstamo REF: PR-${a.ID_Prestamo}`
+            ]),
+            headStyles: { fillStyle: [244, 63, 94] },
+            styles: { fontSize: 9 },
+            columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+        });
+    }
+
+    // PIE DE PÁGINA Y NOTA LEGAL
+    const totalPaginas = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPaginas; i++) {
+        doc.setPage(i);
+        doc.setDrawColor(226, 232, 240);
+        doc.line(14, 280, 196, 280);
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text("Este documento es un extracto informativo y no representa un título valor.", 14, 285);
+        doc.text(`Página ${i} de ${totalPaginas}`, 180, 285);
+    }
+
+    doc.save(`Extracto_Detallado_${nombre.replace(/\s+/g, '_')}.pdf`);
 }
 
 async function verListaRapidaDeudores() {
