@@ -108,6 +108,10 @@ app.post('/api/guardar-rifa', async (req, res) => {
 
 // --- 4. RUTAS DE SOCIOS Y MIEMBROS ---
 
+app.get('/api/socios', async (req, res) => {
+    res.redirect('/listar-miembros');
+});
+
 app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
