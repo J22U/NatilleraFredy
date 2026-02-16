@@ -298,11 +298,15 @@ app.get('/historial-ahorros/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query(`SELECT Monto, 
-                           FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
-                           ISNULL(MesesCorrespondientes, 'No especificado') as MesesCorrespondientes
-                    FROM Ahorros 
-                    WHERE ID_Persona = @id ORDER BY Fecha DESC`);
+            .query(`
+                SELECT 
+                    Monto, 
+                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
+                    CAST(MesesCorrespondientes AS VARCHAR(MAX)) as Detalle -- Lo forzamos como texto
+                FROM Ahorros 
+                WHERE ID_Persona = @id 
+                ORDER BY Fecha DESC
+            `);
         res.json(result.recordset);
     } catch (err) { res.status(500).json([]); }
 });
@@ -377,33 +381,26 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 
 app.post('/procesar-movimiento', async (req, res) => {
     try {
-        const { idPersona, monto, tipoMovimiento, MesesCorrespondientes } = req.body;
-        
-        // Log para ver qué llega exactamente a la terminal negra
-        console.log("RECIBIDO EN SERVER:", MesesCorrespondientes);
-
         const pool = await poolPromise;
         
-        // Aseguramos que no vaya vacío
-        const valorFinal = (MesesCorrespondientes && MesesCorrespondientes.trim() !== "") 
-                           ? MesesCorrespondientes 
-                           : "Abono General";
+        // Buscamos el valor sin importar si viene como 'meses', 'MesesCorrespondientes' o 'mesesParaEnviar'
+        const mesesRecibidos = req.body.MesesCorrespondientes || req.body.meses || req.body.Meses || "Abono General";
+        
+        const { idPersona, monto, tipoMovimiento } = req.body;
 
         if (tipoMovimiento === 'ahorro') {
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18,2), monto)
-                .input('txtMeses', sql.VarChar(sql.MAX), valorFinal) // MAX para evitar recortes
+                .input('textoMeses', sql.VarChar(sql.MAX), mesesRecibidos)
                 .query(`
                     INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
-                    VALUES (@id, @m, GETDATE(), @txtMeses)
+                    VALUES (@id, @m, GETDATE(), @textoMeses)
                 `);
         }
-        // Aquí podrías agregar el ELSE para 'deuda' si lo necesitas
-        
         res.json({ success: true });
     } catch (err) {
-        console.error("ERROR SQL:", err.message);
+        console.error("ERROR FINAL:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
