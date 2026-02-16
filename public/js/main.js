@@ -27,7 +27,7 @@ async function cargarDashboard() {
 
         async function listarMiembros() {
     try {
-        const res = await fetch('/listar-miembros');
+        const res = await fetch('/api/socios-esfuerzo');
         // Usamos la variable global
         miembrosGlobal = await res.json(); 
         
