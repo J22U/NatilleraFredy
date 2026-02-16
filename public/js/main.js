@@ -1564,31 +1564,32 @@ async function liquidarInteresParcial() {
 // --- 2. REPARTO GLOBAL (10% A TODOS LOS AHORRADORES) ---
 async function distribuirInteresesMasivos() {
     try {
-        // 1. Iniciando carga
         Swal.fire({ 
-            title: 'Calculando vista previa...', 
+            title: 'Validando fondos y socios...', 
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); } 
         });
-        
-        const resp = await fetch('/api/socios'); 
-        if (!resp.ok) throw new Error("No se pudo obtener la lista de socios");
-        
-        const socios = await resp.json();
+
+        // 1. Consultamos las Ganancias Brutas Disponibles
+        // Asumo que tienes una ruta que devuelve el saldo de ganancias
+        const respG = await fetch('/api/ganancias-disponibles'); 
+        const dataG = await respG.json();
+        const gananciasBrutas = parseFloat(dataG.saldo || 0);
+
+        // 2. Consultamos los Socios
+        const respS = await fetch('/api/socios'); 
+        if (!respS.ok) throw new Error("No se pudo obtener la lista de socios");
+        const socios = await respS.json();
 
         let totalARepartir = 0;
         let sociosAptos = [];
         let filasTablaHTML = "";
 
-        // 2. Cálculos y preparación de datos con filtros flexibles
+        // 3. Cálculos
         socios.forEach(socio => {
-            // CORRECCIÓN: == permite que 1 sea igual a true. Verificamos varios nombres posibles.
             const esAhorrador = socio.tipo === 'SOCIO' || socio.esSocio == 1;
-            
-            // CORRECCIÓN: Aseguramos que el saldo sea numérico y probamos ambos nombres de columna
             const saldo = parseFloat(socio.totalAhorrado || socio.total_ahorro || 0);
 
-            // Solo entran al reparto si son socios activos y tienen dinero ahorrado
             if (esAhorrador && saldo > 0) {
                 const interes = saldo * 0.10;
                 totalARepartir += interes;
@@ -1609,14 +1610,28 @@ async function distribuirInteresesMasivos() {
             }
         });
 
-        // Caso de seguridad: Si nadie tiene ahorros
+        // --- VALIDACIÓN CRÍTICA DE GANANCIAS ---
+        if (totalARepartir > gananciasBrutas) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Fondos Insuficientes',
+                html: `El reparto requiere <b>$${totalARepartir.toLocaleString()}</b> (10%),<br>
+                       pero en Ganancias Brutas solo hay <b>$${gananciasBrutas.toLocaleString()}</b>.`,
+                confirmButtonColor: '#ef4444'
+            });
+            return; // Detiene la ejecución
+        }
+
         if (sociosAptos.length === 0) {
             filasTablaHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-500">No hay socios con ahorros para distribuir.</td></tr>`;
         }
 
-        // 3. Construcción del modal
+        // 4. Construcción del modal (Vista Previa)
         let listaHTML = `
             <div class="mt-4">
+                <div class="mb-2 p-2 bg-blue-50 text-blue-700 text-[10px] rounded-lg border border-blue-100">
+                    Respaldo en Ganancias Brutas: <b>$${gananciasBrutas.toLocaleString()}</b>
+                </div>
                 <div class="max-h-60 overflow-y-auto border border-slate-100 rounded-xl mb-4 custom-scroll">
                     <table class="w-full text-[10px] border-collapse">
                         <thead class="sticky top-0 bg-slate-50 shadow-sm">
@@ -1635,12 +1650,11 @@ async function distribuirInteresesMasivos() {
                         <p class="text-xl font-black text-emerald-900">$ ${totalARepartir.toLocaleString()}</p>
                     </div>
                     <button onclick="generarPDFVistaPreviaIntereses()" class="bg-white text-slate-700 p-2 rounded-xl border border-slate-200 hover:bg-slate-50 transition-all flex items-center gap-2 text-[10px] font-bold shadow-sm">
-                        <i class="fas fa-file-pdf text-red-500 text-sm"></i> Descargar Reporte
+                        <i class="fas fa-file-pdf text-red-500 text-sm"></i> Reporte
                     </button>
                 </div>
             </div>`;
 
-        // Guardamos los datos para el PDF
         window.datosRepartoTemporal = { socios: sociosAptos, total: totalARepartir };
 
         const { isConfirmed } = await Swal.fire({
@@ -1656,33 +1670,31 @@ async function distribuirInteresesMasivos() {
 
         if (!isConfirmed || sociosAptos.length === 0) return;
 
-        // 4. Ejecución del reparto real
-        Swal.fire({ 
-            title: 'Capitalizando intereses...', 
-            text: 'Por favor no cierres la ventana',
-            allowOutsideClick: false,
-            didOpen: () => { Swal.showLoading(); } 
-        });
+        // 5. Ejecución y Resta de Ganancias
+        Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
         let procesados = 0;
         for (const s of sociosAptos) {
-            const detalle = `Capitalización 10% Intereses (Ciclo ${new Date().getFullYear()})`;
-            // Asegúrate de que esta función exista en tu main.js
+            const detalle = `Capitalización 10% Intereses (${new Date().getFullYear()})`;
             try {
+                // Aumenta ahorro del socio
                 await registrarMovimientoInteres(s.id, s.interes, detalle, 'ahorro');
+                
+                // RESTA de la tabla de ganancias (Debes tener esta función)
+                await registrarGastoGanancias(s.interes, `Reparto intereses socio: ${s.nombre}`);
+                
                 procesados++;
             } catch (err) {
-                console.error(`Error procesando a ID ${s.id}:`, err);
+                console.error(`Error en ID ${s.id}:`, err);
             }
         }
 
-        await Swal.fire('¡Éxito!', `Se capitalizaron intereses para ${procesados} socios correctamente.`, 'success');
-        
-        if (typeof cargarTodo === 'function') cargarTodo(); // Recargar el dashboard
+        await Swal.fire('¡Éxito!', `Se distribuyeron intereses correctamente.`, 'success');
+        if (typeof cargarTodo === 'function') cargarTodo();
 
     } catch (error) {
-        console.error("Error General:", error);
-        Swal.fire('Error', 'Hubo un fallo al generar la vista previa: ' + error.message, 'error');
+        console.error("Error:", error);
+        Swal.fire('Error', 'No se pudo completar la operación.', 'error');
     }
 }
 

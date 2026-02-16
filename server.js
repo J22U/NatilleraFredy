@@ -591,6 +591,20 @@ app.get('/listar-inactivos', async (req, res) => {
     }
 });
 
+app.get('/api/ganancias-disponibles', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            -- Sumamos todos los ingresos (intereses, multas) y restamos egresos si los hay
+            SELECT ISNULL(SUM(Monto), 0) as total 
+            FROM Ganancias -- O como se llame tu tabla de utilidades
+        `);
+        res.json({ saldo: result.recordset[0].total });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
