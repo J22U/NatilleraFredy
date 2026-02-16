@@ -399,15 +399,18 @@ function toggleAcordeon(id, btn) {
         }
 
         // --- CAPTURA DE MESES ---
-        let mesesParaEnviar = "Abono General"; 
-        if (tipo === 'ahorro') {
-            const botonesSeleccionados = document.querySelectorAll('#contenedor-meses button.bg-amber-500');
-            if (botonesSeleccionados.length > 0) {
-                mesesParaEnviar = Array.from(botonesSeleccionados)
-                    .map(btn => btn.value) // Usamos el .value que asignamos en cargarMeses
-                    .join(', ');
-            }
-        }
+        let mesesParaEnviar = "Abono General";
+
+if (tipo === 'ahorro') {
+    // Buscamos solo los botones de quincena que están activos (en rojo)
+    const botonesActivos = document.querySelectorAll('.btn-quincena.active');
+    
+    if (botonesActivos.length > 0) {
+        mesesParaEnviar = Array.from(botonesActivos)
+            .map(btn => btn.value) 
+            .join(', ');
+    }
+}
 
         if (tipo === 'deuda') {
             if (!selectDeuda.value) return Toast.fire({ icon: 'error', title: 'Selecciona una deuda' });
@@ -1005,16 +1008,15 @@ function cargarMesesEnInterfaz() {
     const btn = document.createElement('button');
     btn.textContent = q;
     btn.value = `${mes} (${q})`; 
-    // Mantenemos tus clases, asegurando que 'btn-quincena' esté presente
-    btn.className = 'btn-quincena py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-amber-50 transition-all';
+    btn.className = 'btn-quincena py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-red-50 transition-all';
     
     btn.onclick = (e) => {
         e.preventDefault();
-        // ESTO ES LO QUE BUSCAREMOS DESPUÉS
+        // Cambiamos a rojo para diferenciar del botón "Procesar"
         btn.classList.toggle('active'); 
-        btn.classList.toggle('bg-amber-500');
+        btn.classList.toggle('bg-red-500');
         btn.classList.toggle('text-white');
-        btn.classList.toggle('border-amber-500');
+        btn.classList.toggle('border-red-500');
     };
     botonesCont.appendChild(btn);
 });
