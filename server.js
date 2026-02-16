@@ -118,17 +118,20 @@ app.get('/listar-miembros', async (req, res) => {
         const result = await pool.request()
             .query(`
                 SELECT 
-                    ID_Persona as id, -- Este es el ID que no cambia
-                    Nombre as nombre, 
-                    Documento as cedula, 
-                    CASE WHEN EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
-                    Estado
-                FROM Personas 
-                WHERE Estado = 'Activo'
-                ORDER BY ID_Persona ASC
+                    P.ID_Persona as id, 
+                    P.Nombre as nombre, 
+                    P.Documento as cedula, 
+                    P.EsSocio as esSocio, -- Mantenemos el nombre original para tu JS
+                    ISNULL(SUM(A.Monto), 0) as totalAhorrado -- Traemos el saldo real
+                FROM Personas P
+                LEFT JOIN Ahorros A ON P.ID_Persona = A.ID_Persona
+                WHERE P.Estado = 'Activo'
+                GROUP BY P.ID_Persona, P.Nombre, P.Documento, P.EsSocio
+                ORDER BY P.Nombre ASC
             `);
         res.json(result.recordset);
     } catch (err) {
+        console.error("Error en listar-miembros:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
