@@ -394,51 +394,61 @@ function toggleAcordeon(id, btn) {
 
     if (!idReal || isNaN(monto)) return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
 
-    // --- CORRECCIÓN: CAPTURAR MESES DESDE BOTONES ---
-    let mesesSeleccionados = "";
+    // 1. CAPTURAR MESES/QUINCENAS
+    let mesesParaEnviar = "";
     if (tipo === 'ahorro') {
-        // Buscamos los botones que tienen la clase de color activo (naranja)
         const botonesActivos = document.querySelectorAll('#contenedor-meses button.bg-amber-500');
-        
-        // Extraemos el texto o el atributo data-valor de cada botón seleccionado
-        mesesSeleccionados = Array.from(botonesActivos)
+        mesesParaEnviar = Array.from(botonesActivos)
             .map(btn => btn.getAttribute('data-valor') || btn.textContent.trim())
             .join(', ');
 
-        // Si no hay ninguno seleccionado, podrías dejarlo vacío o poner un texto por defecto
-        if (!mesesSeleccionados) mesesSeleccionados = "Abono General";
+        if (!mesesParaEnviar) mesesParaEnviar = "Abono General";
     }
-    // ------------------------------------------------
 
+    // 2. VALIDACIÓN DE DEUDA
     if (tipo === 'deuda') {
         if (!selectDeuda.value) return Toast.fire({ icon: 'error', title: 'Selecciona una deuda' });
-        
         const saldoMaximo = parseFloat(selectDeuda.options[selectDeuda.selectedIndex].getAttribute('data-saldo'));
         if (monto > saldoMaximo) {
             return Swal.fire({
                 icon: 'error',
                 title: 'Monto excedido',
-                text: `No puedes abonar $${monto.toLocaleString()} porque la deuda actual es de $${saldoMaximo.toLocaleString()}.`
+                text: `Máximo permitido: $${saldoMaximo.toLocaleString()}`
             });
         }
     }
 
-    // Enviamos 'meses' en el objeto de apiCall
-    apiCall('/procesar-movimiento', { 
-        idPersona: idReal, 
-        monto: monto, 
-        tipoMovimiento: tipo,
-        meses: mesesSeleccionados, // <-- SE AGREGA ESTO
-        idPrestamo: tipo === 'deuda' ? selectDeuda.value : null
-    }, "Movimiento procesado correctamente");
+    // 3. ENVÍO AL SERVIDOR (Asegúrate que los nombres coincidan con tu server.js)
+    try {
+        const respuesta = await fetch('/procesar-movimiento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                idPersona: idReal,
+                monto: monto,
+                tipoMovimiento: tipo,
+                idPrestamo: selectDeuda.value || null,
+                meses: mesesParaEnviar // <--- ESTE ES EL DATO QUE EVITA EL "NO ESPECIFICADO"
+            })
+        });
 
-    // Limpiar campos
-    document.getElementById('mov_id').value = ''; 
-    montoInput.value = '';
-    montoInput.placeholder = "Monto $";
-    
-    // --- NUEVO: LIMPIAR LOS CHECKBOXES DESPUÉS DE GUARDAR ---
-    document.querySelectorAll('input[name="mes-ahorro"]').forEach(cb => cb.checked = false);
+        const resultado = await respuesta.json();
+
+        if (resultado.success) {
+            Swal.fire('¡Éxito!', 'Movimiento registrado correctamente', 'success');
+            montoInput.value = '';
+            // Limpiar botones de quincena después de pagar
+            document.querySelectorAll('#contenedor-meses button').forEach(btn => {
+                btn.classList.remove('bg-amber-500', 'text-white', 'border-amber-500');
+            });
+            cargarTodo(); // Recarga la lista principal
+        } else {
+            Swal.fire('Error', 'No se pudo guardar: ' + (resultado.error || 'Error desconocido'), 'error');
+        }
+    } catch (error) {
+        console.error("Error en fetch:", error);
+        Swal.fire('Error', 'Falla de conexión con el servidor', 'error');
+    }
 }
 
 async function crearPersona() {
