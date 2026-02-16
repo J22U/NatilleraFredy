@@ -81,6 +81,13 @@ async function cargarDashboard() {
     }
 }
 
+async function actualizarCaja() {
+    const res = await fetch('/api/caja-disponible');
+    const data = await res.json();
+    document.getElementById('caja-disponible').innerText = 
+        `$${data.disponible.toLocaleString()}`;
+}
+
 async function abrirModalRetiro(id, nombre) {
     const { value: formValues } = await Swal.fire({
         title: `<span class="text-sm font-black">RETIRAR AHORROS: ${nombre}</span>`,

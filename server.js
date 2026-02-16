@@ -631,6 +631,26 @@ app.get('/api/ganancias-disponibles', async (req, res) => {
     }
 });
 
+app.get('/api/caja-disponible', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT (
+                -- Todo lo que entró (Ahorros y Ganancias)
+                ISNULL((SELECT SUM(Monto) FROM Ahorros), 0) + 
+                ISNULL((SELECT SUM(Monto) FROM Ganancias_Brutas), 0)
+            ) - (
+                -- Todo lo que salió (Préstamos pendientes y Retiros)
+                ISNULL((SELECT SUM(Monto_Prestado - Monto_Pagado) FROM Prestamos WHERE Estado = 'Activo'), 0) +
+                ISNULL((SELECT SUM(Monto) FROM Retiros), 0)
+            ) as efectivoNeto
+        `);
+        res.json({ disponible: result.recordset[0].efectivoNeto });
+    } catch (err) {
+        res.status(500).json({ disponible: 0 });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
