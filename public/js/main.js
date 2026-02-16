@@ -181,24 +181,34 @@ async function verHistorialFechas(id, nombre) {
     });
 
     try {
-        const [resA, resP, resAb, resTotales] = await Promise.all([
-            fetch(`/historial-ahorros/${id}`),
-            fetch(`/detalle-prestamo/${id}`),
-            fetch(`/historial-abonos-deuda/${id}`),
-            fetch(`/estado-cuenta/${id}`)
-        ]);
+        // --- ESCUDO DE SEGURIDAD PARA FETCH ---
+        const fetchSeguro = async (url) => {
+            const res = await fetch(url);
+            if (!res.ok) {
+                console.error(`Error en ruta: ${url} - Status: ${res.status}`);
+                return []; // Si falla la ruta, devolvemos array vacío para no romper el JSON
+            }
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                console.error(`La ruta ${url} devolvió HTML/Texto en lugar de JSON.`);
+                return [];
+            }
+            return await res.json();
+        };
 
-        const a = await resA.json();
-        const p = await resP.json();
-        const ab = await resAb.json();
-        const totales = await resTotales.json();
+        // Ejecución de las 4 peticiones en paralelo de forma segura
+        const [a, p, ab, totales] = await Promise.all([
+            fetchSeguro(`/historial-ahorros/${id}`),
+            fetchSeguro(`/detalle-prestamo/${id}`),
+            fetchSeguro(`/historial-abonos-deuda/${id}`),
+            fetchSeguro(`/estado-cuenta/${id}`)
+        ]);
 
         // 1. Render de Ahorros MODIFICADO para mostrar Quincena/Mes
         const renderSimple = (data, key, color) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin movimientos</p>';
             return data.map(m => {
                 const esRetiro = Number(m[key]) < 0;
-                // Si es retiro, mostramos en rojo, si es ahorro en el color pasado (emerald)
                 const colorFinal = esRetiro ? 'rose' : color;
                 
                 return `
@@ -218,46 +228,50 @@ async function verHistorialFechas(id, nombre) {
             `}).join('');
         };
 
-        // 2. Render de Préstamos (Corregido para separar Capital de Interés)
+        // 2. Render de Préstamos (Actualizado para mostrar Interés Diario Acumulado)
         const renderPrestamos = (data) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
             
             return data.map((m, index) => {
-                const saldo = Number(m.SaldoActual || 0);
+                // Si el backend envía el cálculo diario, lo usamos; si no, usamos el estático
+                const interesGenerado = Number(m.InteresGenerado || m.MontoInteres || 0);
                 const capitalOriginal = Number(m.MontoPrestado || 0);
-                const montoInteres = Number(m.MontoInteres || 0);
-                const cuotas = m.Cuotas || 1; // Si es 0 o null, mostrar 1
-                const estaPago = m.Estado === 'Pagado' || saldo <= 0;
+                const montoPagado = Number(m.MontoPagado || 0);
+                
+                // Saldo Dinámico: (Capital + Interés Acumulado) - Lo que ya pagó
+                const saldoCalculado = (capitalOriginal + interesGenerado) - montoPagado;
+                const estaPago = m.Estado === 'Pagado' || saldoCalculado <= 0;
 
                 return `
                 <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-100'} shadow-sm">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
                         <span class="text-[10px] ${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
-                            ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaPrestamo || 'S/F')}
+                            ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaInicioFormateada || m.FechaPrestamo || 'S/F')}
                         </span>
                     </div>
 
                     <div class="flex gap-2 mb-3">
                         <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
-                            <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}%
+                            <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}% (Mensual)
                         </span>
-                        <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
-                            <i class="fas fa-calendar-check mr-1 text-indigo-400"></i>${cuotas} Cuotas
-                        </span>
+                        ${m.DiasTranscurridos ? `
+                        <span class="bg-indigo-50 text-[9px] font-bold text-indigo-600 px-2 py-1 rounded-lg border border-indigo-100">
+                            <i class="fas fa-clock mr-1"></i>${m.DiasTranscurridos} días activos
+                        </span>` : ''}
                     </div>
 
                     <div class="grid grid-cols-2 gap-2 border-t border-slate-200/50 pt-2">
                         <div class="flex flex-col text-left">
                             <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Capital Inicial</span>
                             <span class="text-[13px] font-black text-slate-800">$${capitalOriginal.toLocaleString()}</span>
-                            <span class="text-[7px] text-slate-400">Interés: $${montoInteres.toLocaleString()}</span>
+                            <span class="text-[7px] text-rose-400 font-bold">Int. Acumulado: $${interesGenerado.toLocaleString()}</span>
                         </div>
                         
                         ${!estaPago ? `
                         <div class="flex flex-col text-right">
-                            <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Pendiente</span>
-                            <span class="text-[15px] font-black text-rose-600 tracking-tighter">$${saldo.toLocaleString()}</span>
+                            <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Total Hoy</span>
+                            <span class="text-[15px] font-black text-rose-600 tracking-tighter">$${Math.max(0, saldoCalculado).toLocaleString()}</span>
                         </div>` : `
                         <div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO</div>`}
                     </div>
@@ -265,43 +279,34 @@ async function verHistorialFechas(id, nombre) {
             }).join('');
         };
 
-        // 3. Render de Abonos (Corregido para mostrar el monto real y ID de préstamo)
+        // 3. Render de Abonos
         const renderAbonosDetallados = (data, listaPrestamos) => {
-    if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos realizados</p>';
-    
-    const prestamosSeguros = Array.isArray(listaPrestamos) ? listaPrestamos : [];
+            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos realizados</p>';
+            const prestamosSeguros = Array.isArray(listaPrestamos) ? listaPrestamos : [];
+            const prestamosOrdenados = [...prestamosSeguros].sort((a, b) => new Date(a.FechaInicio) - new Date(b.FechaInicio));
 
-    // Ordenamos por fecha para que el índice coincida con la realidad cronológica
-    const prestamosOrdenados = [...prestamosSeguros].sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
+            return data.map(m => {
+                const indicePrestamo = prestamosOrdenados.findIndex(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
+                const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'Ref';
+                const prestamoInfo = prestamosSeguros.find(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
+                const capitalRef = prestamoInfo ? Number(prestamoInfo.MontoPrestado).toLocaleString() : '---';
 
-    return data.map(m => {
-        // Buscamos el índice comparando como String para evitar errores de tipo de dato
-        const indicePrestamo = prestamosOrdenados.findIndex(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
-        
-        // Si no lo encuentra, intentamos buscarlo en la propiedad PrestamoRef (si existe)
-        const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'Ref';
-        
-        const prestamoInfo = prestamosSeguros.find(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
-        const capitalRef = prestamoInfo ? Number(prestamoInfo.MontoPrestado).toLocaleString() : '---';
-
-        return `
-            <div class="p-2 border-b border-slate-100 text-[11px]">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
-                        <p class="text-[9px] text-indigo-500 font-bold uppercase mt-0.5">
-                            Aplicado a: Préstamo #${numeroAmigable}
-                        </p>
+                return `
+                    <div class="p-2 border-b border-slate-100 text-[11px]">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
+                                <p class="text-[9px] text-indigo-500 font-bold uppercase mt-0.5">Aplicado a: Préstamo #${numeroAmigable}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="font-bold text-rose-600">-$${Number(m.Monto_Abonado || m.Monto || 0).toLocaleString()}</span>
+                                <p class="text-[8px] text-slate-400 italic">Cap. Orig: $${capitalRef}</p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="text-right">
-                        <span class="font-bold text-rose-600">-$${Number(m.Monto_Abonado || m.Monto || 0).toLocaleString()}</span>
-                        <p class="text-[8px] text-slate-400 italic">Cap. Orig: $${capitalRef}</p>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-};
+                `;
+            }).join('');
+        };
 
         // --- VENTANA EMERGENTE (MODAL) ---
         Swal.fire({
@@ -319,7 +324,6 @@ async function verHistorialFechas(id, nombre) {
                 </div>
 
                 <div class="text-left space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-                    
                     <div class="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
                         <button onclick="toggleAcordeon('acc-ahorros', this)" class="w-full flex justify-between items-center p-4 bg-white hover:bg-emerald-50 transition-colors">
                             <span class="text-[10px] font-black uppercase text-emerald-600"><i class="fas fa-piggy-bank mr-2"></i> Historial de Ahorros</span>
@@ -349,7 +353,6 @@ async function verHistorialFechas(id, nombre) {
                             <div class="p-3 border-t border-slate-50">${renderAbonosDetallados(ab, p)}</div>
                         </div>
                     </div>
-
                 </div>`,
             showDenyButton: true,
             confirmButtonText: 'Cerrar',
@@ -362,8 +365,8 @@ async function verHistorialFechas(id, nombre) {
         });
 
     } catch (e) {
-        console.error("Error cargando historial:", e);
-        Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
+        console.error("Error crítico en historial:", e);
+        Swal.fire('Error', 'Error al procesar los datos del servidor.', 'error');
     }
 }
 
