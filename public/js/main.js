@@ -394,21 +394,25 @@ function toggleAcordeon(id, btn) {
 
     if (!idReal || isNaN(monto)) return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
 
-    // 1. CAPTURAR MESES/QUINCENAS
+    // 1. CAPTURAR MESES/QUINCENAS (Corregido para leer botones naranjas)
     let mesesParaEnviar = "";
-if (tipo === 'ahorro') {
-    // Buscamos todos los botones que el usuario clickeó
-    const botonesSeleccionados = document.querySelectorAll('.btn-quincena.active');
-    
-    // Extraemos los valores (ej: "Octubre (Q1)")
-    const valores = Array.from(botonesSeleccionados).map(b => b.value);
-    
-    if (valores.length > 0) {
-        mesesParaEnviar = valores.join(', ');
-    } else {
-        mesesParaEnviar = "Abono General";
+    if (tipo === 'ahorro') {
+        // Seleccionamos los botones que tienen el color naranja (bg-amber-500)
+        const botonesSeleccionados = document.querySelectorAll('#contenedor-meses button.bg-amber-500');
+        
+        const valores = Array.from(botonesSeleccionados).map(btn => {
+            // Buscamos el nombre del mes que está en el párrafo (p) justo antes del grupo de botones
+            const nombreMes = btn.closest('.col-span-3').querySelector('p').textContent.trim();
+            const quincena = btn.textContent.trim();
+            return `${nombreMes} (${quincena})`;
+        });
+
+        if (valores.length > 0) {
+            mesesParaEnviar = valores.join(', ');
+        } else {
+            mesesParaEnviar = "Abono General";
+        }
     }
-}
 
     // 2. VALIDACIÓN DE DEUDA
     if (tipo === 'deuda') {
@@ -423,7 +427,7 @@ if (tipo === 'ahorro') {
         }
     }
 
-    // 3. ENVÍO AL SERVIDOR (Asegúrate que los nombres coincidan con tu server.js)
+    // 3. ENVÍO AL SERVIDOR
     try {
         const respuesta = await fetch('/procesar-movimiento', {
             method: 'POST',
@@ -433,7 +437,7 @@ if (tipo === 'ahorro') {
                 monto: monto,
                 tipoMovimiento: tipo,
                 idPrestamo: selectDeuda.value || null,
-                meses: mesesParaEnviar // <--- ESTE ES EL DATO QUE EVITA EL "NO ESPECIFICADO"
+                meses: mesesParaEnviar 
             })
         });
 
@@ -442,11 +446,13 @@ if (tipo === 'ahorro') {
         if (resultado.success) {
             Swal.fire('¡Éxito!', 'Movimiento registrado correctamente', 'success');
             montoInput.value = '';
-            // Limpiar botones de quincena después de pagar
+            
+            // Limpiar selección de botones después del éxito
             document.querySelectorAll('#contenedor-meses button').forEach(btn => {
                 btn.classList.remove('bg-amber-500', 'text-white', 'border-amber-500');
             });
-            cargarTodo(); // Recarga la lista principal
+            
+            cargarTodo(); 
         } else {
             Swal.fire('Error', 'No se pudo guardar: ' + (resultado.error || 'Error desconocido'), 'error');
         }
