@@ -398,10 +398,14 @@ function toggleAcordeon(id, btn) {
     // --- 1. CAPTURAR LOS MESES ANTES DE LA CONFIRMACIÓN ---
     let mesesParaEnviar = "Abono General";
     if (tipo === 'ahorro') {
-        // Buscamos los botones que tengan la clase 'active' (la que pusimos en el onclick)
+        // Buscamos los botones que tengan la clase 'active'
         const botonesActivos = document.querySelectorAll('.btn-quincena.active');
+        
         if (botonesActivos.length > 0) {
-            mesesParaEnviar = Array.from(botonesActivos).map(btn => btn.value).join(', ');
+            // Intentamos obtener .value, y si falla, usamos .textContent
+            mesesParaEnviar = Array.from(botonesActivos)
+                .map(btn => btn.value || btn.textContent.trim()) 
+                .join(', ');
         }
     }
 
