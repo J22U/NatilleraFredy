@@ -1285,35 +1285,60 @@ function confirmarSeleccionMeses() {
     cerrarModalMeses();
 }
 
-function cargarMesesEnContenedor(idContenedor) {
+function cargarMesesEnContenedor(idContenedor, quincenasPagas = []) {
     const contenedor = document.getElementById(idContenedor);
     if (!contenedor) return;
 
-    const meses = [
-        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    contenedor.innerHTML = ""; 
+
+    // 1. Definimos la estructura del ciclo de la Natillera
+    // Iniciamos con Dic Q2, luego todos los meses normales, y terminamos en Dic Q1
+    const estructuraCiclo = [
+        { mes: "Diciembre", qs: ["Q1", "Q2"] }, // El inicio del ahorro
+        { mes: "Enero", qs: ["Q1", "Q2"] },
+        { mes: "Febrero", qs: ["Q1", "Q2"] },
+        { mes: "Marzo", qs: ["Q1", "Q2"] },
+        { mes: "Abril", qs: ["Q1", "Q2"] },
+        { mes: "Mayo", qs: ["Q1", "Q2"] },
+        { mes: "Junio", qs: ["Q1", "Q2"] },
+        { mes: "Julio", qs: ["Q1", "Q2"] },
+        { mes: "Agosto", qs: ["Q1", "Q2"] },
+        { mes: "Septiembre", qs: ["Q1", "Q2"] },
+        { mes: "Octubre", qs: ["Q1", "Q2"] },
+        { mes: "Noviembre", qs: ["Q1", "Q2"] },
+        { mes: "Diciembre", qs: ["Q1", "Q2"] } // El cierre de la natillera
     ];
 
-    contenedor.innerHTML = ""; // Limpiar antes de llenar
+    estructuraCiclo.forEach(item => {
+        // Opcional: Agregar un separador visual por mes
+        const labelMes = document.createElement("p");
+        labelMes.className = "col-span-2 text-[8px] font-black text-slate-400 uppercase mt-2 mb-1 border-b border-slate-50";
+        labelMes.innerText = item.mes;
+        contenedor.appendChild(labelMes);
 
-    meses.forEach(mes => {
-        // Crear botones para Q1 y Q2 de cada mes
-        for (let q = 1; q <= 2; q++) {
+        item.qs.forEach(q => {
+            const nombreQ = `${item.mes} (${q})`;
+            const yaPaga = quincenasPagas.includes(nombreQ);
+            
             const btn = document.createElement("button");
             btn.type = "button";
-            btn.value = `${mes} (Q${q})`;
-            btn.innerText = `${mes} (Q${q})`;
-            btn.className = "btn-quincena p-2 text-[10px] font-bold border rounded-lg hover:bg-slate-100 transition-all";
-            
-            // Lógica para marcar como activo al hacer clic
-            btn.onclick = () => {
-                btn.classList.toggle("active");
-                btn.classList.toggle("bg-indigo-600");
-                btn.classList.toggle("text-white");
-            };
-            
+            btn.value = nombreQ;
+            btn.innerText = q; // Solo mostramos Q1 o Q2 para no saturar, el label arriba dice el mes
+
+            if (yaPaga) {
+                btn.className = "p-2 text-[10px] font-bold border bg-red-50 text-red-400 border-red-100 cursor-not-allowed line-through rounded-lg opacity-60";
+                btn.onclick = () => Swal.fire('Periodo Ocupado', `${nombreQ} ya fue pagada.`, 'info');
+            } else {
+                btn.className = "btn-quincena p-2 text-[10px] font-bold border border-slate-200 rounded-lg hover:bg-indigo-50 transition-all";
+                btn.onclick = () => {
+                    btn.classList.toggle("active");
+                    btn.classList.toggle("bg-indigo-600");
+                    btn.classList.toggle("text-white");
+                    btn.classList.toggle("border-indigo-600");
+                };
+            }
             contenedor.appendChild(btn);
-        }
+        });
     });
 }
 
