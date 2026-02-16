@@ -108,28 +108,25 @@ app.post('/api/guardar-rifa', async (req, res) => {
 
 // --- 4. RUTAS DE SOCIOS Y MIEMBROS ---
 
-app.get('/api/socios', async (req, res) => {
-    res.redirect('/listar-miembros');
-});
-
-app.get('/listar-miembros', async (req, res) => {
+app.get('/api/socios-esfuerzo', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request()
-            .query(`
-                SELECT 
-                    P.ID_Persona as id, 
-                    P.Nombre as nombre, 
-                    P.Documento as cedula, 
-                    P.EsSocio as esSocio, -- Esto servirá para el filtro del frontend
-                    CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
-                    P.Estado,
-                    -- Esta subconsulta trae la suma real de la tabla Ahorros
-                    ISNULL((SELECT SUM(A.Monto) FROM Ahorros A WHERE A.ID_Persona = P.ID_Persona), 0) as totalAhorrado
-                FROM Personas P
-                WHERE P.Estado = 'Activo'
-                ORDER BY P.Nombre ASC
-            `);
+        const result = await pool.request().query(`
+            SELECT 
+                P.ID_Persona as id, 
+                P.Nombre as nombre,
+                P.EsSocio,
+                -- 1. Saldo Total Actual
+                ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as saldoTotal,
+                -- 2. CÁLCULO DE PUNTOS (Monto * Meses restantes hasta fin de año)
+                ISNULL((
+                    SELECT SUM(Monto * (12 - MONTH(Fecha) + 1)) 
+                    FROM Ahorros 
+                    WHERE ID_Persona = P.ID_Persona
+                ), 0) as puntosEsfuerzo
+            FROM Personas P
+            WHERE P.Estado = 'Activo'
+        `);
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: err.message });

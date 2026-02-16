@@ -1566,7 +1566,7 @@ async function distribuirInteresesMasivos() {
     try {
         Swal.fire({ 
             title: 'Calculando reparto equitativo...', 
-            text: 'Analizando ganancias brutas vs ahorros totales',
+            text: 'Evaluando tiempo y montos ahorrados',
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); } 
         });
@@ -1577,79 +1577,75 @@ async function distribuirInteresesMasivos() {
         const gananciasDisponibles = parseFloat(dataG.saldo || 0);
 
         if (gananciasDisponibles <= 0) {
-            Swal.fire('Atención', 'No hay ganancias registradas para repartir.', 'warning');
+            Swal.fire('Sin Fondos', 'No hay ganancias brutas para distribuir.', 'warning');
             return;
         }
 
-        // 2. Obtener Socios y sus Ahorros
-        const respS = await fetch('/api/socios'); 
+        // 2. Obtener Socios con su "Esfuerzo" (debes haber actualizado el server.js con la nueva consulta SQL)
+        const respS = await fetch('/api/socios-esfuerzo'); 
+        if (!respS.ok) throw new Error("No se pudo obtener la lista de socios");
         const socios = await respS.json();
 
-        // 3. CALCULAR COEFICIENTE DE REPARTO
-        // Sumamos el ahorro total de todos los socios activos
-        const ahorroTotalGlobal = socios.reduce((acc, s) => {
-            const esAhorrador = s.tipo === 'SOCIO' || s.esSocio == 1;
-            return acc + (esAhorrador ? parseFloat(s.totalAhorrado || 0) : 0);
-        }, 0);
+        // --- INICIO DE LA LÓGICA DE PUNTOS ---
+        
+        // 1. Calculamos el total de "puntos" de toda la natillera (Suma de todos los Saldo x Tiempo)
+        const totalPuntosNatillera = socios.reduce((acc, s) => acc + parseFloat(s.puntosEsfuerzo || 0), 0);
 
-        if (ahorroTotalGlobal === 0) {
-            Swal.fire('Error', 'No hay ahorros en el fondo para calcular el reparto.', 'error');
+        if (totalPuntosNatillera === 0) {
+            Swal.fire('Atención', 'No hay ahorros con antigüedad suficiente para el cálculo.', 'info');
             return;
         }
 
-        // FÓRMULA MAESTRA: Ganancia / Ahorro Total
-        const coeficiente = gananciasDisponibles / ahorroTotalGlobal;
-        const porcentajeReal = (coeficiente * 100).toFixed(2);
+        // 2. Sacamos el valor de cada punto (¿Cuántos pesos de ganancia corresponden a 1 punto?)
+        const valorPunto = gananciasDisponibles / totalPuntosNatillera;
 
         let totalVerificado = 0;
         let sociosAptos = [];
         let filasTablaHTML = "";
 
-        // 4. DISTRIBUCIÓN PROPORCIONAL
+        // 3. Distribución por Esfuerzo Individual
         socios.forEach(socio => {
-            const esAhorrador = socio.tipo === 'SOCIO' || socio.esSocio == 1;
-            const saldo = parseFloat(socio.totalAhorrado || 0);
+            const esAhorrador = socio.tipo === 'SOCIO' || socio.esSocio == 1 || socio.EsSocio == 1;
+            const puntosSocio = parseFloat(socio.puntosEsfuerzo || 0);
+            const saldoReal = parseFloat(socio.saldoTotal || socio.totalAhorrado || 0);
 
-            if (esAhorrador && saldo > 0) {
-                // Cada socio recibe según su saldo individual multiplicado por el coeficiente
-                const interesProporcional = Math.floor(saldo * coeficiente); 
-                totalVerificado += interesProporcional;
+            if (esAhorrador && puntosSocio > 0) {
+                // Cálculo Justo: Sus puntos x valor del punto
+                const interesJusto = Math.floor(puntosSocio * valorPunto);
+                totalVerificado += interesJusto;
                 
                 sociosAptos.push({ 
                     id: socio.id, 
                     nombre: socio.nombre, 
-                    interes: interesProporcional 
+                    interes: interesJusto 
                 });
 
                 filasTablaHTML += `
                     <tr class="border-b border-slate-50">
                         <td class="p-2 text-left font-medium text-slate-700">${socio.nombre}</td>
-                        <td class="p-2 text-right text-slate-400 font-mono">$${saldo.toLocaleString()}</td>
-                        <td class="p-2 text-right font-bold text-emerald-600 font-mono">+$${interesProporcional.toLocaleString()}</td>
+                        <td class="p-2 text-right text-slate-400 font-mono">$${saldoReal.toLocaleString()}</td>
+                        <td class="p-2 text-right font-bold text-emerald-600 font-mono">+$${interesJusto.toLocaleString()}</td>
                     </tr>`;
             }
         });
 
-        // 5. MOSTRAR VISTA PREVIA
+        // --- FIN DE LA LÓGICA DE PUNTOS ---
+
+        // 4. Construcción del modal (Vista Previa)
         let listaHTML = `
             <div class="mt-4">
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                        <p class="text-[8px] uppercase text-slate-500">Ganancia Real</p>
-                        <p class="text-sm font-bold text-slate-700">$${gananciasDisponibles.toLocaleString()}</p>
-                    </div>
-                    <div class="p-2 bg-blue-50 rounded-lg border border-blue-100">
-                        <p class="text-[8px] uppercase text-blue-500">Rentabilidad</p>
-                        <p class="text-sm font-bold text-blue-700">${porcentajeReal}%</p>
-                    </div>
+                <div class="mb-3 p-3 bg-emerald-900 text-white rounded-xl shadow-inner">
+                    <p class="text-[10px] opacity-80 uppercase font-bold">Ganancia Total a Repartir</p>
+                    <p class="text-2xl font-black">$${gananciasDisponibles.toLocaleString()}</p>
+                    <p class="text-[9px] mt-1 opacity-70">* Reparto basado en tiempo y monto ahorrado (Equitativo)</p>
                 </div>
                 <div class="max-h-60 overflow-y-auto border border-slate-100 rounded-xl mb-4 custom-scroll">
                     <table class="w-full text-[10px] border-collapse">
                         <thead class="sticky top-0 bg-slate-50 shadow-sm">
                             <tr>
                                 <th class="p-2 text-left text-slate-500 uppercase">Socio</th>
-                                <th class="p-2 text-right text-slate-500 uppercase">Ahorro</th>
-                                <th class="p-2 text-right text-emerald-600 uppercase">Reparto</th>
+                                <th class="p-2 text-right text-slate-500 uppercase">Ahorro Actual</th>
+                                <th class="p-2 text-right text-emerald-600 uppercase">Ganancia Justa</th>
                             </tr>
                         </thead>
                         <tbody>${filasTablaHTML}</tbody>
@@ -1658,7 +1654,7 @@ async function distribuirInteresesMasivos() {
             </div>`;
 
         const { isConfirmed } = await Swal.fire({
-            title: 'Reparto Equitativo Proporcional',
+            title: 'Reparto Proporcional de Utilidades',
             html: listaHTML,
             width: '550px',
             showCancelButton: true,
@@ -1667,24 +1663,23 @@ async function distribuirInteresesMasivos() {
             confirmButtonColor: '#059669',
         });
 
-        if (!isConfirmed) return;
+        if (!isConfirmed || sociosAptos.length === 0) return;
 
-        // 6. APLICAR CAMBIOS
-        Swal.fire({ title: 'Procesando reparto...', didOpen: () => { Swal.showLoading(); } });
+        // 5. Aplicar cambios en DB
+        Swal.fire({ title: 'Capitalizando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
         for (const s of sociosAptos) {
-            const detalle = `Reparto Utilidades (${porcentajeReal}% sobre ahorro)`;
+            const detalle = `Capitalización Utilidades Anuales (Proporcional)`;
             await registrarMovimientoInteres(s.id, s.interes, detalle, 'ahorro');
-            // Aquí llamarías a la función que resta de la bolsa de ganancias
-            await registrarGastoGanancias(s.interes, `Utilidad pagada a: ${s.nombre}`);
+            await registrarGastoGanancias(s.interes, `Reparto utilidad: ${s.nombre}`);
         }
 
-        Swal.fire('¡Éxito!', 'Las ganancias se repartieron proporcionalmente.', 'success');
+        Swal.fire('¡Éxito!', 'Se han distribuido las ganancias de forma equitativa.', 'success');
         if (typeof cargarTodo === 'function') cargarTodo();
 
     } catch (error) {
-        console.error(error);
-        Swal.fire('Error', 'No se pudo calcular el reparto.', 'error');
+        console.error("Error:", error);
+        Swal.fire('Error', 'No se pudo procesar el reparto equitativo.', 'error');
     }
 }
 
