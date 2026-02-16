@@ -351,6 +351,13 @@ app.post('/procesar-movimiento', async (req, res) => {
     }
 });
 
+console.log("Rutas registradas:");
+app._router.stack.forEach((r) => {
+    if (r.route && r.route.path) {
+        console.log(`${Object.keys(r.route.methods)} ${r.route.path}`);
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
