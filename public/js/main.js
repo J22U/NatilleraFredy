@@ -386,40 +386,41 @@ function toggleAcordeon(id, btn) {
 }
 
         async function registrarMovimiento() {
-    try {
-        const numPantalla = document.getElementById('mov_id').value;
-        const montoInput = document.getElementById('mov_monto');
-        const monto = parseFloat(montoInput.value);
-        const tipo = document.getElementById('mov_tipo').value;
-        const selectDeuda = document.getElementById('mov_prestamo_id');
-        const idReal = window.mapeoIdentificadores[numPantalla];
+    const numPantalla = document.getElementById('mov_id').value;
+    const montoInput = document.getElementById('mov_monto');
+    const monto = parseFloat(montoInput.value);
+    const tipo = document.getElementById('mov_tipo').value;
+    const selectDeuda = document.getElementById('mov_prestamo_id');
+    const idReal = window.mapeoIdentificadores[numPantalla];
 
-        if (!idReal || isNaN(monto)) {
-            return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
+    if (!idReal || isNaN(monto)) return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
+
+    // --- 1. CAPTURAR LOS MESES ANTES DE LA CONFIRMACIÓN ---
+    let mesesParaEnviar = "Abono General";
+    if (tipo === 'ahorro') {
+        // Buscamos los botones que tengan la clase 'active' (la que pusimos en el onclick)
+        const botonesActivos = document.querySelectorAll('.btn-quincena.active');
+        if (botonesActivos.length > 0) {
+            mesesParaEnviar = Array.from(botonesActivos).map(btn => btn.value).join(', ');
         }
-
-        // --- CAPTURA DE MESES ---
-        let mesesParaEnviar = "Abono General";
-
-if (tipo === 'ahorro') {
-    // Buscamos solo los botones de quincena que están activos (en rojo)
-    const botonesActivos = document.querySelectorAll('.btn-quincena.active');
-    
-    if (botonesActivos.length > 0) {
-        mesesParaEnviar = Array.from(botonesActivos)
-            .map(btn => btn.value) 
-            .join(', ');
     }
-}
 
-        if (tipo === 'deuda') {
-            if (!selectDeuda.value) return Toast.fire({ icon: 'error', title: 'Selecciona una deuda' });
-            const saldoMaximo = parseFloat(selectDeuda.options[selectDeuda.selectedIndex].getAttribute('data-saldo'));
-            if (monto > saldoMaximo) {
-                return Swal.fire({ icon: 'error', title: 'Monto excedido', text: `Máximo: $${saldoMaximo}` });
-            }
-        }
+    // --- 2. PEDIR CONFIRMACIÓN (Swal) ---
+    const confirmacion = await Swal.fire({
+        title: '¿Confirmar movimiento?',
+        text: `Se registrará un ${tipo} por $${monto.toLocaleString()} para ${mesesParaEnviar}`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#f59e0b', // Naranja
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Sí, registrar',
+        cancelButtonText: 'Cancelar'
+    });
 
+    if (!confirmacion.isConfirmed) return;
+
+    // --- 3. ENVÍO AL SERVIDOR ---
+    try {
         const respuesta = await fetch('/procesar-movimiento', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -435,17 +436,21 @@ if (tipo === 'ahorro') {
         const resultado = await respuesta.json();
 
         if (resultado.success) {
-    // ... tu código de éxito ...
-    document.querySelectorAll('.btn-quincena').forEach(btn => {
-        btn.classList.remove('active', 'bg-red-500', 'text-white', 'border-red-500');
-    });
-            if (typeof cargarTodo === 'function') cargarTodo();
+            Swal.fire('¡Éxito!', 'Movimiento guardado', 'success');
+            montoInput.value = '';
+            
+            // Limpiamos los botones rojos
+            document.querySelectorAll('.btn-quincena').forEach(btn => {
+                btn.classList.remove('active', 'bg-red-500', 'text-white', 'border-red-500');
+            });
+
+            cargarTodo();
         } else {
-            Swal.fire('Error', 'No se pudo guardar', 'error');
+            Swal.fire('Error', 'No se pudo guardar: ' + (resultado.error || ''), 'error');
         }
     } catch (error) {
-        console.error("Error completo:", error);
-        Swal.fire('Error', 'Falla en la comunicación con el servidor', 'error');
+        console.error("Error:", error);
+        Swal.fire('Error', 'Falla de conexión', 'error');
     }
 }
 
