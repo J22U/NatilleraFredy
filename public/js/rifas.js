@@ -12,7 +12,7 @@ function crearTabla(t = {}) {
     // 1. Creamos la estructura del Acordeón (rifa-card)
     const card = document.createElement('div');
 card.id = `rifa-${idTabla}`; // Esto es vital para que toggleTabla funcione
-card.className = 'rifa-card active'; 
+card.className = 'rifa-card'; 
 
     // 2. Cabecera de la tarjeta
     const header = document.createElement('div');
