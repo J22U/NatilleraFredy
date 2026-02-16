@@ -68,7 +68,7 @@ async function cargarDashboard() {
                                 <i class="fas fa-hand-holding-usd"></i> Retirar
                             </button>
 
-                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}')" class="text-amber-500 p-2 hover:scale-110 transition-transform"><i class="fas fa-pen"></i></button>
+                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.cedula}', '${m.tipo}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
                             
                             <button onclick="cambiarEstadoSocio(${m.id}, '${m.nombre}', 'Activo')" class="text-slate-400 p-2 hover:text-orange-500 hover:scale-110 transition-all" title="Inhabilitar Socio">
                                 <i class="fas fa-user-slash"></i>
@@ -715,23 +715,58 @@ function eliminarSocio(id) {
     });
 }
 
-async function editarSocio(id, n, c) {
-    const { value: f } = await Swal.fire({
+async function editarSocio(id, nombreActual, cedulaActual, tipoActual) {
+    // Determinamos qué opción debe aparecer seleccionada por defecto
+    const esSocio = tipoActual === 'SOCIO' ? 'selected' : '';
+    const esExterno = tipoActual === 'EXTERNO' ? 'selected' : '';
+
+    const { value: formValues } = await Swal.fire({
         title: 'Editar Miembro',
         html: `
-            <label class="swal-input-label">Nombre</label>
-            <input id="en" class="swal-custom-input" value="${n}">
-            <label class="swal-input-label">Cédula</label>
-            <input id="ec" class="swal-custom-input" value="${c}">
+            <div class="text-left">
+                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Nombre Completo</label>
+                <input id="swal-nombre" class="swal2-input !mt-1 !mb-4" value="${nombreActual}">
+                
+                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Documento / Cédula</label>
+                <input id="swal-cedula" class="swal2-input !mt-1 !mb-4" value="${cedulaActual}">
+                
+                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Tipo de Miembro</label>
+                <select id="swal-tipo" class="swal2-input !mt-1">
+                    <option value="1" ${esSocio}>Socio (Ahorrador)</option>
+                    <option value="0" ${esExterno}>Externo (Solo Préstamos)</option>
+                </select>
+            </div>
         `,
-        preConfirm: () => ({ 
-            nombre: document.getElementById('en').value, 
-            cedula: document.getElementById('ec').value 
-        })
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar Cambios',
+        confirmButtonColor: '#4f46e5',
+        preConfirm: () => {
+            return {
+                id: id,
+                nombre: document.getElementById('swal-nombre').value,
+                cedula: document.getElementById('swal-cedula').value,
+                esSocio: document.getElementById('swal-tipo').value
+            }
+        }
     });
 
-    // CORRECCIÓN: Se agrega /${id} a la URL para que coincida con el servidor
-    if (f) apiCall(`/editar-socio/${id}`, f, "Actualizado");
+    if (formValues) {
+        try {
+            const res = await fetch('/editar-socio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formValues)
+            });
+
+            if (res.ok) {
+                Swal.fire('Actualizado', 'Los datos se guardaron correctamente', 'success');
+                listarMiembros(); // Recarga la tabla
+            }
+        } catch (error) {
+            console.error("Error al editar:", error);
+        }
+    }
 }
 
 function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {

@@ -140,15 +140,24 @@ app.post('/guardar-miembro', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false }); }
 });
 
-app.post('/editar-socio/:id', async (req, res) => {
+app.post('/editar-socio', async (req, res) => {
     try {
-        const { nombre, cedula } = req.body;
+        const { id, nombre, cedula, esSocio } = req.body;
         const pool = await poolPromise;
         await pool.request()
-            .input('id', sql.Int, req.params.id).input('n', sql.VarChar, nombre).input('d', sql.VarChar, cedula)
-            .query("UPDATE Personas SET Nombre = @n, Documento = @d WHERE ID_Persona = @id");
+            .input('id', sql.Int, id)
+            .input('nombre', sql.VarChar, nombre)
+            .input('cedula', sql.VarChar, cedula)
+            .input('esSocio', sql.Int, esSocio) // 1 o 0
+            .query(`
+                UPDATE Personas 
+                SET Nombre = @nombre, Documento = @cedula, EsSocio = @esSocio 
+                WHERE ID_Persona = @id
+            `);
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/eliminar-socio', async (req, res) => {
