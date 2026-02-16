@@ -157,17 +157,9 @@ app.post('/eliminar-socio', async (req, res) => {
 
 app.post('/registrar-prestamo-diario', async (req, res) => {
     try {
-        // 1. Extraer datos del cuerpo de la petición
         const { idPersona, monto, tasaInteresMensual } = req.body;
-
-        // Validación de seguridad para que no llegue nada vacío
-        if (!idPersona || !monto || !tasaInteresMensual) {
-            return res.status(400).json({ success: false, error: "Faltan datos obligatorios" });
-        }
-
         const pool = await poolPromise;
 
-        // 2. Ejecutar la consulta con los inputs correctamente declarados
         await pool.request()
             .input('idPersona', sql.Int, idPersona)
             .input('monto', sql.Decimal(18, 2), monto)
@@ -176,8 +168,8 @@ app.post('/registrar-prestamo-diario', async (req, res) => {
                 INSERT INTO Prestamos (
                     ID_Persona, 
                     MontoPrestado, 
-                    TasaInteresMensual, 
-                    FechaPrestamo, 
+                    TasaInteres,     -- Nombre corregido según tu imagen
+                    FechaInicio,     -- Nombre corregido según tu imagen
                     MontoPagado, 
                     SaldoActual, 
                     Estado
@@ -193,11 +185,9 @@ app.post('/registrar-prestamo-diario', async (req, res) => {
                 )
             `);
 
-        res.json({ success: true, message: "Préstamo registrado" });
-
+        res.json({ success: true });
     } catch (err) {
-        // Esto imprimirá el error real en la consola de Render o de tu terminal
-        console.error("DETALLE DEL ERROR:", err.message);
+        console.error("Error:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
