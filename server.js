@@ -491,6 +491,51 @@ app.get('/api/quincenas-pagas/:idPersona', async (req, res) => {
     }
 });
 
+app.post('/registrar-abono-dinamico', async (req, res) => {
+    const { idPrestamo, idPersona, monto, tipo } = req.body;
+    const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+
+        // 1. Registrar el movimiento en el historial
+        await transaction.request()
+            .input('idPrestamo', sql.Int, idPrestamo)
+            .input('idPersona', sql.Int, idPersona)
+            .input('monto', sql.Decimal(18, 2), monto)
+            .input('detalle', sql.VarChar, `Abono a ${tipo}`)
+            .query(`INSERT INTO HistorialPagos (ID_Prestamo, ID_Persona, Monto, Fecha, Detalle) 
+                    VALUES (@idPrestamo, @idPersona, @monto, GETDATE(), @detalle)`);
+
+        // 2. Si es abono a CAPITAL, restamos del MontoPrestado inicial
+        if (tipo === 'capital') {
+            await transaction.request()
+                .input('idPrestamo', sql.Int, idPrestamo)
+                .input('monto', sql.Decimal(18, 2), monto)
+                .query(`UPDATE Prestamos 
+                        SET MontoPrestado = MontoPrestado - @monto 
+                        WHERE ID_Prestamo = @idPrestamo`);
+        } 
+        // 3. Si es a INTERES, lo sumamos a MontoPagado (para registro)
+        else {
+            await transaction.request()
+                .input('idPrestamo', sql.Int, idPrestamo)
+                .input('monto', sql.Decimal(18, 2), monto)
+                .query(`UPDATE Prestamos 
+                        SET MontoPagado = MontoPagado + @monto 
+                        WHERE ID_Prestamo = @idPrestamo`);
+        }
+
+        await transaction.commit();
+        res.json({ success: true });
+
+    } catch (err) {
+        await transaction.rollback();
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

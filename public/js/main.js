@@ -1,4 +1,5 @@
 // DECLARACIÓN GLOBAL
+// DECLARACIÓN GLOBAL
 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
 window.mapeoIdentificadores = {};
 let miembrosGlobal = []; 
@@ -253,7 +254,7 @@ async function verHistorialFechas(id, nombre) {
 
                     <div class="flex gap-2 mb-3">
                         <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
-                            <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}%
+                            <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}% (Mensual)
                         </span>
                         ${m.DiasTranscurridos ? `
                         <span class="bg-indigo-50 text-[9px] font-bold text-indigo-600 px-2 py-1 rounded-lg border border-indigo-100">
@@ -596,6 +597,40 @@ async function crearPersona() {
             };
         }
     });
+
+    async function modalAbonoPrestamo(idPrestamo, idPersona) {
+    const { value: formValues } = await Swal.fire({
+        title: 'Registrar Abono',
+        html: `
+            <div class="text-left space-y-4">
+                <div>
+                    <label class="swal-input-label">Monto del Pago ($)</label>
+                    <input id="a-monto" type="number" class="swal-custom-input" placeholder="0">
+                </div>
+                <div>
+                    <label class="swal-input-label">Tipo de Abono</label>
+                    <select id="a-tipo" class="swal-custom-input cursor-pointer">
+                        <option value="interes">Solo Intereses (No reduce deuda principal)</option>
+                        <option value="capital">Abono a Capital (Reduce la deuda principal)</option>
+                    </select>
+                </div>
+                <div class="bg-amber-50 p-3 rounded-xl border border-amber-200">
+                    <p class="text-[10px] text-amber-700 leading-tight">
+                        <i class="fas fa-info-circle mr-1"></i> 
+                        <b>Abono a Capital:</b> El interés diario bajará porque el monto prestado será menor a partir de mañana.
+                    </p>
+                </div>
+            </div>`,
+        preConfirm: () => {
+            const monto = parseFloat(document.getElementById('a-monto').value);
+            const tipo = document.getElementById('a-tipo').value;
+            if (!monto || monto <= 0) return Swal.showValidationMessage('Ingresa un monto válido');
+            return { idPrestamo, idPersona, monto, tipo };
+        }
+    });
+
+    if (formValues) apiCall('/registrar-abono-dinamico', formValues, "Abono registrado con éxito");
+}
 
     if (formValues) {
         // Ajusta la URL según tu backend
