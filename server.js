@@ -378,22 +378,24 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 app.post('/procesar-movimiento', async (req, res) => {
     try {
         const { idPersona, monto, tipoMovimiento, meses } = req.body; 
-        const pool = await poolPromise;
+        
+        // ESTA LÍNEA TE DIRÁ EN LA CONSOLA QUÉ ESTÁ LLEGANDO
+        console.log("Datos recibidos:", { tipoMovimiento, meses });
 
-        // Si 'meses' llega vacío o undefined, le asignamos un texto por defecto
-        const valorMeses = (meses && meses.trim() !== "") ? meses : "Abono sin fecha";
+        const pool = await poolPromise;
+        const valorMeses = meses || 'Sin detalle';
 
         if (tipoMovimiento === 'ahorro') {
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18,2), monto)
-                .input('meses', sql.VarChar, valorMeses) // Enviamos la variable con el seguro
+                .input('meses', sql.VarChar, valorMeses)
                 .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) VALUES (@id, @m, GETDATE(), @meses)");
         }
         res.json({ success: true });
-    } catch (err) { 
+    } catch (err) {
         console.error(err);
-        res.status(500).json({ success: false }); 
+        res.status(500).json({ success: false });
     }
 });
 

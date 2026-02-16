@@ -396,14 +396,19 @@ function toggleAcordeon(id, btn) {
 
     // 1. CAPTURAR MESES/QUINCENAS
     let mesesParaEnviar = "";
-    if (tipo === 'ahorro') {
-        const botonesActivos = document.querySelectorAll('#contenedor-meses button.bg-amber-500');
-        mesesParaEnviar = Array.from(botonesActivos)
-            .map(btn => btn.getAttribute('data-valor') || btn.textContent.trim())
-            .join(', ');
-
-        if (!mesesParaEnviar) mesesParaEnviar = "Abono General";
+if (tipo === 'ahorro') {
+    // Buscamos todos los botones que el usuario clickeó
+    const botonesSeleccionados = document.querySelectorAll('.btn-quincena.active');
+    
+    // Extraemos los valores (ej: "Octubre (Q1)")
+    const valores = Array.from(botonesSeleccionados).map(b => b.value);
+    
+    if (valores.length > 0) {
+        mesesParaEnviar = valores.join(', ');
+    } else {
+        mesesParaEnviar = "Abono General";
     }
+}
 
     // 2. VALIDACIÓN DE DEUDA
     if (tipo === 'deuda') {
@@ -1004,26 +1009,23 @@ function cargarMesesEnInterfaz() {
         const botonesCont = document.createElement('div');
         botonesCont.className = 'grid grid-cols-2 gap-1';
 
-        ['Q1', 'Q2'].forEach(q => {
-            const btn = document.createElement('button');
-            const valorQuincena = `${mes} (${q})`; // Ejemplo: "Enero (Q1)"
-            btn.textContent = q;
-            
-            // --- ESTA ES LA LÍNEA CLAVE QUE DEBES AGREGAR ---
-            btn.setAttribute('data-valor', `${mes} (${q})`); 
-            // -----------------------------------------------
-
-            btn.className = 'py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-amber-50 transition-all';
-            
-            btn.onclick = (e) => {
-                e.preventDefault();
-                btn.classList.toggle('bg-amber-500');
-                btn.classList.toggle('text-white');
-                btn.classList.toggle('border-amber-500');
-            };
-            
-            botonesCont.appendChild(btn);
-        });
+        // Busca esta parte en cargarMesesEnInterfaz y reemplázala:
+['Q1', 'Q2'].forEach(q => {
+    const btn = document.createElement('button');
+    btn.textContent = q;
+    // Guardamos el valor completo aquí
+    btn.value = `${mes} (${q})`; 
+    btn.className = 'btn-quincena py-1 px-2 text-[10px] font-bold rounded-lg border-2 border-slate-100 hover:bg-amber-50 transition-all';
+    
+    btn.onclick = (e) => {
+        e.preventDefault();
+        // Alternamos una clase simple para saber qué está seleccionado
+        btn.classList.toggle('active'); 
+        btn.classList.toggle('bg-amber-500');
+        btn.classList.toggle('text-white');
+    };
+    botonesCont.appendChild(btn);
+});
 
         grupoMes.appendChild(botonesCont);
         contenedor.appendChild(grupoMes);
