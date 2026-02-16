@@ -295,6 +295,11 @@ async function cargarRifas() {
                     crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} }); 
                 }
             }
+
+            // --- ESTA ES LA LÍNEA CLAVE ---
+            // Llamamos a los contadores después de que todo se haya dibujado
+            actualizarContadoresRifa();
+            
         }
     } catch (error) {
         console.error("Error al cargar:", error);
@@ -735,4 +740,42 @@ function actualizarContadoresVisuales() {
     
     // Ganancia: Aquí tú decides si es el total recogido o el total proyectado
     document.getElementById('stats-ganancia').innerText = `$ ${totalRecogido.toLocaleString()}`;
+}
+
+function actualizarContadoresRifa() {
+    // 1. Obtener el valor del puesto (ej: 5000)
+    const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
+    
+    let totalRecogido = 0;
+    let totalDebe = 0;
+
+    // 2. Escanear todos los slots (cuadritos) de todas las tablas
+    const todosLosSlots = document.querySelectorAll('.n-slot');
+
+    todosLosSlots.forEach(slot => {
+        const nombre = slot.querySelector('.n-name')?.textContent.trim();
+        
+        // Solo procesamos si el puesto tiene un nombre (está vendido/reservado)
+        if (nombre && nombre !== "") {
+            if (slot.classList.contains('paid')) {
+                // Si tiene la clase 'paid', ya se pagó
+                totalRecogido += costoPuesto;
+            } else {
+                // Si tiene nombre pero no clase 'paid', está debiendo
+                totalDebe += costoPuesto;
+            }
+        }
+    });
+
+    // 3. Formatear a moneda colombiana
+    const formato = new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        maximumFractionDigits: 0
+    });
+
+    // 4. Inyectar los valores en los cuadros de estadísticas
+    document.getElementById('stats-total-debe').innerText = formato.format(totalDebe);
+    document.getElementById('stats-total-pago').innerText = formato.format(totalRecogido);
+    document.getElementById('stats-ganancia').innerText = formato.format(totalRecogido);
 }
