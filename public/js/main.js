@@ -49,10 +49,10 @@ async function cargarDashboard() {
             esSocioReal ? cAhorro++ : cExtra++;
 
             tbody.innerHTML += `
-                <tr class="hover:bg-slate-50 transition-colors item-socio">
-                    <td class="px-8 py-5 font-black text-indigo-500 text-xl">#${numPantalla}</td>
-                    <td class="px-8 py-5">
-                        <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
+    <tr class="hover:bg-slate-50 transition-colors item-socio">
+        <td class="px-8 py-5 font-black text-indigo-500 text-xl">#${m.id}</td>
+        <td class="px-8 py-5">
+            <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
                         <div class="text-[10px] text-slate-400 uppercase tracking-tighter">
                             DOC: ${m.cedula} | 
                             <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">

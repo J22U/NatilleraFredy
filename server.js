@@ -114,12 +114,13 @@ app.get('/listar-miembros', async (req, res) => {
         const result = await pool.request()
             .query(`
                 SELECT 
-                    ID_Persona as id, 
+                    ID_Persona as id, -- Este es el ID que no cambia
                     Nombre as nombre, 
                     Documento as cedula, 
-                    CASE WHEN EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo 
+                    CASE WHEN EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
+                    Estado
                 FROM Personas 
-                WHERE Estado = 'Activo' OR Estado IS NULL
+                WHERE Estado = 'Activo'
                 ORDER BY ID_Persona ASC
             `);
         res.json(result.recordset);
