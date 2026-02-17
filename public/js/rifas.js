@@ -615,7 +615,6 @@ function actualizarSoloNombres(idTabla, participantes) {
 // Llamar al inicio al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
     cargarRifas();
-    iniciarAutoRefresco(); // Iniciar aquí
     
     ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'].forEach(id => {
         const el = document.getElementById(id);
