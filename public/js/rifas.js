@@ -752,11 +752,11 @@ function abrirModalCompra(idTabla, numero) {
 
 async function confirmarCompra() {
     const nombre = document.getElementById('modalNombre').value.trim().toUpperCase();
-    const pago = document.getElementById('modalPago').checked; // true o false
+    const pago = document.getElementById('modalPago').checked;
     const adelantado = document.getElementById('modalAdelantado').checked;
 
     if (!nombre) {
-        Swal.fire('Atención', 'Debes ingresar el nombre', 'warning');
+        Swal.fire('Atención', 'Debes ingresar el nombre del cliente', 'warning');
         return;
     }
 
@@ -764,32 +764,35 @@ async function confirmarCompra() {
         const tablaId = window.currentTablaId;
         const numero = window.currentNumero;
 
-        // 1. ACTUALIZAR MEMORIA LOCAL
-        if (typeof rifasData !== 'undefined') {
+        // 1. Actualizamos el objeto local con los nombres de columna de tu SQL
+        if (typeof rifasData !== 'undefined' && rifasData[tablaId]) {
             rifasData[tablaId].participantes[numero] = {
-                NombreParticipante: nombre,
-                EstadoPago: pago, 
+                NombreParticipante: nombre, // Nombre real en tu tabla Rifas_Detalle
+                EstadoPago: pago,           // Nombre real en tu tabla Rifas_Detalle
                 Adelantado: adelantado
             };
+
+            // 2. LLAMADO A TUS FUNCIONES REALES (Detectadas en tu consola)
+            // Intentamos primero con el cambio individual que es más eficiente
+            if (typeof guardarCambioIndividual === 'function') {
+                await guardarCambioIndividual(tablaId, numero, nombre, pago, adelantado);
+            } else if (typeof guardarTodo === 'function') {
+                await guardarTodo();
+            }
         }
 
-        // 2. GUARDADO REAL EN SOMEE (SQL)
-        // Vamos a llamar a la función que probablemente hace el fetch a tu base de datos
-        if (typeof guardarCambios === 'function') {
-            await guardarCambios(); 
-        } else {
-            // Si no existe 'guardarCambios', intentamos la que manda los datos directo
-            // pasándole los nombres de columna que vimos en tu SQL
-            await registrarVentaEnBaseDeDatos(tablaId, numero, nombre, pago);
-        }
-
-        Swal.fire('Éxito', 'Puesto registrado', 'success');
         cerrarModal();
-        renderizarTablas(); // Esto refresca y pondrá el color naranja
+        
+        // 3. Refrescar para aplicar el color NARANJA
+        if (typeof renderizarTablas === 'function') {
+            renderizarTablas();
+        } else {
+            location.reload();
+        }
 
     } catch (error) {
-        console.error("Error:", error);
-        Swal.fire('Error', 'No se pudo guardar en la base de datos', 'error');
+        console.error("Error al guardar:", error);
+        Swal.fire('Error', 'No se pudo conectar con NatilleraDB', 'error');
     }
 }
 
