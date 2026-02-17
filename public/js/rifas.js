@@ -780,7 +780,7 @@ function abrirModalCompra(idTabla, numStr) {
 }
 
 async function confirmarCompra() {
-    const nombre = document.getElementById('modalNombre').value.trim();
+    const nombreInput = document.getElementById('modalNombre').value.trim();
     const pago = document.getElementById('modalPago').checked;
     const adelantado = document.getElementById('modalAdelantado').checked;
 
@@ -790,58 +790,30 @@ async function confirmarCompra() {
     const slot = document.getElementById(`t${tablaId}-${numStr}`);
     if (!slot) return;
 
-    // 1. LIMPIEZA VISUAL INMEDIATA
-    if (nombre === "") {
+    // 1. LIMPIEZA O ACTUALIZACIÓN VISUAL REAL
+    const nameElement = slot.querySelector('.n-name');
+    if (nombreInput === "") {
+        nameElement.textContent = ""; // IMPORTANTE: Ponemos vacío real
         slot.classList.remove('paid', 'reserved');
-        slot.querySelector('.n-name').textContent = "";
         slot.removeAttribute('data-pago');
         slot.removeAttribute('data-adelantado');
-        console.log("🧹 Puesto marcado para liberar...");
     } else {
-        slot.querySelector('.n-name').textContent = nombre;
+        nameElement.textContent = nombreInput;
         slot.classList.remove('paid', 'reserved');
         pago ? slot.classList.add('paid') : slot.classList.add('reserved');
         slot.setAttribute('data-pago', pago);
         slot.setAttribute('data-adelantado', adelantado);
     }
 
-    // 2. CIERRE DE MODAL
     cerrarModal();
 
-    // 3. EL TRUCO PARA QUE NO VUELVAN: Guardado forzado
-    // Bloqueamos visualmente el status para que sepas que se está borrando en la nube
-    const status = document.getElementById('sync-status');
-    if (status) status.className = 'sync-saving';
-
-    try {
-        // Llamamos a los contadores para que el dinero se actualice
+    // 2. PAUSA DE SEGURIDAD (500ms) 
+    // Esto asegura que el DOM se actualice antes de que recolectarDatosPantalla lea la pantalla
+    setTimeout(async () => {
         actualizarContadoresRifa();
-        
-        // Enviamos la foto actual de la pantalla al servidor
-        await guardarTodo(); 
-        
-        console.log("✅ Base de datos actualizada con éxito");
-        if (status) {
-            status.className = 'sync-success';
-            setTimeout(() => status.className = 'sync-idle', 2000);
-        }
-    } catch (error) {
-        console.error("❌ Error al intentar liberar el puesto:", error);
-        if (status) status.className = 'sync-error';
-        alert("No se pudo sincronizar con la nube. El nombre podría volver a aparecer al recargar.");
-    }
-}
-
-function cerrarModal() {
-    const modal = document.getElementById('modalCompra');
-    if (modal) {
-        modal.style.display = 'none';
-        
-        // Opcional: Limpiar los campos para que la próxima vez estén vacíos
-        document.getElementById('modalNombre').value = '';
-        document.getElementById('modalPago').checked = false;
-        document.getElementById('modalAdelantado').checked = false;
-    }
+        await guardarTodo();
+        console.log("✅ Cambio sincronizado con éxito");
+    }, 500);
 }
 
 function actualizarContadoresVisuales() {
