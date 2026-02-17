@@ -657,11 +657,14 @@ app.get('/listar-inactivos', async (req, res) => {
 app.get('/api/ganancias-disponibles', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // Cambiamos el nombre de la tabla al real: HistorialGanancias
-        const result = await pool.request().query("SELECT ISNULL(SUM(Monto), 0) as saldo FROM HistorialGanancias");
+        const result = await pool.request().query(`
+            -- Sumamos los intereses pagados de todos los préstamos
+            SELECT ISNULL(SUM(InteresesPagados), 0) as saldo 
+            FROM Prestamos
+        `);
         res.json(result.recordset[0]);
     } catch (err) {
-        res.status(500).json({ saldo: 0, error: err.message });
+        res.status(500).json({ error: err.message });
     }
 });
 
