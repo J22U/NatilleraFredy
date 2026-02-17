@@ -764,35 +764,33 @@ async function confirmarCompra() {
         const tablaId = window.currentTablaId;
         const numero = window.currentNumero;
 
-        // 1. Actualizamos el objeto local con los nombres de columna de tu SQL
+        // 1. Actualizamos el objeto local con los nombres de tu SQL (NatilleraDB)
         if (typeof rifasData !== 'undefined' && rifasData[tablaId]) {
             rifasData[tablaId].participantes[numero] = {
-                NombreParticipante: nombre, // Nombre real en tu tabla Rifas_Detalle
-                EstadoPago: pago,           // Nombre real en tu tabla Rifas_Detalle
+                NombreParticipante: nombre,
+                EstadoPago: pago,
                 Adelantado: adelantado
             };
-
-            // 2. LLAMADO A TUS FUNCIONES REALES (Detectadas en tu consola)
-            // Intentamos primero con el cambio individual que es más eficiente
-            if (typeof guardarCambioIndividual === 'function') {
-                await guardarCambioIndividual(tablaId, numero, nombre, pago, adelantado);
-            } else if (typeof guardarTodo === 'function') {
-                await guardarTodo();
-            }
         }
 
+        // 2. IMPORTANTE: Primero cerramos el modal y DIBUJAMOS en pantalla
+        // para que 'recolectarDatosPantalla' encuentre el nombre de John Uribe
         cerrarModal();
-        
-        // 3. Refrescar para aplicar el color NARANJA
-        if (typeof renderizarTablas === 'function') {
-            renderizarTablas();
-        } else {
-            location.reload();
+        if (typeof renderizarTablas === 'function') renderizarTablas();
+
+        // 3. Ahora sí mandamos a guardar lo que ya está dibujado
+        if (typeof guardarCambioIndividual === 'function') {
+            // Pasamos el ID de la tabla que se modificó
+            await guardarCambioIndividual(tablaId);
+        } else if (typeof guardarTodo === 'function') {
+            await guardarTodo();
         }
+
+        console.log("Registro completado para:", nombre);
 
     } catch (error) {
-        console.error("Error al guardar:", error);
-        Swal.fire('Error', 'No se pudo conectar con NatilleraDB', 'error');
+        console.error("Error al confirmar:", error);
+        Swal.fire('Error', 'No se pudo sincronizar con Somee', 'error');
     }
 }
 
