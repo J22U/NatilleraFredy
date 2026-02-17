@@ -348,15 +348,13 @@ function buscarCliente() {
         const slots = card.querySelectorAll('.n-slot');
 
         slots.forEach(slot => {
-            // CAMBIO AQUÍ: Usamos textContent porque es un DIV, no un INPUT
             const nombre = slot.querySelector('.n-name').textContent.toLowerCase().trim();
             const numero = slot.querySelector('.n-number').innerText;
-            // CAMBIO AQUÍ: Verificamos la clase CSS en lugar de un checkbox
             const pagado = slot.classList.contains('paid');
 
             if (nombre.includes(texto)) {
                 if (!resultados[nombre]) {
-                    resultados[nombre] = { tablas: {}, totalDeudaGlobal: 0, totalPuestosDebe: 0 };
+                    resultados[nombre] = { tablas: {}, totalDeudaGlobal: 0, totalPuestosDebe: 0, nombreOriginal: nombre };
                 }
                 
                 if (!resultados[nombre].tablas[card.id]) {
@@ -407,19 +405,26 @@ function buscarCliente() {
                 `;
             }
 
-            // Formatear el dinero a moneda local
             const totalDinero = cliente.totalDeudaGlobal.toLocaleString('es-CO', { 
-                style: 'currency', 
-                currency: 'COP', 
-                maximumFractionDigits: 0 
+                style: 'currency', currency: 'COP', maximumFractionDigits: 0 
             });
 
+            // BOTÓN DE PAGO MASIVO (Solo si debe)
+            const botonPagoMasivo = cliente.totalPuestosDebe > 0 
+                ? `<button onclick="pagarDeudaTotal('${cliente.nombreOriginal}')" class="btn-saldar-busqueda">
+                    <i class="fas fa-money-bill-wave"></i> SALDAR TODO
+                   </button>` 
+                : '';
+
             clienteDiv.innerHTML = `
-                <div class="cliente-header">
-                    <span>${nombre.toUpperCase()}</span>
-                    ${cliente.totalPuestosDebe > 0 
-                        ? `<span class="total-deuda-tag">DEUDA TOTAL: ${totalDinero}</span>` 
-                        : `<span class="total-pago-tag">AL DÍA ✅</span>`}
+                <div class="cliente-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-weight: 800; font-size: 1.1rem;">${nombre.toUpperCase()}</span>
+                        ${cliente.totalPuestosDebe > 0 
+                            ? `<span class="total-deuda-tag">DEUDA TOTAL: ${totalDinero}</span>` 
+                            : `<span class="total-pago-tag">AL DÍA ✅</span>`}
+                    </div>
+                    ${botonPagoMasivo}
                 </div>
                 <div class="cliente-tablas">${tablasHTML}</div>
             `;
@@ -427,6 +432,31 @@ function buscarCliente() {
         });
     }
     panel.style.display = 'block';
+}
+
+async function pagarDeudaTotal(nombreCliente) {
+    if (!confirm(`¿Confirmas que ${nombreCliente} ha pagado todos sus números de esta quincena?`)) return;
+
+    // Buscamos en todas las tablas cargadas en pantalla
+    const slots = document.querySelectorAll('.n-slot');
+    let cambios = 0;
+
+    slots.forEach(slot => {
+        const nombreEnSlot = slot.querySelector('.n-name').innerText;
+        if (nombreEnSlot === nombreCliente) {
+            // Marcamos como pagado visualmente
+            slot.classList.add('paid');
+            // Aquí deberías actualizar tu objeto de datos
+            cambios++;
+        }
+    });
+
+    if (cambios > 0) {
+        alert(`¡Listo! Se actualizaron ${cambios} puestos.`);
+        // IMPORTANTE: Llamamos a la función guardar para que el cambio sea permanente en esa fecha
+        await guardarTodo(); 
+        actualizarContadoresRifa();
+    }
 }
 
 // Función para navegar y resaltar

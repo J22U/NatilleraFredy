@@ -502,3 +502,30 @@ body {
         border: 1px solid #eee !important;
     }
 }
+
+.btn-pagar-todo {
+    background: #00b894;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.btn-pagar-todo:hover {
+    background: #00947a;
+    transform: scale(1.05);
+}
+
+.status-pending {
+    color: #d63031;
+    font-weight: 800;
+}
+
+.status-paid {
+    color: #00b894;
+    font-weight: 800;
+}
