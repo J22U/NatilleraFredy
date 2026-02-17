@@ -251,8 +251,8 @@ async function verHistorialFechas(id, nombre) {
         const saldoCalculado = (capitalOriginal + interesGenerado) - montoPagado;
         const estaPago = m.Estado === 'Pagado' || saldoCalculado <= 0;
         
-        // Verificamos si vienen días desde el servidor (diasActivo o DiasTranscurridos)
-        const dias = m.diasActivo || m.DiasTranscurridos;
+        // CORRECCIÓN: Usamos nullish coalescing o validamos que no sea undefined
+        const dias = m.diasActivo !== undefined ? m.diasActivo : m.DiasTranscurridos;
 
         return `
         <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-100'} shadow-sm">
@@ -267,8 +267,9 @@ async function verHistorialFechas(id, nombre) {
                 <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
                     <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}%
                 </span>
-                ${dias ? `
-                <span class="bg-indigo-100 text-[9px] font-black text-indigo-700 px-2 py-1 rounded-lg border border-indigo-200 animate-pulse">
+                
+                ${(dias !== undefined && dias !== null) ? `
+                <span class="bg-indigo-100 text-[9px] font-black text-indigo-700 px-2 py-1 rounded-lg border border-indigo-200 ${dias > 0 ? 'animate-pulse' : ''}">
                     <i class="fas fa-clock mr-1"></i>${dias} DÍAS ACTIVOS
                 </span>` : ''}
             </div>
