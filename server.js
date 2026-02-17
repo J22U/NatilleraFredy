@@ -776,34 +776,31 @@ app.post('/api/registrar-gasto-ganancias', async (req, res) => {
 
 // --- RUTA PARA EJECUTAR EL REPARTO REAL A LOS SOCIOS ---
 app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
-    const { sociosAptos } = req.body; 
+    const { sociosAptos } = req.body;
     const pool = await poolPromise;
     const transaction = new sql.Transaction(pool);
 
     try {
         await transaction.begin();
 
-        for (const socio of sociosAptos) {
-            // 1. Insertamos el dinero en la tabla de ahorros de cada socio
+        for (const s of sociosAptos) {
             await transaction.request()
-                .input('idPersona', sql.Int, socio.id)
-                .input('monto', sql.Decimal(18, 2), socio.interes)
-                .query(`
-                    INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
-                    VALUES (@idPersona, @monto, GETDATE(), 'REPARTO ANUAL UTILIDADES')
-                `);
+                .input('id', sql.Int, s.id)
+                .input('monto', sql.Decimal(18, 2), s.interes)
+                .input('detalle', sql.VarChar(sql.MAX), 'REPARTO UTILIDADES EQUITATIVO')
+                // INSERTAMOS EN LAS 5 COLUMNAS QUE TIENE TU TABLA
+                .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, FechaAporte, MesesCorrespondientes) 
+                        VALUES (@id, @monto, GETDATE(), GETDATE(), @detalle)`);
         }
 
-        // 2. IMPORTANTE: Ponemos en 0 las ganancias brutas de los préstamos
-        // Esto evita que el mismo dinero se pueda repartir dos veces.
+        // Limpiar la bolsa de ganancias para el Dashboard
         await transaction.request().query("UPDATE Prestamos SET InteresesPagados = 0");
 
         await transaction.commit();
-        res.json({ success: true, message: "¡Reparto completado con éxito!" });
-
+        res.json({ success: true });
     } catch (err) {
         if (transaction) await transaction.rollback();
-        console.error("Error en reparto:", err.message);
+        console.error("Error en DB:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
