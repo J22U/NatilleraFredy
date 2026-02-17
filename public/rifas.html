@@ -32,12 +32,16 @@
                         <div id="sync-status" class="sync-idle" title="Estado de sincronización"></div>
                         <div id="security-pause-loader" style="display: none; align-items: center; gap: 5px;">
                             <i class="fas fa-circle-notch fa-spin" style="color: #0984e3; font-size: 0.8rem;"></i>
-                            <span style="font-size: 0.7rem; color: #636e72; font-weight: bold;">Estabilizando nube...</span>
+                            <span style="font-size: 0.7rem; color: #636e72; font-weight: bold;">Estabilizando...</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="header-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button onclick="prepararNuevaQuincena()" class="btn-add" style="background-color: #f1c40f; color: #2d3436; border: none;">
+                        <i class="fas fa-forward"></i> <span>Nueva Quincena</span>
+                    </button>
+
                     <button onclick="actualizarManual()" class="btn-add" style="background-color: #0984e3; border: none;">
                         <i id="sync-icon-manual" class="fas fa-sync-alt"></i> <span>Actualizar</span>
                     </button>
@@ -92,17 +96,17 @@
         </header>
 
         <div class="stats-rifas-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px auto; max-width: 1200px; padding: 0 20px;">
-            <div class="stat-card" style="background: white; border-left: 5px solid #0984e3; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                <div style="color: #636e72; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Valor Total Rifa</div>
-                <h2 id="stats-total-debe" style="margin: 5px 0 0; color: #2d3436; font-size: 1.5rem;">$ 0</h2>
+            <div class="stat-card" style="border-left: 5px solid #0984e3;">
+                <div class="stat-label">Valor Total Rifa</div>
+                <h2 id="stats-total-debe">$ 0</h2>
             </div>
-            <div class="stat-card" style="background: white; border-left: 5px solid #00b894; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                <div style="color: #636e72; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Total Recogido</div>
-                <h2 id="stats-total-pago" style="margin: 5px 0 0; color: #2d3436; font-size: 1.5rem;">$ 0</h2>
+            <div class="stat-card" style="border-left: 5px solid #00b894;">
+                <div class="stat-label">Total Recogido</div>
+                <h2 id="stats-total-pago">$ 0</h2>
             </div>
-            <div class="stat-card" style="background: white; border-left: 5px solid #6c5ce7; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                <div style="color: #636e72; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Ganancia Neta</div>
-                <h2 id="stats-ganancia" style="margin: 5px 0 0; color: #2d3436; font-size: 1.5rem;">$ 0</h2>
+            <div class="stat-card" style="border-left: 5px solid #6c5ce7;">
+                <div class="stat-label">Ganancia Neta</div>
+                <h2 id="stats-ganancia">$ 0</h2>
             </div>
         </div>
 
@@ -114,16 +118,26 @@
             <h2 style="margin-top: 0; color: #2d3436; font-size: 1.4rem; font-weight: 800; border-bottom: 2px solid #f1f2f6; padding-bottom: 10px; margin-bottom: 20px;">
                 <i class="fas fa-user-edit" style="color: #0984e3; margin-right: 10px;"></i>Registrar Puesto
             </h2>
+            
             <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 11px; font-weight: 800; color: #636e72; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Nombre del Cliente</label>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: #636e72; text-transform: uppercase; margin-bottom: 8px;">Nombre del Cliente</label>
                 <input type="text" id="modalNombre" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; font-size: 1rem;" placeholder="Ej: JUAN PÉREZ">
             </div>
-            <div style="margin-bottom: 25px;">
+
+            <div style="margin-bottom: 15px;">
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; background: #f9f9f9; padding: 12px; border-radius: 10px;">
                     <input type="checkbox" id="modalPago" style="width: 20px; height: 20px;">
-                    <span style="font-size: 14px; font-weight: 700; color: #2d3436;">¿Ya pagó el puesto?</span>
+                    <span style="font-size: 14px; font-weight: 700; color: #2d3436;">¿Pagó este sorteo?</span>
                 </label>
             </div>
+
+            <div style="margin-bottom: 25px;">
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; background: #fff3cd; padding: 12px; border-radius: 10px; border: 1px solid #ffeeba;">
+                    <input type="checkbox" id="modalAdelantado" style="width: 20px; height: 20px;">
+                    <span style="font-size: 13px; font-weight: 700; color: #856404;">¿Paga quincena adelantada?</span>
+                </label>
+            </div>
+
             <div style="display: flex; gap: 12px;">
                 <button onclick="cerrarModal()" style="flex: 1; padding: 12px; background: #dfe6e9; border-radius: 10px; font-weight: 700; cursor: pointer; border: none;">Cancelar</button>
                 <button onclick="confirmarCompra()" style="flex: 1; padding: 12px; background: #00b894; color: white; border-radius: 10px; font-weight: 700; cursor: pointer; border: none;">Confirmar</button>

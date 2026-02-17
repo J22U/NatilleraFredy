@@ -625,6 +625,7 @@ function recolectarDatosPantalla() {
         const numeroDeTabla = index + 1;
         const nombreTabla = card.querySelector('.input-table-title')?.value || `Tabla ${numeroDeTabla}`;
         const participantes = {};
+        const adelantado = slot.getAttribute('data-adelantado') === 'true';
 
         // 3. Recorremos los slots (números) de cada tabla
         card.querySelectorAll('.n-slot').forEach(slot => {
@@ -678,39 +679,24 @@ function abrirModalCompra(idTabla, numero) {
 }
 
 function confirmarCompra() {
-    const modal = document.getElementById('modalCompra');
-    const idTabla = modal.dataset.tablaRef;
-    const numero = modal.dataset.numeroRef;
-    
-    const nuevoNombre = document.getElementById('modalNombre').value.trim().toUpperCase();
-    const pagado = document.getElementById('modalPago').checked;
+    const nombre = document.getElementById('modalNombre').value.toUpperCase();
+    const pago = document.getElementById('modalPago').checked;
+    const adelantado = document.getElementById('modalAdelantado').checked;
 
-    // Buscamos el cuadrito en la tabla para actualizarlo visualmente
-    const slot = document.getElementById(`t${idTabla}-${numero}`);
+    // Supongamos que tienes una referencia al slot actual
+    const slotActual = document.querySelector('.n-slot.active'); 
     
-    if (slot) {
-        const nameDiv = slot.querySelector('.n-name');
-        
-        if (nuevoNombre === "") {
-            // Si borraron el nombre, limpiamos el cuadrito
-            nameDiv.textContent = "";
-            slot.classList.remove('paid', 'reserved');
-        } else {
-            // Actualizamos nombre y colores
-            nameDiv.textContent = nuevoNombre;
-            if (pagado) {
-                slot.classList.add('paid');
-                slot.classList.remove('reserved');
-            } else {
-                slot.classList.add('reserved');
-                slot.classList.remove('paid');
-            }
-        }
-    }
+    // Guardar los datos en el objeto o directamente en el DOM para luego recolectar
+    slotActual.setAttribute('data-nombre', nombre);
+    slotActual.setAttribute('data-pago', pago);
+    slotActual.setAttribute('data-adelantado', adelantado);
 
-    // Cerramos modal y disparamos el guardado automático a la base de datos
+    // Actualizar color visual
+    if (pago) slotActual.classList.add('paid');
+    else slotActual.classList.remove('paid');
+
     cerrarModal();
-    guardarTodo(); 
+    actualizarContadoresRifa();
 }
 
 function cerrarModal() {
@@ -829,4 +815,101 @@ async function cargarRifasPorFecha() {
     } catch (error) {
         console.error("Error historial:", error);
     }
+}
+
+function obtenerProximaFechaSorteo(fechaReferencia = new Date()) {
+    const dia = fechaReferencia.getDate();
+    const mes = fechaReferencia.getMonth();
+    const año = fechaReferencia.getFullYear();
+
+    // Objetivos: día 15 o día 30
+    let objetivo = dia <= 15 ? 15 : 30;
+    let fechaObjetivo = new Date(año, mes, objetivo);
+
+    // Buscar el viernes más cercano (0=Dom, 5=Vie)
+    // Esto busca el viernes de esa semana específica
+    const diaSemana = fechaObjetivo.getDay();
+    const diferencia = 5 - diaSemana; 
+    fechaObjetivo.setDate(fechaObjetivo.getDate() + diferencia);
+
+    // Si la fecha calculada ya pasó, buscar la del siguiente ciclo
+    if (fechaObjetivo < fechaReferencia) {
+        return obtenerProximaFechaSorteo(new Date(año, mes, objetivo === 15 ? 16 : 31));
+    }
+
+    return fechaObjetivo.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+}
+
+async function verificarCambioCiclo() {
+    // 1. Cargar los datos actuales del servidor/local
+    const datos = await cargarDatosDesdeNube(); 
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // 2. Si la rifa guardada ya "venció" (pasó su viernes)
+    if (datos.info && datos.info.fecha < hoy) {
+        console.log("Ciclo vencido. Creando nueva rifa automática...");
+
+        const nuevaFecha = obtenerViernesSorteo(new Date()); // Calcula el próximo viernes quincenal
+        
+        const nuevaRifa = {
+            info: {
+                ...datos.info,
+                fecha: nuevaFecha,
+                nombre: `Rifa - Ciclo ${nuevaFecha}`
+            }
+        };
+
+        // 3. REUTILIZAR TABLAS Y RESPETAR PAGOS ADELANTADOS
+        Object.keys(datos).forEach(key => {
+            if (key.startsWith('tabla')) {
+                const tablaOriginal = datos[key];
+                const participantesNuevos = {};
+
+                Object.keys(tablaOriginal.participantes).forEach(num => {
+                    const p = tablaOriginal.participantes[num];
+                    
+                    participantesNuevos[num] = {
+                        nombre: p.nombre,
+                        // Aquí está la clave: 
+                        // Si p.adelantado es true, en la nueva rifa p.pago será true.
+                        pago: p.adelantado || false, 
+                        adelantado: false // El adelanto se "gasta" al pasar al nuevo ciclo
+                    };
+                });
+
+                nuevaRifa[key] = {
+                    titulo: tablaOriginal.titulo,
+                    participantes: participantesNuevos
+                };
+            }
+        });
+
+        // 4. Guardar automáticamente
+        await guardarTodo(nuevaRifa);
+        location.reload(); // Recargar para mostrar la nueva rifa
+    }
+}
+
+function obtenerViernesSorteo(fechaReferencia = new Date()) {
+    let fecha = new Date(fechaReferencia);
+    let diaMes = fecha.getDate();
+    let mes = fecha.getMonth();
+    let año = fecha.getFullYear();
+
+    // Determinar a qué objetivo apuntamos (quincena o fin de mes)
+    let diaObjetivo = diaMes <= 15 ? 15 : (new Date(año, mes + 1, 0).getDate() >= 30 ? 30 : 28);
+    let fechaObjetivo = new Date(año, mes, diaObjetivo);
+
+    // Si hoy ya pasó el viernes de esta quincena, saltar a la siguiente quincena
+    if (fecha > fechaObjetivo && fecha.getDay() !== 5) {
+        // Lógica para saltar al siguiente periodo si es necesario
+    }
+
+    // Retroceder hasta encontrar el viernes (5)
+    // Si el día objetivo ya es viernes, se queda ahí.
+    while (fechaObjetivo.getDay() !== 5) {
+        fechaObjetivo.setDate(fechaObjetivo.getDate() - 1);
+    }
+
+    return fechaObjetivo.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
 }
