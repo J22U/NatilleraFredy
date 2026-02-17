@@ -737,22 +737,20 @@ function recolectarDatosPantalla() {
 
         const participantes = {};
 
-        // --- SOLUCIÓN RADICAL: Recorremos los 100 números posibles ---
+        // Recorremos los 100 números (00-99) para asegurar que los vacíos se limpien en la DB
         for (let i = 0; i <= 99; i++) {
             const numStr = i.toString().padStart(2, '0');
-            const slot = card.querySelector(`[data-numero="${numStr}"]`) || 
-                         document.getElementById(`t${numeroDeTabla}-${numStr}`);
+            const slot = document.getElementById(`t${numeroDeTabla}-${numStr}`);
 
             if (slot) {
                 const nombre = slot.querySelector('.n-name')?.textContent.trim() || "";
-                const pagado = slot.classList.contains('paid');
-                const adelantado = slot.getAttribute('data-adelantado') === 'true';
-
-                // MANDAMOS TODO: Si el nombre está vacío, mandamos ""
+                
+                // IMPORTANTE: Enviamos el número SIEMPRE. 
+                // Si nombre es "", el servidor borrará al participante anterior.
                 participantes[numStr] = {
                     nombre: nombre,
-                    pago: pagado,
-                    adelantado: adelantado
+                    pago: slot.classList.contains('paid'),
+                    adelantado: slot.getAttribute('data-adelantado') === 'true'
                 };
             }
         }
