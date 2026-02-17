@@ -464,37 +464,45 @@ app.post('/procesar-movimiento', async (req, res) => {
         const mesesParaSQL = MesesCorrespondientes || "Abono General";
 
         if (tipoMovimiento === 'deuda') {
-            // 1. OBTENER ESTADO ACTUAL DEL PRÉSTAMO PARA VALIDAR
-            // Ajusta 'MontoInteresTotal' al nombre real de tu columna que guarda el interés generado
+            // 1. OBTENEMOS EL INTERÉS REAL QUE DEBE EL PRÉSTAMO
             const checkPrestamo = await pool.request()
                 .input('idP', sql.Int, idPrestamo)
-                .query(`SELECT MontoPrestado, InteresesPagados, 
-                        (MontoPrestado * 0.05) as InteresEsperado -- Ejemplo si es el 5% fijo
+                .query(`SELECT SaldoActual, InteresGenerado, InteresesPagados 
                         FROM Prestamos WHERE ID_Prestamo = @idP`);
             
             const p = checkPrestamo.recordset[0];
-            // Si no tienes una columna de interés total, calculamos el pendiente:
-            // InteresPendiente = (Lo que debe pagar de interés) - (Lo que ya pagó de interés)
-            const interesPendiente = (p.InteresEsperado) - p.InteresesPagados;
+            if (!p) return res.status(404).json({ success: false, error: "Préstamo no encontrado." });
+
+            // El interés pendiente es lo generado menos lo ya pagado
+            const interesGenerado = parseFloat(p.InteresGenerado || 0);
+            const interesesPagados = parseFloat(p.InteresesPagados || 0);
+            const interesPendiente = interesGenerado - interesesPagados;
 
             if (destinoAbono === 'interes') {
-                // VALIDACIÓN: No tiene intereses pendientes
+                // VALIDACIÓN CRÍTICA: Si el interés pendiente es 0 o menor, bloqueamos
                 if (interesPendiente <= 0) {
-                    return res.status(400).json({ success: false, error: "No hay intereses pendientes por pagar en este préstamo." });
-                }
-                // VALIDACIÓN: El abono excede el interés debido
-                if (m > (interesPendiente + 0.01)) { // +0.01 por temas de decimales
-                    return res.status(400).json({ success: false, error: `El monto excede el interés pendiente ($${interesPendiente.toLocaleString()}).` });
+                    return res.status(400).json({ 
+                        success: false, 
+                        error: "No puedes abonar a interés. Este préstamo no tiene intereses acumulados pendientes." 
+                    });
                 }
 
-                // SI PASA: ABONO A INTERÉS
+                // VALIDACIÓN: No permitir pagar más interés del que se debe
+                if (m > (interesPendiente + 0.01)) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        error: `El monto excede el interés pendiente ($${interesPendiente.toLocaleString()}).` 
+                    });
+                }
+
+                // SI PASA: ACTUALIZAMOS SOLO INTERESES PAGADOS
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
                     .input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET InteresesPagados += @m WHERE ID_Prestamo = @idP");
             } 
             else if (destinoAbono === 'capital') {
-                // ABONO A CAPITAL
+                // ABONO A CAPITAL (Mantenemos tu lógica original)
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
                     .input('m', sql.Decimal(18, 2), m)
