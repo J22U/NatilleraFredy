@@ -765,38 +765,42 @@ async function confirmarCompra() {
         return;
     }
 
-    // 1. ELIMINAMOS LA RESTRICCIÓN: 
-    // Ahora no importa si pago y adelantado son false. 
-    // El cliente simplemente quedará registrado con deuda.
-
     try {
-        // Bloqueamos el botón de confirmar para evitar doble clic
-        const btnConfirmar = document.querySelector('#modalCompra button[onclick="confirmarCompra()"]');
-        if (btnConfirmar) btnConfirmar.disabled = true;
-
-        // 2. SEGURIDAD PARA EL BOTÓN ELIMINADO:
-        // Verificamos si existe antes de intentar tocarlo
+        // 1. Evitar errores con el botón que borramos
         const btnTabla = document.getElementById('btnNuevaTabla');
-        if (btnTabla) {
-            btnTabla.setAttribute('disabled', 'true');
+        if (btnTabla) btnTabla.disabled = true;
+
+        // 2. OBTENER LOS DATOS ACTUALES (Para saber qué número estamos editando)
+        // Estas variables 'currentTablaId' y 'currentNumero' deben existir en tu rifas.js
+        // Si tienen otros nombres, ajústalos aquí:
+        const tablaId = window.currentTablaId; 
+        const numero = window.currentNumero;
+
+        const datos = await cargarDatosDesdeNube();
+
+        // 3. ACTUALIZAR EL PARTICIPANTE
+        if (datos[tablaId] && datos[tablaId].participantes) {
+            datos[tablaId].participantes[numero] = {
+                nombre: nombre,
+                pago: pago,
+                adelantado: adelantado,
+                fechaRegistro: new Date().toISOString()
+            };
+
+            // 4. GUARDAR EN LA NUBE
+            await guardarTodo(datos);
+            
+            // 5. CERRAR Y REFRESCAR
+            cerrarModal();
+            
+            // Si tienes una función para refrescar la UI sin recargar, úsala aquí. 
+            // Si no, location.reload() es lo más seguro:
+            location.reload(); 
         }
-
-        // 3. EJECUTAR LA LÓGICA DE GUARDADO
-        // (Asegúrate de que esta parte coincida con cómo guardas en tu rifas.js)
-        await ejecutarRegistroPuesto(nombre, pago, adelantado);
-
-        cerrarModal();
-        
-        // Notificación opcional de éxito
-        const estado = (pago || adelantado) ? 'pagado' : 'con deuda';
-        console.log(`Cliente ${nombre} registrado ${estado}.`);
 
     } catch (error) {
         console.error("Error al confirmar:", error);
         Swal.fire('Error', 'No se pudo registrar la compra', 'error');
-    } finally {
-        const btnConfirmar = document.querySelector('#modalCompra button[onclick="confirmarCompra()"]');
-        if (btnConfirmar) btnConfirmar.disabled = false;
     }
 }
 
