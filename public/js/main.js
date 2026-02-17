@@ -1024,72 +1024,75 @@ async function toggleDeudas() {
     }
 }
 
-async function ejecutarCruceCuentas() {
-    const numPantalla = document.getElementById('mov_id').value;
-    const idReal = window.mapeoIdentificadores[numPantalla];
-
-    if (!idReal) return Swal.fire('Error', 'Ingresa un ID de pantalla válido (#1, #2...)', 'warning');
-
+app.post('/procesar-cruce', async (req, res) => {
+    const { idPersona, idPrestamo, monto } = req.body;
     try {
-        // Consultar estado y deudas en paralelo
-        const [resEstado, resDeuda] = await Promise.all([
-            fetch(`/estado-cuenta/${idReal}`),
-            fetch(`/detalle-prestamo/${idReal}`) // Usamos detalle-prestamo que es más completo
-        ]);
+        const pool = await poolPromise;
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
 
-        const estado = await resEstado.json();
-        const deudas = await resDeuda.json();
+        try {
+            // 1. OBTENER EL INTERÉS ACUMULADO AL DÍA DE HOY
+            const prestamoInfo = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query(`
+                    SELECT 
+                        MontoPrestado, 
+                        InteresesPagados,
+                        (MontoPrestado * (TasaInteres / 100.0 / 30.0) * DATEDIFF(DAY, FechaInicio, GETDATE())) as InteresCalculado
+                    FROM Prestamos WHERE ID_Prestamo = @idP
+                `);
 
-        // Filtrar solo préstamos que tengan saldo pendiente real
-        const prestamosActivos = deudas.filter(p => Number(p.SaldoActual) > 0);
+            const p = prestamoInfo.recordset[0];
+            const interesPendiente = Math.max(0, p.InteresCalculado - p.InteresesPagados);
 
-        if (estado.totalAhorrado <= 0) return Swal.fire('Sin fondos', 'El socio no tiene ahorros', 'info');
-        if (prestamosActivos.length === 0) return Swal.fire('Sin deuda', 'El socio no tiene deudas pendientes', 'info');
+            // Determinar cuánto va para interés y cuánto para capital
+            let pagoInteres = Math.min(monto, interesPendiente);
+            let pagoCapital = monto - pagoInteres;
 
-        // Tomamos el primer préstamo con deuda
-        const prestamo = prestamosActivos[0];
-        const saldoDeuda = Number(prestamo.SaldoActual);
-        const montoACruzar = Math.min(estado.totalAhorrado, saldoDeuda);
+            // 2. DESCONTAR DE AHORROS
+            await transaction.request()
+                .input('idPers', sql.Int, idPersona)
+                .input('m', sql.Decimal(18, 2), monto)
+                .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
+                        VALUES (@idPers, -@m, GETDATE(), 'CRUCE DE CUENTAS POR DEUDA')`);
 
-        const { isConfirmed } = await Swal.fire({
-            title: '¿Confirmar Cruce de Cuentas?',
-            html: `
-                <div class="text-center space-y-2">
-                    <p>Ahorros: <b class="text-emerald-600">$${Number(estado.totalAhorrado).toLocaleString()}</b></p>
-                    <p>Deuda actual: <b class="text-rose-600">$${saldoDeuda.toLocaleString()}</b></p>
-                    <div class="bg-slate-100 p-3 rounded-xl mt-4">
-                        <span class="text-xs uppercase font-bold text-slate-500">Se aplicará un pago de:</span><br>
-                        <span class="text-2xl font-black text-indigo-600">$${montoACruzar.toLocaleString()}</span>
-                    </div>
-                </div>`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Sí, aplicar cruce',
-            confirmButtonColor: '#059669'
-        });
+            // 3. ACTUALIZAR PRÉSTAMO (Repartiendo el pago)
+            await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .input('pInt', sql.Decimal(18, 2), pagoInteres)
+                .input('pCap', sql.Decimal(18, 2), pagoCapital)
+                .query(`
+                    UPDATE Prestamos 
+                    SET 
+                        InteresesPagados += @pInt,
+                        MontoPagado += @pCap,
+                        SaldoActual = CASE WHEN (SaldoActual - @pCap) < 0 THEN 0 ELSE SaldoActual - @pCap END,
+                        Estado = CASE WHEN (SaldoActual - @pCap) <= 0 AND (MontoInteres - (InteresesPagados + @pInt)) <= 0 THEN 'Pagado' ELSE 'Activo' END
+                    WHERE ID_Prestamo = @idP
+                `);
 
-        if (isConfirmed) {
-            const res = await fetch('/procesar-cruce', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    idPersona: idReal,
-                    idPrestamo: prestamo.ID_Prestamo,
-                    monto: montoACruzar
-                })
-            });
+            // 4. REGISTRAR EN HISTORIAL (Detallando el reparto)
+            const detalleCruce = `Cruce Ahorros: Int: $${pagoInteres.toLocaleString()} | Cap: $${pagoCapital.toLocaleString()}`;
+            await transaction.request()
+                .input('idPers', sql.Int, idPersona)
+                .input('idP', sql.Int, idPrestamo)
+                .input('m', sql.Decimal(18, 2), monto)
+                .input('det', sql.VarChar, detalleCruce)
+                .query(`INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento, Detalle)
+                        VALUES (@idPers, @idP, @m, GETDATE(), 'Cruce de Cuentas', @det)`);
 
-            const r = await res.json();
-            if (r.success) {
-                Swal.fire('Éxito', 'Cruce procesado correctamente', 'success');
-                cargarTodo(); // Recarga dashboard y tabla
-            }
+            await transaction.commit();
+            res.json({ success: true });
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
         }
     } catch (err) {
-        console.error(err);
-        Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
+        console.error("Error en cruce:", err.message);
+        res.status(500).json({ success: false, error: err.message });
     }
-}
+});
 
 async function verificarTipoMovimiento() {
     const tipo = document.getElementById('tipoMovimiento').value;
