@@ -48,60 +48,78 @@ app.post('/login', (req, res) => {
 
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
+        const { fecha } = req.query; // Capturamos la fecha que viene del navegador (?fecha=...)
         const pool = await poolPromise;
-        
-        // Buscamos la fila con Id = 1 que es donde guardas la configuración de la rifa
-        const result = await pool.request()
-            .query("SELECT DatosJSON FROM ConfiguracionRifas WHERE Id = 1");
+        let query;
+        let request = pool.request();
+
+        if (fecha) {
+            // SI HAY FECHA: Buscamos específicamente esa rifa en el historial
+            // Usamos el formato de fecha para buscar en la columna nueva que creamos
+            query = "SELECT DatosJSON FROM ConfiguracionRifas WHERE FechaSorteo = @fechaBuscada";
+            request.input('fechaBuscada', fecha); 
+        } else {
+            // SI NO HAY FECHA: Traemos la rifa actual (la última guardada)
+            query = "SELECT TOP 1 DatosJSON FROM ConfiguracionRifas ORDER BY Id DESC";
+        }
+
+        const result = await request.query(query);
         
         if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
-            // Convertimos el texto largo de la base de datos en un objeto JSON
             const datosParseados = JSON.parse(result.recordset[0].DatosJSON);
-            
-            // Enviamos el JSON al navegador
             res.json(datosParseados);
         } else {
-            // Si la base de datos está vacía, enviamos una estructura base
-            // para que el frontend no falle y sepa que debe crear tablas nuevas
+            // Si no encuentra nada para esa fecha, enviamos estructura vacía
             res.json({ 
-                info: { nombre: '', premio: '', valor: '', fecha: '' }, 
-                tablas: [] 
+                info: { nombre: '', premio: '', valor: '', fecha: fecha || '' }, 
+                tabla1: null, tabla2: null, tabla3: null, tabla4: null 
             });
         }
     } catch (err) {
         console.error("❌ Error al leer la base de datos:", err.message);
-        res.status(500).json({ 
-            success: false, 
-            error: "Error interno del servidor al cargar los datos." 
-        });
+        res.status(500).json({ error: "Error al cargar datos." });
     }
 });
 
 app.post('/api/guardar-rifa', async (req, res) => {
     try {
         const pool = await poolPromise;
-        
-        // 1. Primero leemos lo que ya hay para no borrar las otras tablas
-        const current = await pool.request()
-            .query("SELECT DatosJSON FROM ConfiguracionRifas WHERE Id = 1");
-        
-        let datosExistentes = { info: {}, tablas: [] };
-        if (current.recordset.length > 0 && current.recordset[0].DatosJSON) {
-            datosExistentes = JSON.parse(current.recordset[0].DatosJSON);
+        const nuevosDatos = req.body;
+        // Sacamos la fecha del objeto info que mandas desde el frontend
+        const fechaSorteo = nuevosDatos.info ? nuevosDatos.info.fecha : null;
+
+        if (!fechaSorteo) {
+            return res.status(400).json({ success: false, error: "La fecha es obligatoria para guardar." });
         }
 
-        // 2. Fusionamos los datos nuevos con los viejos
-        // Esto asegura que si guardas la Tabla 2, no se borre la 1, 3 o 4
-        const datosActualizados = { ...datosExistentes, ...req.body };
+        // 1. Buscamos si ya existe un registro para ESA fecha específica
+        const check = await pool.request()
+            .input('fecha', sql.Date, fechaSorteo)
+            .query("SELECT Id, DatosJSON FROM ConfiguracionRifas WHERE FechaSorteo = @fecha");
 
-        // 3. Guardamos en la tabla CORRECTA (ConfiguracionRifas)
-        await pool.request()
-            .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosActualizados))
-            .query("UPDATE ConfiguracionRifas SET DatosJSON = @datos, UltimaActualizacion = GETDATE() WHERE Id = 1");
-        
-        res.json({ success: true });
+        let datosFinales;
+
+        if (check.recordset.length > 0) {
+            // SI EXISTE: Fusionamos lo nuevo con lo que ya había en esa fecha
+            const datosViejos = JSON.parse(check.recordset[0].DatosJSON);
+            datosFinales = { ...datosViejos, ...nuevosDatos };
+
+            await pool.request()
+                .input('id', sql.Int, check.recordset[0].Id)
+                .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosFinales))
+                .query("UPDATE ConfiguracionRifas SET DatosJSON = @datos, UltimaActualizacion = GETDATE() WHERE Id = @id");
+        } else {
+            // NO EXISTE: Es una fecha nueva (o historial nuevo), creamos fila nueva
+            datosFinales = nuevosDatos;
+            await pool.request()
+                .input('fecha', sql.Date, fechaSorteo)
+                .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosFinales))
+                .query("INSERT INTO ConfiguracionRifas (FechaSorteo, DatosJSON, UltimaActualizacion) VALUES (@fecha, @datos, GETDATE())");
+        }
+
+        res.json({ success: true, message: "Guardado correctamente en historial" });
     } catch (err) {
-        console.error("❌ Error real en SQL:", err.message);
+        console.error("❌ Error al guardar:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
