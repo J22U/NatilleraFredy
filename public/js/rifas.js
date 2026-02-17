@@ -197,16 +197,22 @@ function actualizarEstado(tableId, n) {
 // En lugar de guardarTodo(), enviamos solo la tabla afectada
 function guardarCambioIndividual(tablaId) {
     const status = document.getElementById('sync-status');
-    status.className = 'sync-saving'; // Luz azul
+    if (status) status.className = 'sync-saving';
 
     const tablaElemento = document.getElementById(`rifa-${tablaId}`);
+    if (!tablaElemento) return;
+
+    // CAPTURAMOS LA FECHA (Vital para el historial)
+    // Primero miramos si hay una fecha de historial, si no, la fecha actual de la rifa
+    const fechaRifa = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value;
+
     const datosTabla = {
         id: tablaId,
+        fecha: fechaRifa, // <--- AHORA EL SERVIDOR SABE QUÉ RIFA ES
         titulo: tablaElemento.querySelector('.input-table-title').value,
         participantes: obtenerParticipantesDeTabla(tablaElemento)
     };
 
-    // Enviamos solo esta pieza de datos
     fetch('/api/guardar-tabla-unica', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -214,9 +220,16 @@ function guardarCambioIndividual(tablaId) {
     })
     .then(res => {
         if(res.ok) {
-            status.className = 'sync-success'; // Luz verde
-            setTimeout(() => status.className = 'sync-idle', 2000);
+            if (status) {
+                status.className = 'sync-success';
+                setTimeout(() => status.className = 'sync-idle', 2000);
+            }
+        } else {
+            if (status) status.className = 'sync-error';
         }
+    })
+    .catch(() => {
+        if (status) status.className = 'sync-error';
     });
 }
 
@@ -914,19 +927,40 @@ async function cargarRifasPorFecha() {
     container.innerHTML = '<p style="text-align:center; padding:50px;">Buscando registros...</p>';
 
     try {
-        // Enviamos la fecha como parámetro
+        // 1. Pedimos los datos al servidor filtrando por fecha
         const response = await fetch(`/api/cargar-rifas?fecha=${fechaSeleccionada}`);
         const datos = await response.json();
 
-        // Si existen datos para esa fecha, llenamos la pantalla
         if (datos && !datos.error) {
-            renderizarTodo(datos); // Esta función dibujará las tablas con los datos recibidos
+            // 2. Limpiamos el contenedor para borrar la rifa actual
+            container.innerHTML = ''; 
+
+            // 3. Dibujamos las tablas con los datos que llegaron del historial
+            let tablasEncontradas = false;
+            for (let i = 1; i <= 4; i++) {
+                const llaveTabla = `tabla${i}`;
+                if (datos[llaveTabla]) {
+                    const t = datos[llaveTabla];
+                    t.idTabla = i;
+                    t.nombre = t.titulo || `Tabla ${i}`;
+                    crearTabla(t); // Usamos tu función crearTabla que ya funciona
+                    tablasEncontradas = true;
+                }
+            }
+
+            if (!tablasEncontradas) {
+                container.innerHTML = '<p style="text-align:center; padding:50px;">No se encontraron tablas para esta fecha.</p>';
+            }
+
+            // 4. Actualizamos los contadores de esa fecha
+            actualizarContadoresRifa();
+            
         } else {
-            // Si no hay datos, podrías dar la opción de "Iniciar nueva rifa basada en la anterior"
             container.innerHTML = '<p style="text-align:center; padding:50px;">No hay registros para esta fecha.</p>';
         }
     } catch (error) {
         console.error("Error historial:", error);
+        container.innerHTML = '<p style="text-align:center; padding:20px; color:red;">Error de conexión al cargar historial.</p>';
     }
 }
 
