@@ -751,6 +751,29 @@ app.get('/api/estadisticas-rifas', async (req, res) => {
     }
 });
 
+app.post('/api/registrar-gasto-ganancias', async (req, res) => {
+    const { monto, detalle } = req.body;
+    const pool = await poolPromise;
+
+    try {
+        // Esta consulta resta de la columna donde se acumulan los intereses
+        // O resetea a 0 si prefieres un reparto total
+        await pool.request()
+            .input('monto', sql.Decimal(18, 2), monto)
+            .query(`
+                UPDATE Prestamos 
+                SET InteresesPagados = CASE 
+                    WHEN (InteresesPagados - @monto) < 0 THEN 0 
+                    ELSE InteresesPagados - @monto 
+                END
+            `);
+
+        res.json({ success: true, message: "Ganancias actualizadas tras reparto" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

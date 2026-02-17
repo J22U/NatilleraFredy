@@ -1771,3 +1771,23 @@ async function registrarMovimientoInteres(idSocio, monto, detalle, tipo) {
     }
     return await response.json();
 }
+
+async function registrarGastoGanancias(monto, detalle) {
+    try {
+        const response = await fetch('/api/registrar-gasto-ganancias', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                monto: monto,
+                detalle: detalle
+            })
+        });
+
+        if (!response.ok) throw new Error("Error al descontar de ganancias");
+        
+        return await response.json();
+    } catch (error) {
+        console.error("Fallo en registrarGastoGanancias:", error);
+        throw error;
+    }
+}
