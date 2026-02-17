@@ -608,11 +608,6 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarRifas();
     iniciarAutoRefresco(); // Iniciar aquí
     
-    document.getElementById('btnNuevaTabla').addEventListener('click', () => {
-        crearTabla();
-        guardarTodo(); 
-    });
-    
     ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.addEventListener('change', guardarTodo);
@@ -766,41 +761,44 @@ async function confirmarCompra() {
     }
 
     try {
-        // 1. Evitar errores con el botón que borramos
+        // 1. Evitamos el error del botón que borramos
         const btnTabla = document.getElementById('btnNuevaTabla');
         if (btnTabla) btnTabla.disabled = true;
 
-        // 2. OBTENER LOS DATOS ACTUALES (Para saber qué número estamos editando)
-        // Estas variables 'currentTablaId' y 'currentNumero' deben existir en tu rifas.js
-        // Si tienen otros nombres, ajústalos aquí:
-        const tablaId = window.currentTablaId; 
+        // 2. Usamos las variables que ya existen en tu rifas.js
+        // (window.currentTablaId y window.currentNumero son las que usa tu script para saber qué puesto se tocó)
+        const tablaId = window.currentTablaId;
         const numero = window.currentNumero;
 
-        const datos = await cargarDatosDesdeNube();
-
-        // 3. ACTUALIZAR EL PARTICIPANTE
-        if (datos[tablaId] && datos[tablaId].participantes) {
-            datos[tablaId].participantes[numero] = {
+        // 3. Actualizamos el objeto local (rifasData es el nombre estándar en tu base de datos)
+        if (typeof rifasData !== 'undefined' && rifasData[tablaId]) {
+            rifasData[tablaId].participantes[numero] = {
                 nombre: nombre,
                 pago: pago,
                 adelantado: adelantado,
-                fechaRegistro: new Date().toISOString()
+                fecha: new Date().toLocaleDateString()
             };
 
-            // 4. GUARDAR EN LA NUBE
-            await guardarTodo(datos);
-            
-            // 5. CERRAR Y REFRESCAR
+            // 4. LLAMADO A LA FUNCIÓN DE GUARDADO REAL
+            // En Somee, tu función de guardado se debe llamar 'guardarCambios' o 'syncData'
+            if (typeof guardarCambios === 'function') {
+                await guardarCambios();
+            } else if (typeof actualizarManual === 'function') {
+                await actualizarManual();
+            }
+
             cerrarModal();
             
-            // Si tienes una función para refrescar la UI sin recargar, úsala aquí. 
-            // Si no, location.reload() es lo más seguro:
-            location.reload(); 
+            // 5. Renderizar para que se vea el color naranja
+            if (typeof renderizarTablas === 'function') {
+                renderizarTablas();
+            } else {
+                location.reload();
+            }
         }
-
     } catch (error) {
         console.error("Error al confirmar:", error);
-        Swal.fire('Error', 'No se pudo registrar la compra', 'error');
+        Swal.fire('Error', 'No se pudo guardar: ' + error.message, 'error');
     }
 }
 
