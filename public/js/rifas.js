@@ -6,19 +6,16 @@ let timerDebounce;
 
 function crearTabla(t = {}) {
     const container = document.getElementById('rifasContainer');
-    // Si no hay idTabla, usamos el conteo de hijos + 1
     const idTabla = t.idTabla || (container.children.length + 1);
     const participantes = t.participantes || {};
 
-    // 1. Creamos la estructura del Acordeón (rifa-card)
     const card = document.createElement('div');
-card.id = `rifa-${idTabla}`; // Esto es vital para que toggleTabla funcione
-card.className = 'rifa-card'; 
+    card.id = `rifa-${idTabla}`; 
+    card.className = 'rifa-card'; 
 
-    // 2. Cabecera de la tarjeta
     const header = document.createElement('div');
     header.className = 'rifa-card-header';
-    header.style.cursor = 'pointer'; // Para que sepa que es un botón
+    header.style.cursor = 'pointer';
     header.innerHTML = `
         <div>
             <span class="tabla-badge">${idTabla}</span>
@@ -29,20 +26,16 @@ card.className = 'rifa-card';
         <i class="fas fa-chevron-down arrow-icon"></i>
     `;
 
-    // --- LÓGICA PARA DESPLEGAR/CONTRAER ---
     header.onclick = () => {
         card.classList.toggle('active');
     };
 
-    // 3. Cuerpo de la tarjeta
     const body = document.createElement('div');
     body.className = 'rifa-card-body';
     
-    // 4. LA GRILLA
     const grid = document.createElement('div');
     grid.className = 'numeros-grid';
 
-    // 5. Generar los 100 slots
     for (let i = 0; i < 100; i++) {
         const numStr = i.toString().padStart(2, '0');
         const slot = document.createElement('div');
@@ -50,7 +43,10 @@ card.className = 'rifa-card';
         slot.id = `t${idTabla}-${numStr}`;
 
         const p = participantes[numStr];
-        if (p) {
+
+        // --- CORRECCIÓN CLAVE: VALIDAR QUE EL NOMBRE NO ESTÉ VACÍO ---
+        if (p && p.nombre && p.nombre.trim() !== "") {
+            // Solo si tiene nombre real asignamos colores
             if (p.pago) slot.classList.add('paid');
             else slot.classList.add('reserved');
             
@@ -59,15 +55,16 @@ card.className = 'rifa-card';
                 <div class="n-name">${p.nombre}</div>
             `;
         } else {
+            // Si el nombre es "" o no existe, queda limpio (blanco)
+            slot.classList.remove('paid', 'reserved');
             slot.innerHTML = `
                 <span class="n-number">${numStr}</span>
                 <div class="n-name"></div>
             `;
         }
 
-        // Evento para abrir el modal
         slot.onclick = (e) => {
-            e.stopPropagation(); // IMPORTANTE: evita que al elegir número se cierre la tabla
+            e.stopPropagation();
             abrirModalCompra(idTabla, numStr);
         };
         
