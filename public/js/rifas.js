@@ -273,21 +273,66 @@ async function sincronizarConServidor(datos) {
 
 async function cargarRifas() {
     const container = document.getElementById('rifasContainer');
-    // CAPTURAMOS LA FECHA ACTUAL DEL INPUT ANTES DE PEDIR
-    const fechaFiltro = document.getElementById('rifaDate')?.value || 
-                         document.getElementById('filtroFecha')?.value || '';
+    
+    // 1. Intentamos obtener la fecha de cualquiera de los dos inputs
+    const filtroFecha = document.getElementById('filtroFecha');
+    const rifaDate = document.getElementById('rifaDate');
+    const fechaParaCargar = filtroFecha?.value || rifaDate?.value || new Date().toISOString().split('T')[0];
+
+    // Aseguramos que ambos calendarios muestren la misma fecha
+    if (filtroFecha) filtroFecha.value = fechaParaCargar;
+    if (rifaDate) rifaDate.value = fechaParaCargar;
 
     try {
-        // LE PASAMOS LA FECHA AL SERVIDOR (Para que no nos mande cualquier cosa)
-        const response = await fetch(`/api/cargar-rifas?fecha=${fechaFiltro}`); 
+        // 2. Intentamos pedir los datos al servidor
+        const response = await fetch(`/api/cargar-rifas?fecha=${fechaParaCargar}`); 
+        
+        if (!response.ok) {
+            throw new Error(`Error servidor: ${response.status}`);
+        }
+
         const datos = await response.json();
 
-        if (datos && !datos.error) {
-            // ... (el resto de tu lógica de llenar inputs y crear tablas se mantiene igual)
+        // 3. Limpiamos el contenedor antes de dibujar
+        container.innerHTML = ''; 
+
+        // 4. Llenamos la información general (si existe)
+        if (datos && datos.info) {
+            if(document.getElementById('rifaName')) document.getElementById('rifaName').value = datos.info.nombre || '';
+            if(document.getElementById('rifaPrize')) document.getElementById('rifaPrize').value = datos.info.premio || '';
+            if(document.getElementById('rifaCost')) document.getElementById('rifaCost').value = datos.info.valor || '';
+            if(document.getElementById('costoPremio')) document.getElementById('costoPremio').value = datos.info.inversion || '';
         }
+
+        // 5. Dibujamos las 4 tablas (usando datos del servidor o vacías como respaldo)
+        for (let i = 1; i <= 4; i++) {
+            const llaveTabla = `tabla${i}`;
+            const t = datos[llaveTabla] || { nombre: `Tabla ${i}`, participantes: {} };
+            
+            // Forzamos el ID correcto para que el acordeón funcione
+            t.idTabla = i; 
+            if (!t.nombre) t.nombre = `Tabla ${i}`;
+            
+            crearTabla(t);
+        }
+
     } catch (error) {
-        console.error("Error al cargar:", error);
-        container.innerHTML = '<p style="padding:20px; color:red;">Error de conexión.</p>';
+        console.error("⚠️ Error al cargar, generando tablas de emergencia:", error);
+        
+        // 6. RESPALDO: Si el servidor falla, dibujamos las tablas vacías para que puedas trabajar
+        container.innerHTML = ''; 
+        for (let i = 1; i <= 4; i++) {
+            crearTabla({ 
+                nombre: `Tabla ${i}`, 
+                idTabla: i, 
+                participantes: {} 
+            });
+        }
+    }
+
+    // 7. Actualizamos los cálculos monetarios finales
+    if (typeof actualizarContadoresRifa === "function") {
+        actualizarContadoresRifa();
     }
 }
 
