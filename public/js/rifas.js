@@ -833,6 +833,18 @@ async function confirmarCompra() {
     }
 }
 
+function cerrarModal() {
+    const modal = document.getElementById('modalCompra');
+    if (modal) {
+        modal.style.display = 'none';
+        
+        // Opcional: Limpiar los campos para que la próxima vez estén vacíos
+        document.getElementById('modalNombre').value = '';
+        document.getElementById('modalPago').checked = false;
+        document.getElementById('modalAdelantado').checked = false;
+    }
+}
+
 function actualizarContadoresVisuales() {
     const datos = recolectarDatosPantalla();
     const costoPuesto = parseFloat(datos.info.valor) || 0;
