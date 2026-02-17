@@ -752,53 +752,44 @@ function abrirModalCompra(idTabla, numero) {
 
 async function confirmarCompra() {
     const nombre = document.getElementById('modalNombre').value.trim().toUpperCase();
-    const pago = document.getElementById('modalPago').checked;
+    const pago = document.getElementById('modalPago').checked; // true o false
     const adelantado = document.getElementById('modalAdelantado').checked;
 
     if (!nombre) {
-        Swal.fire('Atención', 'Debes ingresar el nombre del cliente', 'warning');
+        Swal.fire('Atención', 'Debes ingresar el nombre', 'warning');
         return;
     }
 
     try {
-        const btnTabla = document.getElementById('btnNuevaTabla');
-        if (btnTabla) btnTabla.disabled = true;
-
         const tablaId = window.currentTablaId;
         const numero = window.currentNumero;
 
-        // ACTUALIZACIÓN DE LA LÓGICA CON LOS NOMBRES REALES DE SOMEE
-        if (typeof rifasData !== 'undefined' && rifasData[tablaId]) {
-            // Guardamos usando los nombres exactos de tus columnas:
+        // 1. ACTUALIZAR MEMORIA LOCAL
+        if (typeof rifasData !== 'undefined') {
             rifasData[tablaId].participantes[numero] = {
-                NombreParticipante: nombre, // Antes era 'nombre'
-                EstadoPago: pago,           // Antes era 'pago'
-                Adelantado: adelantado      // Lo mantenemos por si lo usas en el objeto
+                NombreParticipante: nombre,
+                EstadoPago: pago, 
+                Adelantado: adelantado
             };
-
-            // Intentamos sincronizar con el servidor
-            if (typeof syncData === 'function') {
-                await syncData();
-            } else if (typeof guardarCambios === 'function') {
-                await guardarCambios();
-            } else if (typeof venderPuesto === 'function') {
-                // Si tu función venderPuesto acepta los parámetros, asegúrate de enviarlos bien
-                await venderPuesto(nombre, pago, adelantado);
-            }
         }
 
-        cerrarModal();
-        
-        // Refrescamos la UI para que se aplique el color naranja
-        if (typeof renderizarTablas === 'function') {
-            renderizarTablas();
+        // 2. GUARDADO REAL EN SOMEE (SQL)
+        // Vamos a llamar a la función que probablemente hace el fetch a tu base de datos
+        if (typeof guardarCambios === 'function') {
+            await guardarCambios(); 
         } else {
-            location.reload(); 
+            // Si no existe 'guardarCambios', intentamos la que manda los datos directo
+            // pasándole los nombres de columna que vimos en tu SQL
+            await registrarVentaEnBaseDeDatos(tablaId, numero, nombre, pago);
         }
+
+        Swal.fire('Éxito', 'Puesto registrado', 'success');
+        cerrarModal();
+        renderizarTablas(); // Esto refresca y pondrá el color naranja
 
     } catch (error) {
-        console.error("Error al confirmar:", error);
-        Swal.fire('Error', 'No se pudo registrar en la base de datos', 'error');
+        console.error("Error:", error);
+        Swal.fire('Error', 'No se pudo guardar en la base de datos', 'error');
     }
 }
 
