@@ -761,38 +761,35 @@ async function confirmarCompra() {
     }
 
     try {
-        // 1. Evitamos el error del botón que borramos (btnNuevaTabla)
         const btnTabla = document.getElementById('btnNuevaTabla');
         if (btnTabla) btnTabla.disabled = true;
 
-        // 2. Usamos las variables globales que ya tiene tu script
-        // Estas son las que guardan qué número de puesto tocaste
         const tablaId = window.currentTablaId;
         const numero = window.currentNumero;
 
-        // 3. Buscamos la función REAL de guardado de tu proyecto
-        // En tu caso, es MUY probable que se llame 'venderPuesto' o 'guardarDatos'
-        if (typeof venderPuesto === 'function') {
-            await venderPuesto(nombre, pago, adelantado);
-        } else if (typeof guardarDatos === 'function') {
-            await guardarDatos(tablaId, numero, nombre, pago, adelantado);
-        } else {
-            // Si ninguna de las anteriores existe, intentamos la lógica directa de actualización
-            if (typeof rifasData !== 'undefined') {
-                rifasData[tablaId].participantes[numero] = {
-                    nombre: nombre,
-                    pago: pago,
-                    adelantado: adelantado
-                };
-                // Buscamos la función que sincroniza con Somee
-                if (typeof syncData === 'function') await syncData();
-                else if (typeof guardarCambios === 'function') await guardarCambios();
+        // ACTUALIZACIÓN DE LA LÓGICA CON LOS NOMBRES REALES DE SOMEE
+        if (typeof rifasData !== 'undefined' && rifasData[tablaId]) {
+            // Guardamos usando los nombres exactos de tus columnas:
+            rifasData[tablaId].participantes[numero] = {
+                NombreParticipante: nombre, // Antes era 'nombre'
+                EstadoPago: pago,           // Antes era 'pago'
+                Adelantado: adelantado      // Lo mantenemos por si lo usas en el objeto
+            };
+
+            // Intentamos sincronizar con el servidor
+            if (typeof syncData === 'function') {
+                await syncData();
+            } else if (typeof guardarCambios === 'function') {
+                await guardarCambios();
+            } else if (typeof venderPuesto === 'function') {
+                // Si tu función venderPuesto acepta los parámetros, asegúrate de enviarlos bien
+                await venderPuesto(nombre, pago, adelantado);
             }
         }
 
-        // 4. Cerramos el modal y refrescamos para ver el color naranja
         cerrarModal();
         
+        // Refrescamos la UI para que se aplique el color naranja
         if (typeof renderizarTablas === 'function') {
             renderizarTablas();
         } else {
@@ -800,8 +797,8 @@ async function confirmarCompra() {
         }
 
     } catch (error) {
-        console.error("Error en el sistema:", error);
-        Swal.fire('Error', 'No se pudo procesar: ' + error.message, 'error');
+        console.error("Error al confirmar:", error);
+        Swal.fire('Error', 'No se pudo registrar en la base de datos', 'error');
     }
 }
 
