@@ -794,6 +794,27 @@ app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
     }
 });
 
+// Agrega esto en tu server.js
+app.get('/listar-miembros', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT 
+                ID_Persona as id, 
+                Nombre as nombre, 
+                Documento as documento,
+                -- Calculamos el saldo pendiente de préstamos
+                ISNULL((SELECT SUM(Monto - TotalPagado) FROM Prestamos WHERE ID_Persona = Personas.ID_Persona AND Estado = 'Activo'), 0) as saldoPendiente
+            FROM Personas
+            WHERE Estado = 'Activo' AND EsSocio = 1
+        `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Error al listar miembros:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
