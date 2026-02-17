@@ -582,32 +582,35 @@ app.post('/registrar-abono-dinamico', async (req, res) => {
 
     try {
         await transaction.begin();
+        const m = parseFloat(monto);
 
-        // 1. Registrar el movimiento en el historial
+        // 1. Registrar el movimiento en el historial (Usando la columna 'Detalle' que creamos)
         await transaction.request()
             .input('idPrestamo', sql.Int, idPrestamo)
             .input('idPersona', sql.Int, idPersona)
-            .input('monto', sql.Decimal(18, 2), monto)
-            .input('detalle', sql.VarChar, `Abono a ${tipo}`)
-            .query(`INSERT INTO HistorialPagos (ID_Prestamo, ID_Persona, Monto, Fecha, Detalle) 
-                    VALUES (@idPrestamo, @idPersona, @monto, GETDATE(), @detalle)`);
+            .input('monto', sql.Decimal(18, 2), m)
+            .input('detalle', sql.VarChar, `Abono a ${tipo.toUpperCase()}`)
+            .query(`INSERT INTO HistorialPagos (ID_Prestamo, ID_Persona, Monto, Fecha, Detalle, TipoMovimiento) 
+                    VALUES (@idPrestamo, @idPersona, @monto, GETDATE(), @detalle, 'Abono Deuda')`);
 
-        // 2. Si es abono a CAPITAL, restamos del MontoPrestado inicial
+        // 2. Si es abono a CAPITAL
         if (tipo === 'capital') {
             await transaction.request()
                 .input('idPrestamo', sql.Int, idPrestamo)
-                .input('monto', sql.Decimal(18, 2), monto)
+                .input('monto', sql.Decimal(18, 2), m)
                 .query(`UPDATE Prestamos 
-                        SET MontoPrestado = MontoPrestado - @monto 
+                        SET MontoPagado = MontoPagado + @monto, -- Registra cuánto capital ha devuelto
+                            SaldoActual = CASE WHEN (SaldoActual - @monto) < 0 THEN 0 ELSE SaldoActual - @monto END,
+                            Estado = CASE WHEN (SaldoActual - @monto) <= 0 THEN 'Pagado' ELSE 'Activo' END 
                         WHERE ID_Prestamo = @idPrestamo`);
         } 
-        // 3. Si es a INTERES, lo sumamos a MontoPagado (para registro)
+        // 3. Si es a INTERES (Esto es lo que el Reparto Global necesita ver)
         else {
             await transaction.request()
                 .input('idPrestamo', sql.Int, idPrestamo)
-                .input('monto', sql.Decimal(18, 2), monto)
+                .input('monto', sql.Decimal(18, 2), m)
                 .query(`UPDATE Prestamos 
-                        SET MontoPagado = MontoPagado + @monto 
+                        SET InteresesPagados = InteresesPagados + @monto -- AQUÍ SE SUMA LA GANANCIA REAL
                         WHERE ID_Prestamo = @idPrestamo`);
         }
 
@@ -615,7 +618,8 @@ app.post('/registrar-abono-dinamico', async (req, res) => {
         res.json({ success: true });
 
     } catch (err) {
-        await transaction.rollback();
+        if (transaction) await transaction.rollback();
+        console.error("Error en abono dinámico:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
