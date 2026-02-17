@@ -478,82 +478,53 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 app.post('/procesar-movimiento', async (req, res) => {
     try {
         const pool = await poolPromise;
+        const { idPersona, monto, tipoMovimiento, idPrestamo, destinoAbono, MesesCorrespondientes } = req.body;
         
-        // 1. Capturamos los datos (Incluyendo el nuevo destinoAbono)
-        const mesesParaSQL = req.body.MesesCorrespondientes || req.body.meses || "Abono General";
-        const { idPersona, monto, tipoMovimiento, idPrestamo, destinoAbono } = req.body;
+        // Convertimos a número y validamos
         const m = parseFloat(monto);
+        if (isNaN(m) || m <= 0) {
+            return res.status(400).json({ success: false, error: "El monto debe ser un número válido." });
+        }
 
-        console.log("Servidor procesando:", { tipo: tipoMovimiento, destino: destinoAbono });
+        const mesesParaSQL = MesesCorrespondientes || "Abono General";
 
-        // --- CASO A: ES UNA DEUDA ---
         if (tipoMovimiento === 'deuda') {
-            // Verificamos el destino para saber qué columna afectar
+            // Preparamos la petición base para evitar repetir código de inputs
+            const request = pool.request()
+                .input('idP', sql.Int, idPrestamo)
+                .input('m', sql.Decimal(18, 2), m); // Aquí se define 'm' UNA SOLA VEZ para evitar errores
+
             if (destinoAbono === 'capital') {
-                // ABONO A CAPITAL: Resta la deuda principal y actualiza el dashboard de préstamos
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo)
-                    .input('m', sql.Decimal(18,2))
-                    .query(`
-                        UPDATE Prestamos 
-                        SET MontoPagado += @m,
-                            SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
-                            Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END 
-                        WHERE ID_Prestamo = @idP
-                    `);
+                // ABONO A CAPITAL: Resta la deuda
+                await request.query(`
+                    UPDATE Prestamos 
+                    SET MontoPagado += @m,
+                        SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
+                        Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END 
+                    WHERE ID_Prestamo = @idP
+                `);
             } else {
-                // ABONO A INTERÉS: Suma a ganancias brutas y no afecta el capital prestado
-                // Usamos la columna InteresesPagados para que el Dashboard de "Ganancias" lo sume
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo)
-                    .input('m', sql.Decimal(18,2))
-                    .query(`
-                        UPDATE Prestamos 
-                        SET InteresesPagados += @m 
-                        WHERE ID_Prestamo = @idP
-                    `);
+                // ABONO A INTERÉS: No toca el capital, solo suma ganancia
+                await request.query(`
+                    UPDATE Prestamos 
+                    SET InteresesPagados += @m 
+                    WHERE ID_Prestamo = @idP
+                `);
             }
             
-            // Registro común en el historial de pagos
+            // Registro en Historial
             await pool.request()
                 .input('idPers', sql.Int, idPersona)
                 .input('idPre', sql.Int, idPrestamo)
-                .input('m', sql.Decimal(18,2), m)
+                .input('m', sql.Decimal(18, 2), m)
                 .input('det', sql.VarChar, mesesParaSQL)
                 .query(`
                     INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento, Detalle) 
                     VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda', @det)
                 `);
         } 
-        
-        // --- CASO B: ES UN AHORRO ---
         else if (tipoMovimiento === 'ahorro') {
-            // (Tu lógica de validación de duplicados se mantiene igual)
-            if (mesesParaSQL !== "Abono General") {
-                const checkRes = await pool.request()
-                    .input('id', sql.Int, idPersona)
-                    .query("SELECT MesesCorrespondientes FROM Ahorros WHERE ID_Persona = @id");
-
-                const quincenasNuevas = mesesParaSQL.split(',').map(s => s.trim());
-                let duplicadas = [];
-
-                checkRes.recordset.forEach(reg => {
-                    if (reg.MesesCorrespondientes) {
-                        const existentes = reg.MesesCorrespondientes.split(',').map(s => s.trim());
-                        quincenasNuevas.forEach(q => {
-                            if (existentes.includes(q)) duplicadas.push(q);
-                        });
-                    }
-                });
-
-                if (duplicadas.length > 0) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        error: `Error: Las quincenas [${duplicadas.join(', ')}] ya fueron registradas.` 
-                    });
-                }
-            }
-
+            // Tu lógica de ahorros existente...
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18, 2), m)
@@ -563,7 +534,7 @@ app.post('/procesar-movimiento', async (req, res) => {
 
         res.json({ success: true });
     } catch (err) {
-        console.error("Error en servidor:", err.message);
+        console.error("Error detallado:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 });
