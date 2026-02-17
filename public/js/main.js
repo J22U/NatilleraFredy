@@ -1562,7 +1562,7 @@ async function abrirVentanaInactivos() {
 
 // --- 1. PAGO PARCIAL (CAPITALIZAR A UN SOCIO ESPECÍFICO) ---
 async function liquidarInteresParcial() {
-    // Usamos el ID que ya esté escrito en el campo principal de la pantalla
+    // 1. Obtener el ID de la pantalla como ya lo haces
     const numPantalla = document.getElementById('mov_id').value;
     const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
 
@@ -1570,6 +1570,7 @@ async function liquidarInteresParcial() {
         return Swal.fire('Atención', 'Ingresa el ID del socio en el campo de Abonos para procesar su interés.', 'warning');
     }
 
+    // 2. Pedir el monto
     const { value: monto } = await Swal.fire({
         title: 'Capitalizar Interés Parcial',
         input: 'number',
@@ -1580,14 +1581,41 @@ async function liquidarInteresParcial() {
         confirmButtonText: 'Sumar al Saldo'
     });
 
-    if (monto) {
+    if (monto && monto > 0) {
         try {
-            // Se envía como tipo 'ahorro' para que el sistema lo sume al capital
-            await registrarMovimientoInteres(idReal, parseFloat(monto), 'Abono Parcial de Intereses', 'ahorro');
-            Swal.fire('¡Éxito!', 'El interés ha sido sumado al capital del socio.', 'success');
-            if (typeof cargarTodo === 'function') cargarTodo(); 
+            Swal.fire({ title: 'Procesando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+            // 3. CAMBIO CLAVE: Usamos el fetch a la ruta masiva enviando solo UN socio
+            // Esto asegura que se guarde en la tabla Ahorros correctamente
+            const respuesta = await fetch('/api/ejecutar-reparto-masivo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    sociosAptos: [{ 
+                        id: idReal, 
+                        nombre: "Socio " + numPantalla, // Nombre genérico para el log
+                        interes: parseFloat(monto) 
+                    }] 
+                })
+            });
+
+            const resultado = await respuesta.json();
+
+            if (resultado.success) {
+                Swal.fire('¡Éxito!', 'El interés ha sido sumado al capital del socio.', 'success');
+                
+                // 4. Limpiar el campo y refrescar
+                document.getElementById('mov_id').value = '';
+                if (typeof cargarTodo === 'function') cargarTodo(); 
+                
+                // Si tienes abierto el perfil del socio, refrescarlo
+                if (typeof verDetallesSocio === 'function') verDetallesSocio(idReal);
+            } else {
+                throw new Error(resultado.error);
+            }
         } catch (error) {
-            Swal.fire('Error', 'No se pudo registrar el interés.', 'error');
+            console.error("Error:", error);
+            Swal.fire('Error', 'No se pudo registrar el interés individual.', 'error');
         }
     }
 }
