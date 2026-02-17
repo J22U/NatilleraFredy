@@ -715,7 +715,6 @@ function reordenarBadges() {
  * para guardarlos en el LocalStorage y enviarlos al servidor.
  */
 function recolectarDatosPantalla() {
-    // Buscamos la fecha en cualquiera de los dos inputs disponibles
     const fechaSeleccionada = document.getElementById('rifaDate')?.value || 
                               document.getElementById('filtroFecha')?.value;
 
@@ -724,39 +723,39 @@ function recolectarDatosPantalla() {
             nombre: document.getElementById('rifaName')?.value || '',
             premio: document.getElementById('rifaPrize')?.value || '',
             valor: document.getElementById('rifaCost')?.value || '',
-            fecha: fechaSeleccionada, // Aquí ya no irá vacío
+            fecha: fechaSeleccionada,
             inversion: document.getElementById('costoPremio')?.value || ''
         }
     };
 
-    // 2. Buscamos todas las tarjetas de rifa (tablas) en pantalla
     const tablas = document.querySelectorAll('.rifa-card');
     
-    tablas.forEach((card, index) => {
-        const numeroDeTabla = index + 1;
+    tablas.forEach((card) => {
+        // EXTRAEMOS EL ID REAL (ej: de "rifa-1" sacamos el "1")
+        const idTablaMatch = card.id.match(/\d+/);
+        const numeroDeTabla = idTablaMatch ? idTablaMatch[0] : null;
+        
+        if (!numeroDeTabla) return;
+
         const nombreTabla = card.querySelector('.input-table-title')?.value || `Tabla ${numeroDeTabla}`;
         const participantes = {};
 
-        // 3. Recorremos los slots (números) de cada tabla
         card.querySelectorAll('.n-slot').forEach(slot => {
-            const numeroStr = slot.querySelector('.n-number')?.textContent;
+            const numeroStr = slot.querySelector('.n-number')?.textContent.trim();
             const nombreParticipante = slot.querySelector('.n-name')?.textContent.trim();
-            const pagado = slot.classList.contains('paid');
             
-            // CORRECCIÓN AQUÍ: Leemos el atributo 'data-adelantado' DENTRO del bucle del slot
-            const esAdelantado = slot.getAttribute('data-adelantado') === 'true';
-
-            // Solo guardamos si el slot tiene un nombre asignado
-            if (nombreParticipante) {
+            // --- CLAVE: SOLO AGREGAR SI EL NOMBRE TIENE CONTENIDO ---
+            // Si el nombre es "" (vacío), no se agrega al objeto 'participantes'
+            // Esto le dice a la base de datos: "Este número ya no existe"
+            if (nombreParticipante && nombreParticipante !== "") {
                 participantes[numeroStr] = {
                     nombre: nombreParticipante,
-                    pago: pagado,
-                    adelantado: esAdelantado // Guardamos el estado para el cambio de ciclo
+                    pago: slot.classList.contains('paid'),
+                    adelantado: slot.getAttribute('data-adelantado') === 'true'
                 };
             }
         });
 
-        // 4. Guardamos la tabla con la llave dinámica (tabla1, tabla2, etc.)
         payload[`tabla${numeroDeTabla}`] = {
             titulo: nombreTabla,
             participantes: participantes
@@ -786,51 +785,52 @@ async function confirmarCompra() {
     const pago = document.getElementById('modalPago').checked;
     const adelantado = document.getElementById('modalAdelantado').checked;
 
-    // Obtenemos los datos que guardamos al abrir el modal
     const tablaId = window.currentTablaId;
     const numStr = window.currentNumStr;
 
-    // 1. Buscamos el slot en la pantalla
     const slot = document.getElementById(`t${tablaId}-${numStr}`);
     if (!slot) return;
 
-    // --- EL CAMBIO ESTÁ AQUÍ ---
+    // 1. LIMPIEZA VISUAL INMEDIATA
     if (nombre === "") {
-        // Si el nombre está vacío, LIMPIAMOS el puesto
         slot.classList.remove('paid', 'reserved');
         slot.querySelector('.n-name').textContent = "";
         slot.removeAttribute('data-pago');
         slot.removeAttribute('data-adelantado');
+        console.log("🧹 Puesto marcado para liberar...");
     } else {
-        // Si hay un nombre, actualizamos normalmente
         slot.querySelector('.n-name').textContent = nombre;
-        
         slot.classList.remove('paid', 'reserved');
-        if (pago) {
-            slot.classList.add('paid');
-        } else {
-            slot.classList.add('reserved');
-        }
-
-        // Guardamos metadatos adicionales
+        pago ? slot.classList.add('paid') : slot.classList.add('reserved');
         slot.setAttribute('data-pago', pago);
         slot.setAttribute('data-adelantado', adelantado);
     }
 
-    // 2. Cerramos y guardamos cambios
+    // 2. CIERRE DE MODAL
     cerrarModal();
-    actualizarContadoresRifa();
-    
-    // Guardamos en la nube de inmediato para que no se pierda el borrado
-    await guardarTodo();
 
-    // Mensaje de éxito opcional
-    const toast = nombre === "" ? "Puesto liberado" : "Puesto actualizado";
-    console.log(`✅ ${toast}`);
-}
+    // 3. EL TRUCO PARA QUE NO VUELVAN: Guardado forzado
+    // Bloqueamos visualmente el status para que sepas que se está borrando en la nube
+    const status = document.getElementById('sync-status');
+    if (status) status.className = 'sync-saving';
 
-function cerrarModal() {
-    document.getElementById('modalCompra').style.display = 'none';
+    try {
+        // Llamamos a los contadores para que el dinero se actualice
+        actualizarContadoresRifa();
+        
+        // Enviamos la foto actual de la pantalla al servidor
+        await guardarTodo(); 
+        
+        console.log("✅ Base de datos actualizada con éxito");
+        if (status) {
+            status.className = 'sync-success';
+            setTimeout(() => status.className = 'sync-idle', 2000);
+        }
+    } catch (error) {
+        console.error("❌ Error al intentar liberar el puesto:", error);
+        if (status) status.className = 'sync-error';
+        alert("No se pudo sincronizar con la nube. El nombre podría volver a aparecer al recargar.");
+    }
 }
 
 function actualizarContadoresVisuales() {
