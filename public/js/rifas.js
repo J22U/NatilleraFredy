@@ -806,3 +806,27 @@ async function actualizarManual() {
         }, 1000);
     }
 }
+
+async function cargarRifasPorFecha() {
+    const fechaSeleccionada = document.getElementById('filtroFecha').value;
+    if (!fechaSeleccionada) return;
+
+    const container = document.getElementById('rifasContainer');
+    container.innerHTML = '<p style="text-align:center; padding:50px;">Buscando registros...</p>';
+
+    try {
+        // Enviamos la fecha como parámetro
+        const response = await fetch(`/api/cargar-rifas?fecha=${fechaSeleccionada}`);
+        const datos = await response.json();
+
+        // Si existen datos para esa fecha, llenamos la pantalla
+        if (datos && !datos.error) {
+            renderizarTodo(datos); // Esta función dibujará las tablas con los datos recibidos
+        } else {
+            // Si no hay datos, podrías dar la opción de "Iniciar nueva rifa basada en la anterior"
+            container.innerHTML = '<p style="text-align:center; padding:50px;">No hay registros para esta fecha.</p>';
+        }
+    } catch (error) {
+        console.error("Error historial:", error);
+    }
+}
