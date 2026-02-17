@@ -793,54 +793,51 @@ function abrirModalCompra(idTabla, numero) {
 }
 
 async function confirmarCompra() {
-    const nombre = document.getElementById('modalNombre').value.trim().toUpperCase();
+    const nombre = document.getElementById('modalNombre').value.trim();
     const pago = document.getElementById('modalPago').checked;
     const adelantado = document.getElementById('modalAdelantado').checked;
 
-    // Obtenemos la referencia de qué cuadrito estamos editando
-    const modal = document.getElementById('modalCompra');
-    const idTabla = modal.dataset.tablaRef;
-    const numero = modal.dataset.numeroRef;
+    // Obtenemos los datos que guardamos al abrir el modal
+    const tablaId = window.currentTablaId;
+    const numStr = window.currentNumStr;
 
-    if (!nombre) {
-        Swal.fire('Atención', 'Debes ingresar el nombre', 'warning');
-        return;
-    }
+    // 1. Buscamos el slot en la pantalla
+    const slot = document.getElementById(`t${tablaId}-${numStr}`);
+    if (!slot) return;
 
-    try {
-        // 1. Buscamos el cuadrito (slot) en la pantalla
-        const slotId = `t${idTabla}-${numero}`;
-        const slot = document.getElementById(slotId);
-
-        if (slot) {
-            // 2. Actualizamos el HTML del cuadrito para que 'recolectarDatosPantalla' lo vea
-            slot.classList.remove('paid', 'reserved');
-            slot.classList.add(pago ? 'paid' : 'reserved');
-            
-            // Guardamos el estado 'adelantado' en un atributo para el recolector
-            slot.setAttribute('data-adelantado', adelantado ? 'true' : 'false');
-
-            // Aplicamos el color NARANJA si no ha pagado
-            const estiloNaranja = (!pago && !adelantado) ? 'style="color: #e67e22; font-weight: bold;"' : '';
-
-            slot.innerHTML = `
-                <span class="n-number">${numero}</span>
-                <div class="n-name" ${estiloNaranja}>${nombre}</div>
-            `;
+    // --- EL CAMBIO ESTÁ AQUÍ ---
+    if (nombre === "") {
+        // Si el nombre está vacío, LIMPIAMOS el puesto
+        slot.classList.remove('paid', 'reserved');
+        slot.querySelector('.n-name').textContent = "";
+        slot.removeAttribute('data-pago');
+        slot.removeAttribute('data-adelantado');
+    } else {
+        // Si hay un nombre, actualizamos normalmente
+        slot.querySelector('.n-name').textContent = nombre;
+        
+        slot.classList.remove('paid', 'reserved');
+        if (pago) {
+            slot.classList.add('paid');
+        } else {
+            slot.classList.add('reserved');
         }
 
-        // 3. Cerramos el modal
-        cerrarModal();
-
-        // 4. MANDAMOS A GUARDAR (Ahora sí encontrará datos reales)
-        await guardarTodo();
-        
-        // 5. Actualizamos los totales de dinero
-        actualizarContadoresRifa();
-
-    } catch (error) {
-        console.error("Error al confirmar:", error);
+        // Guardamos metadatos adicionales
+        slot.setAttribute('data-pago', pago);
+        slot.setAttribute('data-adelantado', adelantado);
     }
+
+    // 2. Cerramos y guardamos cambios
+    cerrarModal();
+    actualizarContadoresRifa();
+    
+    // Guardamos en la nube de inmediato para que no se pierda el borrado
+    await guardarTodo();
+
+    // Mensaje de éxito opcional
+    const toast = nombre === "" ? "Puesto liberado" : "Puesto actualizado";
+    console.log(`✅ ${toast}`);
 }
 
 function cerrarModal() {
