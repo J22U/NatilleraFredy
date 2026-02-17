@@ -1595,6 +1595,24 @@ async function liquidarInteresParcial() {
 // --- 2. REPARTO GLOBAL (10% A TODOS LOS AHORRADORES) ---
 async function distribuirInteresesMasivos() {
     try {
+        // 1. Pedir IDs a excluir antes de empezar
+        const { value: excluidosStr } = await Swal.fire({
+            title: 'Configurar Reparto',
+            text: 'Ingresa los IDs de los socios a EXCLUIR (separados por coma) o deja vacío para incluir a todos:',
+            input: 'text',
+            inputPlaceholder: 'Ej: 5, 12, 18',
+            showCancelButton: true,
+            confirmButtonText: 'Continuar',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (excluidosStr === undefined) return; // Si el usuario cancela
+
+        // Convertir string de IDs en un array de números
+        const idsExcluidos = excluidosStr.split(',')
+            .map(id => parseInt(id.trim()))
+            .filter(id => !isNaN(id));
+
         Swal.fire({ 
             title: 'Calculando reparto equitativo...', 
             text: 'Evaluando tiempo y montos ahorrados',
@@ -1615,13 +1633,16 @@ async function distribuirInteresesMasivos() {
         // 2. Obtener Socios con su "Esfuerzo"
         const respS = await fetch('/api/socios-esfuerzo'); 
         if (!respS.ok) throw new Error("No se pudo obtener la lista de socios");
-        const socios = await respS.json();
+        const sociosRaw = await respS.json();
+
+        // --- FILTRAR SOCIOS EXCLUIDOS ---
+        const socios = sociosRaw.filter(s => !idsExcluidos.includes(parseInt(s.id)));
 
         // --- INICIO DE LA LÓGICA DE PUNTOS ---
         const totalPuntosNatillera = socios.reduce((acc, s) => acc + parseFloat(s.puntosEsfuerzo || 0), 0);
 
         if (totalPuntosNatillera === 0) {
-            Swal.fire('Atención', 'No hay ahorros con antigüedad suficiente para el cálculo.', 'info');
+            Swal.fire('Atención', 'No hay socios aptos con antigüedad suficiente para el cálculo.', 'info');
             return;
         }
 
@@ -1645,7 +1666,9 @@ async function distribuirInteresesMasivos() {
 
                 filasTablaHTML += `
                     <tr class="border-b border-slate-50">
-                        <td class="p-2 text-left font-medium text-slate-700">${socio.nombre}</td>
+                        <td class="p-2 text-left font-medium text-slate-700">
+                            ${socio.nombre} <span class="text-[8px] text-slate-400">(ID: ${socio.id})</span>
+                        </td>
                         <td class="p-2 text-right text-slate-400 font-mono">$${saldoReal.toLocaleString()}</td>
                         <td class="p-2 text-right font-bold text-emerald-600 font-mono">+$${interesJusto.toLocaleString()}</td>
                     </tr>`;
@@ -1656,6 +1679,7 @@ async function distribuirInteresesMasivos() {
         // 4. Construcción del modal (Vista Previa)
         let listaHTML = `
             <div class="mt-4">
+                ${idsExcluidos.length > 0 ? `<p class="text-[9px] text-red-500 mb-2 font-bold">IDs Excluidos: ${idsExcluidos.join(', ')}</p>` : ''}
                 <div class="mb-3 p-3 bg-emerald-900 text-white rounded-xl shadow-inner">
                     <p class="text-[10px] opacity-80 uppercase font-bold">Ganancia Total a Repartir</p>
                     <p class="text-2xl font-black">$${gananciasDisponibles.toLocaleString()}</p>
