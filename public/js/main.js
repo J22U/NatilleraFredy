@@ -195,22 +195,14 @@ async function verHistorialFechas(id, nombre) {
     });
 
     try {
-        // --- ESCUDO DE SEGURIDAD PARA FETCH ---
         const fetchSeguro = async (url) => {
             const res = await fetch(url);
-            if (!res.ok) {
-                console.error(`Error en ruta: ${url} - Status: ${res.status}`);
-                return []; // Si falla la ruta, devolvemos array vacío para no romper el JSON
-            }
+            if (!res.ok) return [];
             const contentType = res.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/json")) {
-                console.error(`La ruta ${url} devolvió HTML/Texto en lugar de JSON.`);
-                return [];
-            }
+            if (!contentType || !contentType.includes("application/json")) return [];
             return await res.json();
         };
 
-        // Ejecución de las 4 peticiones en paralelo de forma segura
         const [a, p, ab, totales] = await Promise.all([
             fetchSeguro(`/historial-ahorros/${id}`),
             fetchSeguro(`/detalle-prestamo/${id}`),
@@ -218,41 +210,43 @@ async function verHistorialFechas(id, nombre) {
             fetchSeguro(`/estado-cuenta/${id}`)
         ]);
 
-        // 1. Render de Ahorros MODIFICADO para mostrar Quincena/Mes
+        // --- CORRECCIÓN DE DEUDA DINÁMICA ---
+        // Recalculamos la deuda total sumando (Capital + Interés - Pagado) de cada préstamo activo
+        const deudaRealActualizada = p.reduce((acc, m) => {
+            const cap = Number(m.MontoPrestado || 0);
+            const int = Number(m.InteresGenerado || m.MontoInteres || 0);
+            const pag = Number(m.MontoPagado || 0);
+            const saldo = (cap + int) - pag;
+            return acc + (saldo > 0 ? saldo : 0);
+        }, 0);
+
+        // Actualizamos el objeto totales para que el modal use el valor con intereses
+        totales.deudaTotal = deudaRealActualizada;
+
         const renderSimple = (data, key, color) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin movimientos</p>';
             return data.map(m => {
                 const esRetiro = Number(m[key]) < 0;
                 const colorFinal = esRetiro ? 'rose' : color;
-                
                 return `
                 <div class="flex justify-between items-center p-3 border-b border-slate-100 text-[11px]">
                     <div class="flex flex-col">
                         <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
-                        <span class="text-[9px] font-black uppercase ${esRetiro ? 'text-rose-400' : 'text-indigo-400'} mt-0.5">
-                            ${m.Detalle || 'Ahorro'}
-                        </span>
+                        <span class="text-[9px] font-black uppercase ${esRetiro ? 'text-rose-400' : 'text-indigo-400'} mt-0.5">${m.Detalle || 'Ahorro'}</span>
                     </div>
                     <div class="text-right">
-                        <span class="font-bold text-${colorFinal}-600">
-                            ${esRetiro ? '' : '+'}$${Math.abs(Number(m[key])).toLocaleString()}
-                        </span>
+                        <span class="font-bold text-${colorFinal}-600">${esRetiro ? '' : '+'}$${Math.abs(Number(m[key])).toLocaleString()}</span>
                     </div>
-                </div>
-            `}).join('');
+                </div>`;
+            }).join('');
         };
 
-        // 2. Render de Préstamos (Actualizado para mostrar Interés Diario Acumulado)
         const renderPrestamos = (data) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
-            
             return data.map((m, index) => {
-                // Si el backend envía el cálculo diario, lo usamos; si no, usamos el estático
                 const interesGenerado = Number(m.InteresGenerado || m.MontoInteres || 0);
                 const capitalOriginal = Number(m.MontoPrestado || 0);
                 const montoPagado = Number(m.MontoPagado || 0);
-                
-                // Saldo Dinámico: (Capital + Interés Acumulado) - Lo que ya pagó
                 const saldoCalculado = (capitalOriginal + interesGenerado) - montoPagado;
                 const estaPago = m.Estado === 'Pagado' || saldoCalculado <= 0;
 
@@ -264,47 +258,34 @@ async function verHistorialFechas(id, nombre) {
                             ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaInicioFormateada || m.FechaPrestamo || 'S/F')}
                         </span>
                     </div>
-
                     <div class="flex gap-2 mb-3">
                         <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
                             <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}% (Mensual)
                         </span>
-                        ${m.DiasTranscurridos ? `
-                        <span class="bg-indigo-50 text-[9px] font-bold text-indigo-600 px-2 py-1 rounded-lg border border-indigo-100">
-                            <i class="fas fa-clock mr-1"></i>${m.DiasTranscurridos} días activos
-                        </span>` : ''}
                     </div>
-
                     <div class="grid grid-cols-2 gap-2 border-t border-slate-200/50 pt-2">
                         <div class="flex flex-col text-left">
                             <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Capital Inicial</span>
                             <span class="text-[13px] font-black text-slate-800">$${capitalOriginal.toLocaleString()}</span>
                             <span class="text-[7px] text-rose-400 font-bold">Int. Acumulado: $${interesGenerado.toLocaleString()}</span>
                         </div>
-                        
                         ${!estaPago ? `
                         <div class="flex flex-col text-right">
                             <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Total Hoy</span>
                             <span class="text-[15px] font-black text-rose-600 tracking-tighter">$${Math.max(0, saldoCalculado).toLocaleString()}</span>
-                        </div>` : `
-                        <div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO</div>`}
+                        </div>` : `<div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO</div>`}
                     </div>
                 </div>`;
             }).join('');
         };
 
-        // 3. Render de Abonos
         const renderAbonosDetallados = (data, listaPrestamos) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos realizados</p>';
             const prestamosSeguros = Array.isArray(listaPrestamos) ? listaPrestamos : [];
             const prestamosOrdenados = [...prestamosSeguros].sort((a, b) => new Date(a.FechaInicio) - new Date(b.FechaInicio));
-
             return data.map(m => {
                 const indicePrestamo = prestamosOrdenados.findIndex(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
                 const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'Ref';
-                const prestamoInfo = prestamosSeguros.find(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
-                const capitalRef = prestamoInfo ? Number(prestamoInfo.MontoPrestado).toLocaleString() : '---';
-
                 return `
                     <div class="p-2 border-b border-slate-100 text-[11px]">
                         <div class="flex justify-between items-start">
@@ -314,15 +295,12 @@ async function verHistorialFechas(id, nombre) {
                             </div>
                             <div class="text-right">
                                 <span class="font-bold text-rose-600">-$${Number(m.Monto_Abonado || m.Monto || 0).toLocaleString()}</span>
-                                <p class="text-[8px] text-slate-400 italic">Cap. Orig: $${capitalRef}</p>
                             </div>
                         </div>
-                    </div>
-                `;
+                    </div>`;
             }).join('');
         };
 
-        // --- VENTANA EMERGENTE (MODAL) ---
         Swal.fire({
             title: `<span class="text-xl font-black">${nombre}</span>`,
             html: `
@@ -332,11 +310,10 @@ async function verHistorialFechas(id, nombre) {
                         <p class="font-black text-emerald-700 text-sm">$${Number(totales.totalAhorrado || 0).toLocaleString()}</p>
                     </div>
                     <div class="bg-rose-50 p-2 rounded-xl text-center border border-rose-100 shadow-sm">
-                        <p class="text-[8px] uppercase font-bold text-rose-600">Deuda</p>
-                        <p class="font-black text-rose-700 text-sm">$${Number(totales.deudaTotal || 0).toLocaleString()}</p>
+                        <p class="text-[8px] uppercase font-bold text-rose-600">Deuda Total (Con Int.)</p>
+                        <p class="font-black text-rose-700 text-sm">$${Number(totales.deudaTotal).toLocaleString()}</p>
                     </div>
                 </div>
-
                 <div class="text-left space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                     <div class="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
                         <button onclick="toggleAcordeon('acc-ahorros', this)" class="w-full flex justify-between items-center p-4 bg-white hover:bg-emerald-50 transition-colors">
@@ -347,7 +324,6 @@ async function verHistorialFechas(id, nombre) {
                             <div class="p-1 border-t border-slate-50">${renderSimple(a, 'Monto', 'emerald')}</div>
                         </div>
                     </div>
-
                     <div class="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
                         <button onclick="toggleAcordeon('acc-prestamos', this)" class="w-full flex justify-between items-center p-4 bg-white hover:bg-blue-50 transition-colors">
                             <span class="text-[10px] font-black uppercase text-blue-600"><i class="fas fa-hand-holding-dollar mr-2"></i> Préstamos Detallados</span>
@@ -357,7 +333,6 @@ async function verHistorialFechas(id, nombre) {
                             <div class="p-3 border-t border-slate-50 bg-slate-50/30">${renderPrestamos(p)}</div>
                         </div>
                     </div>
-
                     <div class="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
                         <button onclick="toggleAcordeon('acc-abonos', this)" class="w-full flex justify-between items-center p-4 bg-white hover:bg-rose-50 transition-colors">
                             <span class="text-[10px] font-black uppercase text-rose-600"><i class="fas fa-receipt mr-2"></i> Abonos a Préstamos</span>
