@@ -756,7 +756,7 @@ async function confirmarCompra() {
     const adelantado = document.getElementById('modalAdelantado').checked;
 
     if (!nombre) {
-        Swal.fire('Atención', 'Debes ingresar el nombre', 'warning');
+        Swal.fire('Atención', 'Debes ingresar el nombre del cliente', 'warning');
         return;
     }
 
@@ -764,29 +764,26 @@ async function confirmarCompra() {
         const tablaId = window.currentTablaId;
         const numero = window.currentNumero;
 
-        // 1. Actualizamos la memoria local (Esto es lo que recolectarDatosPantalla leerá)
+        // VOLVEMOS A TUS NOMBRES ORIGINALES: 'nombre' y 'pago' en minúsculas
         if (typeof rifasData !== 'undefined' && rifasData[tablaId]) {
             rifasData[tablaId].participantes[numero] = {
-                NombreParticipante: nombre,
-                EstadoPago: pago,
-                Adelantado: adelantado
+                "nombre": nombre,  
+                "pago": pago,      
+                "adelantado": adelantado
             };
         }
 
-        // 2. Cerramos modal y RE-DIBUJAMOS la tabla en el HTML
-        // Esto garantiza que el nombre de John Uribe ya aparezca en el DOM
+        // Cerramos y dibujamos primero para que la pantalla tenga los datos
         cerrarModal();
         if (typeof renderizarTablas === 'function') renderizarTablas();
 
-        // 3. LLAMADO SEGURO: Usamos guardarTodo porque recolecta 
-        // TODO lo que ya dibujamos arriba y lo manda a Somee sin errores de ID
+        // MANDAMOS A GUARDAR (Sin inventar funciones nuevas)
         if (typeof guardarTodo === 'function') {
             await guardarTodo();
         }
 
     } catch (error) {
         console.error("Error al confirmar:", error);
-        Swal.fire('Error', 'No se pudo sincronizar: ' + error.message, 'error');
     }
 }
 
