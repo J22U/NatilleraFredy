@@ -803,15 +803,15 @@ app.get('/listar-miembros', async (req, res) => {
                 P.ID_Persona as id, 
                 P.Nombre as nombre, 
                 P.Documento as documento,
-                -- Sumamos la diferencia entre lo prestado y lo pagado de TODOS sus registros
+                -- Usamos SaldoActual que es tu columna real de deuda
                 ISNULL((
-                    SELECT SUM(MontoPrestado - MontoPagado) 
+                    SELECT SUM(SaldoActual) 
                     FROM Prestamos 
                     WHERE ID_Persona = P.ID_Persona 
-                    AND SaldoActual > 0 -- Esto es más seguro que filtrar por texto 'Activo'
+                    AND Estado = 'Activo'
                 ), 0) as saldoPendiente
             FROM Personas P
-            WHERE P.EsSocio = 1
+            WHERE P.Estado = 'Activo' AND P.EsSocio = 1
             ORDER BY P.Nombre ASC
         `);
         res.json(result.recordset);
