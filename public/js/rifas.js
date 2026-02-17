@@ -558,36 +558,6 @@ function actualizarColorAlVuelo(slot) {
     else if (nombre !== '') slot.classList.add('reserved');
 }
 
-let autoRefreshTimer;
-
-function iniciarAutoRefresco() {
-    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-
-    autoRefreshTimer = setInterval(() => {
-        const loader = document.getElementById('security-pause-loader');
-        const tiempoPasado = Date.now() - ultimaSincronizacionManual;
-
-        // --- ZONA DE SEGURIDAD (8 SEGUNDOS) ---
-        if (tiempoPasado < 8000) {
-            if (loader) loader.style.display = 'flex'; // Mostramos que estamos esperando
-            console.log("⏳ Pausa de seguridad activa...");
-            return; 
-        }
-
-        // Si ya pasaron los 8 segundos, ocultamos el loader y procedemos
-        if (loader) loader.style.display = 'none';
-
-        const status = document.getElementById('sync-status');
-        const searchInput = document.getElementById('searchInput');
-        const isSaving = status && status.classList.contains('sync-saving');
-        const isSearching = searchInput && searchInput.value.trim() !== "";
-
-        if (!isSaving && !isSearching) {
-            cargarRifasSilencioso();
-        }
-    }, 15000); 
-}
-
 async function cargarRifasSilencioso() {
     try {
         const response = await fetch('/api/cargar-rifas');
