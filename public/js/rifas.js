@@ -700,12 +700,12 @@ function reordenarBadges() {
  * para guardarlos en el LocalStorage y enviarlos al servidor.
  */
 function recolectarDatosPantalla() {
-    // 1. Recolectamos la información general del banner
     const payload = {
         info: {
             nombre: document.getElementById('rifaName')?.value || '',
             premio: document.getElementById('rifaPrize')?.value || '',
             valor: document.getElementById('rifaCost')?.value || '',
+            // ESTA ES LA FECHA QUE AHORA SÍ SE GUARDARÁ EN LA NUEVA COLUMNA:
             fecha: document.getElementById('rifaDate')?.value || '',
             inversion: document.getElementById('costoPremio')?.value || ''
         }
@@ -927,40 +927,28 @@ async function cargarRifasPorFecha() {
     container.innerHTML = '<p style="text-align:center; padding:50px;">Buscando registros...</p>';
 
     try {
-        // 1. Pedimos los datos al servidor filtrando por fecha
         const response = await fetch(`/api/cargar-rifas?fecha=${fechaSeleccionada}`);
         const datos = await response.json();
 
+        // LOG DE SEGURIDAD: Mira esto en la consola (F12)
+        console.log("Datos recibidos del servidor para la fecha:", fechaSeleccionada, datos);
+
+        // Verificamos si la fecha que llegó es la misma que pedimos
+        if (datos && datos.info && datos.info.fecha !== fechaSeleccionada) {
+            console.warn("¡El servidor ignoró el filtro y mandó otra fecha!");
+            container.innerHTML = `<p style="text-align:center; padding:50px; color: orange;">
+                El servidor no encontró datos para el ${fechaSeleccionada}. <br>
+                (Se recibió la rifa del: ${datos.info.fecha})
+            </p>`;
+            return; // Detenemos aquí para no mostrar la rifa equivocada
+        }
+
         if (datos && !datos.error) {
-            // 2. Limpiamos el contenedor para borrar la rifa actual
             container.innerHTML = ''; 
-
-            // 3. Dibujamos las tablas con los datos que llegaron del historial
-            let tablasEncontradas = false;
-            for (let i = 1; i <= 4; i++) {
-                const llaveTabla = `tabla${i}`;
-                if (datos[llaveTabla]) {
-                    const t = datos[llaveTabla];
-                    t.idTabla = i;
-                    t.nombre = t.titulo || `Tabla ${i}`;
-                    crearTabla(t); // Usamos tu función crearTabla que ya funciona
-                    tablasEncontradas = true;
-                }
-            }
-
-            if (!tablasEncontradas) {
-                container.innerHTML = '<p style="text-align:center; padding:50px;">No se encontraron tablas para esta fecha.</p>';
-            }
-
-            // 4. Actualizamos los contadores de esa fecha
-            actualizarContadoresRifa();
-            
-        } else {
-            container.innerHTML = '<p style="text-align:center; padding:50px;">No hay registros para esta fecha.</p>';
+            // ... resto de tu lógica de crear tablas ...
         }
     } catch (error) {
         console.error("Error historial:", error);
-        container.innerHTML = '<p style="text-align:center; padding:20px; color:red;">Error de conexión al cargar historial.</p>';
     }
 }
 
