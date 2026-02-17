@@ -733,27 +733,32 @@ function recolectarDatosPantalla() {
     tablas.forEach((card) => {
         const idTablaMatch = card.id.match(/\d+/);
         const numeroDeTabla = idTablaMatch ? idTablaMatch[0] : null;
-        
         if (!numeroDeTabla) return;
 
-        const nombreTabla = card.querySelector('.input-table-title')?.value || `Tabla ${numeroDeTabla}`;
         const participantes = {};
 
-        card.querySelectorAll('.n-slot').forEach(slot => {
-            const numeroStr = slot.querySelector('.n-number')?.textContent.trim();
-            const nombreParticipante = slot.querySelector('.n-name')?.textContent.trim();
-            
-            // --- CAMBIO AQUÍ: QUITAMOS EL IF PARA ENVIAR TODO ---
-            // Al enviar nombre: "" el servidor sabe que debe borrar el nombre anterior
-            participantes[numeroStr] = {
-                nombre: nombreParticipante || "", // Si está vacío, manda ""
-                pago: slot.classList.contains('paid'),
-                adelantado: slot.getAttribute('data-adelantado') === 'true'
-            };
-        });
+        // --- SOLUCIÓN RADICAL: Recorremos los 100 números posibles ---
+        for (let i = 0; i <= 99; i++) {
+            const numStr = i.toString().padStart(2, '0');
+            const slot = card.querySelector(`[data-numero="${numStr}"]`) || 
+                         document.getElementById(`t${numeroDeTabla}-${numStr}`);
+
+            if (slot) {
+                const nombre = slot.querySelector('.n-name')?.textContent.trim() || "";
+                const pagado = slot.classList.contains('paid');
+                const adelantado = slot.getAttribute('data-adelantado') === 'true';
+
+                // MANDAMOS TODO: Si el nombre está vacío, mandamos ""
+                participantes[numStr] = {
+                    nombre: nombre,
+                    pago: pagado,
+                    adelantado: adelantado
+                };
+            }
+        }
 
         payload[`tabla${numeroDeTabla}`] = {
-            titulo: nombreTabla,
+            titulo: card.querySelector('.input-table-title')?.value || `Tabla ${numeroDeTabla}`,
             participantes: participantes
         };
     });
