@@ -783,34 +783,37 @@ app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
     try {
         await transaction.begin();
 
-        // 1. Calculamos el total que se va a repartir en esta operación
+        // 1. Sumamos el total a repartir
         const totalRepartido = sociosAptos.reduce((sum, s) => sum + parseFloat(s.interes), 0);
 
         for (const s of sociosAptos) {
             await transaction.request()
                 .input('id', sql.Int, s.id)
                 .input('monto', sql.Decimal(18, 2), s.interes)
-                // Si envías s.detalle desde el JS lo usa, si no, usa el texto por defecto
                 .input('detalle', sql.VarChar(sql.MAX), s.detalle || 'REPARTO UTILIDADES EQUITATIVO')
                 .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, FechaAporte, MesesCorrespondientes) 
                         VALUES (@id, @monto, GETDATE(), GETDATE(), @detalle)`);
         }
 
-        // 2. CORRECCIÓN CLAVE: Restamos el total repartido de la bolsa de ganancias
-        // Buscamos el registro que tenga saldo en InteresesPagados y le restamos lo usado
+        // 2. RESTA PROPORCIONAL usando los nombres reales: ID_Prestamo e InteresesPagados
         await transaction.request()
             .input('totalADescontar', sql.Decimal(18, 2), totalRepartido)
             .query(`
                 UPDATE Prestamos 
                 SET InteresesPagados = InteresesPagados - @totalADescontar 
-                WHERE id = (SELECT TOP 1 id FROM Prestamos WHERE InteresesPagados > 0 ORDER BY Fecha DESC)
+                WHERE ID_Prestamo = (
+                    SELECT TOP 1 ID_Prestamo 
+                    FROM Prestamos 
+                    WHERE InteresesPagados > 0 
+                    ORDER BY Fecha DESC
+                )
             `);
 
         await transaction.commit();
         res.json({ success: true, totalDescontado: totalRepartido });
     } catch (err) {
         if (transaction) await transaction.rollback();
-        console.error("Error en DB:", err.message);
+        console.error("Error exacto en DB:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
