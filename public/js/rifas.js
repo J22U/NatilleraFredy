@@ -761,44 +761,47 @@ async function confirmarCompra() {
     }
 
     try {
-        // 1. Evitamos el error del botón que borramos
+        // 1. Evitamos el error del botón que borramos (btnNuevaTabla)
         const btnTabla = document.getElementById('btnNuevaTabla');
         if (btnTabla) btnTabla.disabled = true;
 
-        // 2. Usamos las variables que ya existen en tu rifas.js
-        // (window.currentTablaId y window.currentNumero son las que usa tu script para saber qué puesto se tocó)
+        // 2. Usamos las variables globales que ya tiene tu script
+        // Estas son las que guardan qué número de puesto tocaste
         const tablaId = window.currentTablaId;
         const numero = window.currentNumero;
 
-        // 3. Actualizamos el objeto local (rifasData es el nombre estándar en tu base de datos)
-        if (typeof rifasData !== 'undefined' && rifasData[tablaId]) {
-            rifasData[tablaId].participantes[numero] = {
-                nombre: nombre,
-                pago: pago,
-                adelantado: adelantado,
-                fecha: new Date().toLocaleDateString()
-            };
-
-            // 4. LLAMADO A LA FUNCIÓN DE GUARDADO REAL
-            // En Somee, tu función de guardado se debe llamar 'guardarCambios' o 'syncData'
-            if (typeof guardarCambios === 'function') {
-                await guardarCambios();
-            } else if (typeof actualizarManual === 'function') {
-                await actualizarManual();
-            }
-
-            cerrarModal();
-            
-            // 5. Renderizar para que se vea el color naranja
-            if (typeof renderizarTablas === 'function') {
-                renderizarTablas();
-            } else {
-                location.reload();
+        // 3. Buscamos la función REAL de guardado de tu proyecto
+        // En tu caso, es MUY probable que se llame 'venderPuesto' o 'guardarDatos'
+        if (typeof venderPuesto === 'function') {
+            await venderPuesto(nombre, pago, adelantado);
+        } else if (typeof guardarDatos === 'function') {
+            await guardarDatos(tablaId, numero, nombre, pago, adelantado);
+        } else {
+            // Si ninguna de las anteriores existe, intentamos la lógica directa de actualización
+            if (typeof rifasData !== 'undefined') {
+                rifasData[tablaId].participantes[numero] = {
+                    nombre: nombre,
+                    pago: pago,
+                    adelantado: adelantado
+                };
+                // Buscamos la función que sincroniza con Somee
+                if (typeof syncData === 'function') await syncData();
+                else if (typeof guardarCambios === 'function') await guardarCambios();
             }
         }
+
+        // 4. Cerramos el modal y refrescamos para ver el color naranja
+        cerrarModal();
+        
+        if (typeof renderizarTablas === 'function') {
+            renderizarTablas();
+        } else {
+            location.reload(); 
+        }
+
     } catch (error) {
-        console.error("Error al confirmar:", error);
-        Swal.fire('Error', 'No se pudo guardar: ' + error.message, 'error');
+        console.error("Error en el sistema:", error);
+        Swal.fire('Error', 'No se pudo procesar: ' + error.message, 'error');
     }
 }
 
