@@ -435,45 +435,71 @@ function buscarCliente() {
 }
 
 async function pagarDeudaTotal(nombreCliente) {
-    // 1. Limpieza absoluta del nombre recibido
     const nombreBuscado = nombreCliente.toLowerCase().trim();
-    
-    if (!confirm(`¿Confirmas que ${nombreBuscado.toUpperCase()} ha pagado toda la deuda de este sorteo?`)) return;
 
-    let totalActualizados = 0;
-    // Buscamos todos los cuadros de números en la pantalla
-    const slots = document.querySelectorAll('.n-slot');
-
-    slots.forEach(slot => {
-        const elementoNombre = slot.querySelector('.n-name');
-        if (elementoNombre) {
-            const nombreEnSlot = elementoNombre.textContent.toLowerCase().trim();
-            
-            // 2. Comparación exacta de nombres
-            if (nombreEnSlot === nombreBuscado && !slot.classList.contains('paid')) {
-                slot.classList.add('paid'); // Cambio visual
-                totalActualizados++;
-            }
-        }
+    // 1. Confirmación elegante
+    const result = await Swal.fire({
+        title: '¿Confirmar pago total?',
+        html: `¿Deseas marcar todos los puestos de <b>${nombreBuscado.toUpperCase()}</b> como pagados en este sorteo?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#00b894',
+        cancelButtonColor: '#dfe6e9',
+        confirmButtonText: '<i class="fas fa-check"></i> Sí, pagar todo',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true,
+        focusConfirm: false
     });
 
-    if (totalActualizados > 0) {
-        // 3. Forzamos la actualización de los contadores de arriba (Total Recogido, etc.)
-        actualizarContadoresRifa();
+    if (result.isConfirmed) {
+        let cambios = 0;
+        const slots = document.querySelectorAll('.n-slot');
 
-        // 4. Intentamos guardar los datos (Asegúrate que tu función se llame guardarRifas o guardarTodo)
-        if (typeof guardarTodo === "function") {
-            await guardarTodo();
-        } else if (typeof guardarRifas === "function") {
-            await guardarRifas();
+        slots.forEach(slot => {
+            const txtNombre = slot.querySelector('.n-name').textContent.toLowerCase().trim();
+            if (txtNombre === nombreBuscado && !slot.classList.contains('paid')) {
+                slot.classList.add('paid');
+                slot.setAttribute('data-pago', 'true'); 
+                cambios++;
+            }
+        });
+
+        if (cambios > 0) {
+            actualizarContadoresRifa();
+            
+            try {
+                // Mostramos un loader mientras guarda
+                Swal.fire({
+                    title: 'Guardando...',
+                    didOpen: () => { Swal.showLoading(); },
+                    allowOutsideClick: false
+                });
+
+                await guardarTodo();
+
+                // 2. Mensaje de éxito
+                Swal.fire({
+                    title: '¡Pago Registrado!',
+                    text: `Se actualizaron ${cambios} puestos correctamente.`,
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('searchInput').value = '';
+                
+            } catch (error) {
+                console.error("Error al guardar:", error);
+                Swal.fire('Error', 'Se hizo el cambio visual pero no se pudo guardar en la nube.', 'error');
+            }
+        } else {
+            Swal.fire({
+                title: 'Sin cambios',
+                text: 'Este cliente ya no tiene deudas pendientes en esta rifa.',
+                icon: 'info'
+            });
         }
-
-        // 5. Feedback al usuario
-        document.getElementById('searchResults').style.display = 'none';
-        document.getElementById('searchInput').value = '';
-        alert(`¡Éxito! Se marcaron ${totalActualizados} puestos como pagados.`);
-    } else {
-        alert("No se encontraron puestos pendientes para este nombre exacto.");
     }
 }
 
@@ -673,19 +699,22 @@ function recolectarDatosPantalla() {
         const numeroDeTabla = index + 1;
         const nombreTabla = card.querySelector('.input-table-title')?.value || `Tabla ${numeroDeTabla}`;
         const participantes = {};
-        const adelantado = slot.getAttribute('data-adelantado') === 'true';
 
         // 3. Recorremos los slots (números) de cada tabla
         card.querySelectorAll('.n-slot').forEach(slot => {
             const numeroStr = slot.querySelector('.n-number')?.textContent;
             const nombreParticipante = slot.querySelector('.n-name')?.textContent.trim();
             const pagado = slot.classList.contains('paid');
+            
+            // CORRECCIÓN AQUÍ: Leemos el atributo 'data-adelantado' DENTRO del bucle del slot
+            const esAdelantado = slot.getAttribute('data-adelantado') === 'true';
 
-            // Solo guardamos si el slot tiene un nombre asignado (está vendido o reservado)
+            // Solo guardamos si el slot tiene un nombre asignado
             if (nombreParticipante) {
                 participantes[numeroStr] = {
                     nombre: nombreParticipante,
-                    pago: pagado
+                    pago: pagado,
+                    adelantado: esAdelantado // Guardamos el estado para el cambio de ciclo
                 };
             }
         });
@@ -893,11 +922,15 @@ async function verificarCambioCiclo() {
     const datos = await cargarDatosDesdeNube(); 
     const hoy = new Date().toISOString().split('T')[0];
     
-    // 2. Si la rifa guardada ya "venció" (pasó su viernes)
+    // 2. Si la rifa guardada ya "venció" (la fecha del sorteo es menor a hoy)
     if (datos.info && datos.info.fecha < hoy) {
         console.log("Ciclo vencido. Creando nueva rifa automática...");
 
-        const nuevaFecha = obtenerViernesSorteo(new Date()); // Calcula el próximo viernes quincenal
+        // Calculamos la base para la nueva fecha: mañana mismo para evitar repetir la fecha actual
+        let manana = new Date();
+        manana.setDate(manana.getDate() + 1);
+        
+        const nuevaFecha = obtenerViernesSorteo(manana); 
         
         const nuevaRifa = {
             info: {
@@ -918,10 +951,9 @@ async function verificarCambioCiclo() {
                     
                     participantesNuevos[num] = {
                         nombre: p.nombre,
-                        // Aquí está la clave: 
-                        // Si p.adelantado es true, en la nueva rifa p.pago será true.
-                        pago: p.adelantado || false, 
-                        adelantado: false // El adelanto se "gasta" al pasar al nuevo ciclo
+                        // Si p.adelantado era true, ahora p.pago es true
+                        pago: p.adelantado === true || p.adelantado === "true", 
+                        adelantado: false // El adelanto se consume
                     };
                 });
 
@@ -932,9 +964,28 @@ async function verificarCambioCiclo() {
             }
         });
 
-        // 4. Guardar automáticamente
-        await guardarTodo(nuevaRifa);
-        location.reload(); // Recargar para mostrar la nueva rifa
+        // 4. Guardar automáticamente y Notificar
+        try {
+            // Guardamos el nuevo objeto
+            await guardarTodo(nuevaRifa);
+
+            // Mostramos el SweetAlert antes de recargar
+            await Swal.fire({
+                title: '¡Nueva Quincena Detectada!',
+                text: `Se ha generado automáticamente el sorteo para el viernes ${nuevaFecha}. Se mantuvieron los nombres y se procesaron los pagos adelantados.`,
+                icon: 'success',
+                confirmButtonColor: '#0984e3',
+                confirmButtonText: 'Entendido',
+                allowOutsideClick: false
+            });
+
+            // 5. Recargar para mostrar la nueva rifa
+            location.reload(); 
+            
+        } catch (error) {
+            console.error("Error al automatizar el cambio de ciclo:", error);
+            Swal.fire('Error', 'No se pudo crear el nuevo ciclo automáticamente.', 'error');
+        }
     }
 }
 
