@@ -783,21 +783,31 @@ app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
     try {
         await transaction.begin();
 
+        // 1. Calculamos el total que se va a repartir en esta operación
+        const totalRepartido = sociosAptos.reduce((sum, s) => sum + parseFloat(s.interes), 0);
+
         for (const s of sociosAptos) {
             await transaction.request()
                 .input('id', sql.Int, s.id)
                 .input('monto', sql.Decimal(18, 2), s.interes)
-                .input('detalle', sql.VarChar(sql.MAX), 'REPARTO UTILIDADES EQUITATIVO')
-                // INSERTAMOS EN LAS 5 COLUMNAS QUE TIENE TU TABLA
+                // Si envías s.detalle desde el JS lo usa, si no, usa el texto por defecto
+                .input('detalle', sql.VarChar(sql.MAX), s.detalle || 'REPARTO UTILIDADES EQUITATIVO')
                 .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, FechaAporte, MesesCorrespondientes) 
                         VALUES (@id, @monto, GETDATE(), GETDATE(), @detalle)`);
         }
 
-        // Limpiar la bolsa de ganancias para el Dashboard
-        await transaction.request().query("UPDATE Prestamos SET InteresesPagados = 0");
+        // 2. CORRECCIÓN CLAVE: Restamos el total repartido de la bolsa de ganancias
+        // Buscamos el registro que tenga saldo en InteresesPagados y le restamos lo usado
+        await transaction.request()
+            .input('totalADescontar', sql.Decimal(18, 2), totalRepartido)
+            .query(`
+                UPDATE Prestamos 
+                SET InteresesPagados = InteresesPagados - @totalADescontar 
+                WHERE id = (SELECT TOP 1 id FROM Prestamos WHERE InteresesPagados > 0 ORDER BY Fecha DESC)
+            `);
 
         await transaction.commit();
-        res.json({ success: true });
+        res.json({ success: true, totalDescontado: totalRepartido });
     } catch (err) {
         if (transaction) await transaction.rollback();
         console.error("Error en DB:", err.message);
