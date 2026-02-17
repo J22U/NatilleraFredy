@@ -766,30 +766,19 @@ function recolectarDatosPantalla() {
     return payload;
 }
 
-function abrirModalCompra(idTabla, numero) {
-    // 1. Identificar el slot (cuadrito) que se clickeó
-    const slotId = `t${idTabla}-${numero}`;
-    const slot = document.getElementById(slotId);
-    
-    if (!slot) return;
+function abrirModalCompra(idTabla, numStr) {
+    // Guardamos estos datos globalmente para usarlos al confirmar
+    window.currentTablaId = idTabla;
+    window.currentNumStr = numStr;
 
-    // 2. Obtener datos actuales del slot
-    const nombreActual = slot.querySelector('.n-name')?.textContent || "";
-    const estaPagado = slot.classList.contains('paid');
+    const slot = document.getElementById(`t${idTabla}-${numStr}`);
+    const nombreActual = slot.querySelector('.n-name').textContent;
+    const esPagado = slot.classList.contains('paid');
 
-    // 3. Llenar los campos del modal
-    // Asegúrate de tener estos IDs en tu HTML del modal
     document.getElementById('modalNombre').value = nombreActual;
-    document.getElementById('modalPago').checked = estaPagado;
+    document.getElementById('modalPago').checked = esPagado;
     
-    // Guardamos la referencia de qué estamos editando en atributos 'data' del modal
-    const modalElement = document.getElementById('modalCompra');
-    modalElement.dataset.tablaRef = idTabla;
-    modalElement.dataset.numeroRef = numero;
-
-    // 4. Mostrar el modal (depende de tu librería, si es CSS puro usa .display = 'flex')
-    modalElement.style.display = 'flex';
-    modalElement.classList.add('active');
+    document.getElementById('modalCompra').style.display = 'flex';
 }
 
 async function confirmarCompra() {
