@@ -755,25 +755,49 @@ function abrirModalCompra(idTabla, numero) {
     modalElement.classList.add('active');
 }
 
-function confirmarCompra() {
-    const nombre = document.getElementById('modalNombre').value.toUpperCase();
+async function confirmarCompra() {
+    const nombre = document.getElementById('modalNombre').value.trim().toUpperCase();
     const pago = document.getElementById('modalPago').checked;
     const adelantado = document.getElementById('modalAdelantado').checked;
 
-    // Supongamos que tienes una referencia al slot actual
-    const slotActual = document.querySelector('.n-slot.active'); 
-    
-    // Guardar los datos en el objeto o directamente en el DOM para luego recolectar
-    slotActual.setAttribute('data-nombre', nombre);
-    slotActual.setAttribute('data-pago', pago);
-    slotActual.setAttribute('data-adelantado', adelantado);
+    if (!nombre) {
+        Swal.fire('Atención', 'Debes ingresar el nombre del cliente', 'warning');
+        return;
+    }
 
-    // Actualizar color visual
-    if (pago) slotActual.classList.add('paid');
-    else slotActual.classList.remove('paid');
+    // 1. ELIMINAMOS LA RESTRICCIÓN: 
+    // Ahora no importa si pago y adelantado son false. 
+    // El cliente simplemente quedará registrado con deuda.
 
-    cerrarModal();
-    actualizarContadoresRifa();
+    try {
+        // Bloqueamos el botón de confirmar para evitar doble clic
+        const btnConfirmar = document.querySelector('#modalCompra button[onclick="confirmarCompra()"]');
+        if (btnConfirmar) btnConfirmar.disabled = true;
+
+        // 2. SEGURIDAD PARA EL BOTÓN ELIMINADO:
+        // Verificamos si existe antes de intentar tocarlo
+        const btnTabla = document.getElementById('btnNuevaTabla');
+        if (btnTabla) {
+            btnTabla.setAttribute('disabled', 'true');
+        }
+
+        // 3. EJECUTAR LA LÓGICA DE GUARDADO
+        // (Asegúrate de que esta parte coincida con cómo guardas en tu rifas.js)
+        await ejecutarRegistroPuesto(nombre, pago, adelantado);
+
+        cerrarModal();
+        
+        // Notificación opcional de éxito
+        const estado = (pago || adelantado) ? 'pagado' : 'con deuda';
+        console.log(`Cliente ${nombre} registrado ${estado}.`);
+
+    } catch (error) {
+        console.error("Error al confirmar:", error);
+        Swal.fire('Error', 'No se pudo registrar la compra', 'error');
+    } finally {
+        const btnConfirmar = document.querySelector('#modalCompra button[onclick="confirmarCompra()"]');
+        if (btnConfirmar) btnConfirmar.disabled = false;
+    }
 }
 
 function cerrarModal() {
