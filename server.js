@@ -774,6 +774,40 @@ app.post('/api/registrar-gasto-ganancias', async (req, res) => {
     }
 });
 
+// --- RUTA PARA EJECUTAR EL REPARTO REAL A LOS SOCIOS ---
+app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
+    const { sociosAptos } = req.body; 
+    const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+
+        for (const socio of sociosAptos) {
+            // 1. Insertamos el dinero en la tabla de ahorros de cada socio
+            await transaction.request()
+                .input('idPersona', sql.Int, socio.id)
+                .input('monto', sql.Decimal(18, 2), socio.interes)
+                .query(`
+                    INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
+                    VALUES (@idPersona, @monto, GETDATE(), 'REPARTO ANUAL UTILIDADES')
+                `);
+        }
+
+        // 2. IMPORTANTE: Ponemos en 0 las ganancias brutas de los préstamos
+        // Esto evita que el mismo dinero se pueda repartir dos veces.
+        await transaction.request().query("UPDATE Prestamos SET InteresesPagados = 0");
+
+        await transaction.commit();
+        res.json({ success: true, message: "¡Reparto completado con éxito!" });
+
+    } catch (err) {
+        if (transaction) await transaction.rollback();
+        console.error("Error en reparto:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

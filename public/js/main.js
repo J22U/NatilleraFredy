@@ -1612,14 +1612,12 @@ async function distribuirInteresesMasivos() {
             return;
         }
 
-        // 2. Obtener Socios con su "Esfuerzo" (debes haber actualizado el server.js con la nueva consulta SQL)
+        // 2. Obtener Socios con su "Esfuerzo"
         const respS = await fetch('/api/socios-esfuerzo'); 
         if (!respS.ok) throw new Error("No se pudo obtener la lista de socios");
         const socios = await respS.json();
 
         // --- INICIO DE LA LÓGICA DE PUNTOS ---
-        
-        // 1. Calculamos el total de "puntos" de toda la natillera (Suma de todos los Saldo x Tiempo)
         const totalPuntosNatillera = socios.reduce((acc, s) => acc + parseFloat(s.puntosEsfuerzo || 0), 0);
 
         if (totalPuntosNatillera === 0) {
@@ -1627,23 +1625,17 @@ async function distribuirInteresesMasivos() {
             return;
         }
 
-        // 2. Sacamos el valor de cada punto (¿Cuántos pesos de ganancia corresponden a 1 punto?)
         const valorPunto = gananciasDisponibles / totalPuntosNatillera;
-
-        let totalVerificado = 0;
         let sociosAptos = [];
         let filasTablaHTML = "";
 
-        // 3. Distribución por Esfuerzo Individual
         socios.forEach(socio => {
             const esAhorrador = socio.tipo === 'SOCIO' || socio.esSocio == 1 || socio.EsSocio == 1;
             const puntosSocio = parseFloat(socio.puntosEsfuerzo || 0);
             const saldoReal = parseFloat(socio.saldoTotal || socio.totalAhorrado || 0);
 
             if (esAhorrador && puntosSocio > 0) {
-                // Cálculo Justo: Sus puntos x valor del punto
                 const interesJusto = Math.floor(puntosSocio * valorPunto);
-                totalVerificado += interesJusto;
                 
                 sociosAptos.push({ 
                     id: socio.id, 
@@ -1659,7 +1651,6 @@ async function distribuirInteresesMasivos() {
                     </tr>`;
             }
         });
-
         // --- FIN DE LA LÓGICA DE PUNTOS ---
 
         // 4. Construcción del modal (Vista Previa)
@@ -1696,17 +1687,23 @@ async function distribuirInteresesMasivos() {
 
         if (!isConfirmed || sociosAptos.length === 0) return;
 
-        // 5. Aplicar cambios en DB
+        // 5. Aplicar cambios en DB (CORRECCIÓN: Envío Masivo al Servidor)
         Swal.fire({ title: 'Capitalizando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
-        for (const s of sociosAptos) {
-            const detalle = `Capitalización Utilidades Anuales (Proporcional)`;
-            await registrarMovimientoInteres(s.id, s.interes, detalle, 'ahorro');
-            await registrarGastoGanancias(s.interes, `Reparto utilidad: ${s.nombre}`);
-        }
+        const respuesta = await fetch('/api/ejecutar-reparto-masivo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sociosAptos: sociosAptos })
+        });
 
-        Swal.fire('¡Éxito!', 'Se han distribuido las ganancias de forma equitativa.', 'success');
-        if (typeof cargarTodo === 'function') cargarTodo();
+        const resultado = await respuesta.json();
+
+        if (resultado.success) {
+            Swal.fire('¡Éxito!', 'Se han distribuido las ganancias de forma equitativa.', 'success');
+            if (typeof cargarTodo === 'function') cargarTodo();
+        } else {
+            throw new Error(resultado.error || "Fallo en la transacción");
+        }
 
     } catch (error) {
         console.error("Error:", error);
