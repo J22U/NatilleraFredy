@@ -1024,75 +1024,7 @@ async function toggleDeudas() {
     }
 }
 
-app.post('/procesar-cruce', async (req, res) => {
-    const { idPersona, idPrestamo, monto } = req.body;
-    try {
-        const pool = await poolPromise;
-        const transaction = new sql.Transaction(pool);
-        await transaction.begin();
 
-        try {
-            // 1. OBTENER EL INTERÉS ACUMULADO AL DÍA DE HOY
-            const prestamoInfo = await transaction.request()
-                .input('idP', sql.Int, idPrestamo)
-                .query(`
-                    SELECT 
-                        MontoPrestado, 
-                        InteresesPagados,
-                        (MontoPrestado * (TasaInteres / 100.0 / 30.0) * DATEDIFF(DAY, FechaInicio, GETDATE())) as InteresCalculado
-                    FROM Prestamos WHERE ID_Prestamo = @idP
-                `);
-
-            const p = prestamoInfo.recordset[0];
-            const interesPendiente = Math.max(0, p.InteresCalculado - p.InteresesPagados);
-
-            // Determinar cuánto va para interés y cuánto para capital
-            let pagoInteres = Math.min(monto, interesPendiente);
-            let pagoCapital = monto - pagoInteres;
-
-            // 2. DESCONTAR DE AHORROS
-            await transaction.request()
-                .input('idPers', sql.Int, idPersona)
-                .input('m', sql.Decimal(18, 2), monto)
-                .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
-                        VALUES (@idPers, -@m, GETDATE(), 'CRUCE DE CUENTAS POR DEUDA')`);
-
-            // 3. ACTUALIZAR PRÉSTAMO (Repartiendo el pago)
-            await transaction.request()
-                .input('idP', sql.Int, idPrestamo)
-                .input('pInt', sql.Decimal(18, 2), pagoInteres)
-                .input('pCap', sql.Decimal(18, 2), pagoCapital)
-                .query(`
-                    UPDATE Prestamos 
-                    SET 
-                        InteresesPagados += @pInt,
-                        MontoPagado += @pCap,
-                        SaldoActual = CASE WHEN (SaldoActual - @pCap) < 0 THEN 0 ELSE SaldoActual - @pCap END,
-                        Estado = CASE WHEN (SaldoActual - @pCap) <= 0 AND (MontoInteres - (InteresesPagados + @pInt)) <= 0 THEN 'Pagado' ELSE 'Activo' END
-                    WHERE ID_Prestamo = @idP
-                `);
-
-            // 4. REGISTRAR EN HISTORIAL (Detallando el reparto)
-            const detalleCruce = `Cruce Ahorros: Int: $${pagoInteres.toLocaleString()} | Cap: $${pagoCapital.toLocaleString()}`;
-            await transaction.request()
-                .input('idPers', sql.Int, idPersona)
-                .input('idP', sql.Int, idPrestamo)
-                .input('m', sql.Decimal(18, 2), monto)
-                .input('det', sql.VarChar, detalleCruce)
-                .query(`INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento, Detalle)
-                        VALUES (@idPers, @idP, @m, GETDATE(), 'Cruce de Cuentas', @det)`);
-
-            await transaction.commit();
-            res.json({ success: true });
-        } catch (err) {
-            await transaction.rollback();
-            throw err;
-        }
-    } catch (err) {
-        console.error("Error en cruce:", err.message);
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
 
 async function verificarTipoMovimiento() {
     const tipo = document.getElementById('tipoMovimiento').value;
