@@ -411,10 +411,10 @@ function buscarCliente() {
 
             // BOTÓN DE PAGO MASIVO (Solo si debe)
             const botonPagoMasivo = cliente.totalPuestosDebe > 0 
-                ? `<button onclick="pagarDeudaTotal('${cliente.nombreOriginal}')" class="btn-saldar-busqueda">
-                    <i class="fas fa-money-bill-wave"></i> SALDAR TODO
-                   </button>` 
-                : '';
+    ? `<button onclick='pagarDeudaTotal(${JSON.stringify(cliente.nombreOriginal)})' class="btn-saldar-busqueda">
+        <i class="fas fa-money-bill-wave"></i> SALDAR TODO
+       </button>` 
+    : '';
 
             clienteDiv.innerHTML = `
                 <div class="cliente-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -435,27 +435,45 @@ function buscarCliente() {
 }
 
 async function pagarDeudaTotal(nombreCliente) {
-    if (!confirm(`¿Confirmas que ${nombreCliente} ha pagado todos sus números de esta quincena?`)) return;
+    // 1. Limpieza absoluta del nombre recibido
+    const nombreBuscado = nombreCliente.toLowerCase().trim();
+    
+    if (!confirm(`¿Confirmas que ${nombreBuscado.toUpperCase()} ha pagado toda la deuda de este sorteo?`)) return;
 
-    // Buscamos en todas las tablas cargadas en pantalla
+    let totalActualizados = 0;
+    // Buscamos todos los cuadros de números en la pantalla
     const slots = document.querySelectorAll('.n-slot');
-    let cambios = 0;
 
     slots.forEach(slot => {
-        const nombreEnSlot = slot.querySelector('.n-name').innerText;
-        if (nombreEnSlot === nombreCliente) {
-            // Marcamos como pagado visualmente
-            slot.classList.add('paid');
-            // Aquí deberías actualizar tu objeto de datos
-            cambios++;
+        const elementoNombre = slot.querySelector('.n-name');
+        if (elementoNombre) {
+            const nombreEnSlot = elementoNombre.textContent.toLowerCase().trim();
+            
+            // 2. Comparación exacta de nombres
+            if (nombreEnSlot === nombreBuscado && !slot.classList.contains('paid')) {
+                slot.classList.add('paid'); // Cambio visual
+                totalActualizados++;
+            }
         }
     });
 
-    if (cambios > 0) {
-        alert(`¡Listo! Se actualizaron ${cambios} puestos.`);
-        // IMPORTANTE: Llamamos a la función guardar para que el cambio sea permanente en esa fecha
-        await guardarTodo(); 
+    if (totalActualizados > 0) {
+        // 3. Forzamos la actualización de los contadores de arriba (Total Recogido, etc.)
         actualizarContadoresRifa();
+
+        // 4. Intentamos guardar los datos (Asegúrate que tu función se llame guardarRifas o guardarTodo)
+        if (typeof guardarTodo === "function") {
+            await guardarTodo();
+        } else if (typeof guardarRifas === "function") {
+            await guardarRifas();
+        }
+
+        // 5. Feedback al usuario
+        document.getElementById('searchResults').style.display = 'none';
+        document.getElementById('searchInput').value = '';
+        alert(`¡Éxito! Se marcaron ${totalActualizados} puestos como pagados.`);
+    } else {
+        alert("No se encontraron puestos pendientes para este nombre exacto.");
     }
 }
 
