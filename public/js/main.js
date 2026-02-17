@@ -1754,18 +1754,20 @@ function generarPDFVistaPreviaIntereses() {
 
 // --- 3. FUNCIÓN PUENTE (ENVÍO AL SERVIDOR) ---
 // Centralizamos el fetch aquí para evitar repetir código
-async function registrarMovimientoInteres(socioId, monto, concepto, tipoMovimiento) {
-    const respuesta = await fetch('/api/movimientos', {
+async function registrarMovimientoInteres(idSocio, monto, detalle, tipo) {
+    const response = await fetch('/registrar-abono-dinamico', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            socio_id: socioId,
+            idPersona: idSocio,
             monto: monto,
-            tipo: tipoMovimiento, 
-            detalle: concepto,
-            fecha: new Date().toISOString()
+            tipo: tipo, // 'ahorro' para que se sume al capital
+            idPrestamo: null // No es abono a deuda, es capitalización
         })
     });
-    if (!respuesta.ok) throw new Error('Fallo en el servidor');
-    return respuesta.json();
+
+    if (!response.ok) {
+        throw new Error("Fallo en el servidor al registrar interés");
+    }
+    return await response.json();
 }
