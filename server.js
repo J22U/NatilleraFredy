@@ -477,38 +477,56 @@ app.post('/procesar-movimiento', async (req, res) => {
     try {
         const pool = await poolPromise;
         
-        // 1. Capturamos los datos
+        // 1. Capturamos los datos (Incluyendo el nuevo destinoAbono)
         const mesesParaSQL = req.body.MesesCorrespondientes || req.body.meses || "Abono General";
-        const { idPersona, monto, tipoMovimiento, idPrestamo } = req.body;
+        const { idPersona, monto, tipoMovimiento, idPrestamo, destinoAbono } = req.body;
         const m = parseFloat(monto);
 
-        console.log("Servidor procesando:", { tipo: tipoMovimiento, detalle: mesesParaSQL });
+        console.log("Servidor procesando:", { tipo: tipoMovimiento, destino: destinoAbono });
 
         // --- CASO A: ES UNA DEUDA ---
         if (tipoMovimiento === 'deuda') {
-            const pRes = await pool.request().input('idP', sql.Int, idPrestamo)
-                .query("SELECT MontoPrestado, MontoPagado FROM Prestamos WHERE ID_Prestamo = @idP");
-            
-            if (pRes.recordset.length > 0) {
-                const p = pRes.recordset[0];
-                const faltante = p.MontoPrestado - p.MontoPagado;
-                let ganancia = m > faltante ? m - faltante : 0;
-                if (faltante <= 0) ganancia = m;
-
+            // Verificamos el destino para saber qué columna afectar
+            if (destinoAbono === 'capital') {
+                // ABONO A CAPITAL: Resta la deuda principal y actualiza el dashboard de préstamos
                 await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18,2), m).input('g', sql.Decimal(18,2), ganancia)
-                    .query(`UPDATE Prestamos SET MontoPagado += @m, InteresesPagados += @g, 
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('m', sql.Decimal(18,2))
+                    .query(`
+                        UPDATE Prestamos 
+                        SET MontoPagado += @m,
                             SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
-                            Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP`);
-                
-                await pool.request().input('idPers', sql.Int, idPersona).input('idPre', sql.Int, idPrestamo).input('m', sql.Decimal(18,2), m)
-                    .query("INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento) VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda')");
+                            Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END 
+                        WHERE ID_Prestamo = @idP
+                    `);
+            } else {
+                // ABONO A INTERÉS: Suma a ganancias brutas y no afecta el capital prestado
+                // Usamos la columna InteresesPagados para que el Dashboard de "Ganancias" lo sume
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('m', sql.Decimal(18,2))
+                    .query(`
+                        UPDATE Prestamos 
+                        SET InteresesPagados += @m 
+                        WHERE ID_Prestamo = @idP
+                    `);
             }
-        } 
-        // --- CASO B: ES UN AHORRO (CON VALIDACIÓN DE DUPLICADOS) ---
-        else if (tipoMovimiento === 'ahorro') {
             
-            // VALIDACIÓN: Si no es abono general, verificar si las quincenas ya existen
+            // Registro común en el historial de pagos
+            await pool.request()
+                .input('idPers', sql.Int, idPersona)
+                .input('idPre', sql.Int, idPrestamo)
+                .input('m', sql.Decimal(18,2), m)
+                .input('det', sql.VarChar, mesesParaSQL)
+                .query(`
+                    INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento, Detalle) 
+                    VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda', @det)
+                `);
+        } 
+        
+        // --- CASO B: ES UN AHORRO ---
+        else if (tipoMovimiento === 'ahorro') {
+            // (Tu lógica de validación de duplicados se mantiene igual)
             if (mesesParaSQL !== "Abono General") {
                 const checkRes = await pool.request()
                     .input('id', sql.Int, idPersona)
@@ -521,9 +539,7 @@ app.post('/procesar-movimiento', async (req, res) => {
                     if (reg.MesesCorrespondientes) {
                         const existentes = reg.MesesCorrespondientes.split(',').map(s => s.trim());
                         quincenasNuevas.forEach(q => {
-                            if (existentes.includes(q)) {
-                                duplicadas.push(q);
-                            }
+                            if (existentes.includes(q)) duplicadas.push(q);
                         });
                     }
                 });
@@ -531,20 +547,16 @@ app.post('/procesar-movimiento', async (req, res) => {
                 if (duplicadas.length > 0) {
                     return res.status(400).json({ 
                         success: false, 
-                        error: `Error: Las quincenas [${duplicadas.join(', ')}] ya fueron registradas anteriormente para este socio.` 
+                        error: `Error: Las quincenas [${duplicadas.join(', ')}] ya fueron registradas.` 
                     });
                 }
             }
 
-            // Si pasa la validación, procedemos al INSERT
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18, 2), m)
                 .input('txtMeses', sql.VarChar(sql.MAX), mesesParaSQL) 
-                .query(`
-                    INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
-                    VALUES (@id, @m, GETDATE(), @txtMeses)
-                `);
+                .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) VALUES (@id, @m, GETDATE(), @txtMeses)");
         }
 
         res.json({ success: true });
