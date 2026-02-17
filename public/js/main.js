@@ -1755,3 +1755,128 @@ async function registrarGastoGanancias(monto, detalle) {
         throw error;
     }
 }
+
+// Usamos window. para que el onclick del HTML lo encuentre sin errores
+window.ejecutarCruceCuentas = async function() {
+    // 1. Obtener los identificadores
+    const numPantalla = document.getElementById('mov_id').value;
+    
+    // Validar que el campo no esté vacío
+    if (!numPantalla) {
+        return Swal.fire('Atención', 'Por favor ingresa un ID de socio (#1, #2...)', 'info');
+    }
+
+    const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : numPantalla;
+
+    if (!idReal) {
+        return Swal.fire('Error', 'ID de socio no válido', 'warning');
+    }
+
+    try {
+        // Mostrar un cargando mientras consulta
+        Swal.fire({
+            title: 'Consultando datos...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        // 2. Consultar estado y deudas en paralelo
+        const [resEstado, resDeuda] = await Promise.all([
+            fetch(`/estado-cuenta/${idReal}`),
+            fetch(`/detalle-prestamo/${idReal}`)
+        ]);
+
+        if (!resEstado.ok || !resDeuda.ok) throw new Error('Error al obtener datos del servidor');
+
+        const estado = await resEstado.json();
+        const deudas = await resDeuda.json();
+
+        // Cerrar el cargando
+        Swal.close();
+
+        // 3. Filtrar préstamos activos usando 'saldoHoy' (nombre que envía tu detalle-prestamo)
+        const prestamosActivos = deudas.filter(p => Number(p.saldoHoy) > 0);
+
+        // 4. Validaciones de negocio
+        if (Number(estado.totalAhorrado || 0) <= 0) {
+            return Swal.fire('Sin fondos', 'El socio no tiene ahorros disponibles para cruzar.', 'info');
+        }
+        
+        if (prestamosActivos.length === 0) {
+            return Swal.fire('Sin deuda', 'El socio no tiene préstamos pendientes con saldo positivo.', 'info');
+        }
+
+        // 5. Preparar el cruce (Tomamos el préstamo más antiguo/primero)
+        const prestamo = prestamosActivos[0];
+        const saldoDeuda = Number(prestamo.saldoHoy);
+        const montoACruzar = Math.min(Number(estado.totalAhorrado), saldoDeuda);
+
+        // 6. Confirmación visual
+        const { isConfirmed } = await Swal.fire({
+            title: '¿Confirmar Cruce de Cuentas?',
+            html: `
+                <div class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 text-xs font-bold uppercase">Ahorros actuales:</span>
+                        <span class="text-emerald-600 font-black">$${Number(estado.totalAhorrado).toLocaleString()}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 text-xs font-bold uppercase">Deuda Total (con int):</span>
+                        <span class="text-rose-600 font-black">$${saldoDeuda.toLocaleString()}</span>
+                    </div>
+                    <div class="pt-2 border-t border-dashed border-slate-300">
+                        <div class="bg-white p-3 rounded-xl text-center shadow-sm">
+                            <p class="text-[10px] uppercase font-black text-indigo-400 mb-1">Monto a cruzar hoy</p>
+                            <p class="text-2xl font-black text-indigo-700">$${montoACruzar.toLocaleString()}</p>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-[9px] text-slate-400 mt-3 italic">Se liquidará primero el interés y el resto irá a capital.</p>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, aplicar cruce',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#4f46e5',
+            cancelButtonColor: '#f1f5f9',
+            customClass: {
+                cancelButton: 'text-slate-500'
+            }
+        });
+
+        // 7. Ejecutar en el servidor
+        if (isConfirmed) {
+            const res = await fetch('/procesar-cruce', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    idPersona: idReal,
+                    idPrestamo: prestamo.ID_Prestamo,
+                    monto: montoACruzar
+                })
+            });
+
+            const r = await res.json();
+            if (r.success) {
+                await Swal.fire({
+                    title: '¡Éxito!',
+                    text: 'El cruce se aplicó y registró correctamente.',
+                    icon: 'success',
+                    timer: 2000
+                });
+                
+                // Recargar para ver los nuevos saldos
+                if (typeof cargarTodo === 'function') {
+                    cargarTodo();
+                } else {
+                    location.reload();
+                }
+            } else {
+                Swal.fire('Error', r.error || 'No se pudo procesar el cruce', 'error');
+            }
+        }
+    } catch (err) {
+        console.error("Error en cruce:", err);
+        Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
+    }
+};
