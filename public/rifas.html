@@ -30,6 +30,10 @@
                 </div>
 
                 <div class="header-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button onclick="actualizarManual()" class="btn-add" style="background-color: #0984e3; border: none;">
+                        <i id="sync-icon-manual" class="fas fa-sync-alt"></i> <span>Actualizar</span>
+                    </button>
+
                     <button id="btnNuevaTabla" class="btn-add">
                         <i class="fas fa-plus-circle"></i> <span>Nueva Tabla</span>
                     </button>
@@ -64,7 +68,7 @@
                         <input type="text" id="rifaPrize" placeholder="¿Qué se gana?">
                     </div>
                     <div class="info-field">
-                        <label>Costo del Premio</label>
+                        <label>Costo Premio (Por Tabla)</label>
                         <input type="number" id="costoPremio" placeholder="0" oninput="actualizarContadoresRifa()">
                     </div>
                     <div class="info-field">

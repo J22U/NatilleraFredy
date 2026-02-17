@@ -783,3 +783,26 @@ function actualizarContadoresRifa() {
     // Feedback visual
     txtGanancia.style.color = gananciaReal < 0 ? "#e74c3c" : (gananciaReal > 0 ? "#00b894" : "#2d3436");
 }
+
+async function actualizarManual() {
+    const icon = document.getElementById('sync-icon-manual');
+    
+    // 1. Añadimos animación de giro
+    icon.classList.add('fa-spin');
+    
+    try {
+        // 2. Llamamos a la función que ya tenemos para cargar datos
+        // Esta función ya limpia el contenedor y vuelve a dibujar todo
+        await cargarRifas();
+        
+        console.log("Datos actualizados desde el servidor");
+    } catch (error) {
+        console.error("Error al actualizar:", error);
+        alert("No se pudo actualizar la información.");
+    } finally {
+        // 3. Quitamos la animación después de un segundo
+        setTimeout(() => {
+            icon.classList.remove('fa-spin');
+        }, 1000);
+    }
+}
