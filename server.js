@@ -327,19 +327,21 @@ app.get('/reporte-general', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT 
-                -- Total de ahorros en el sistema
+                -- 1. TOTAL AHORRADO: El pasivo con tus socios.
                 (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) as TotalAhorrado,
 
-                -- Capital neto que está prestado actualmente
-                (SELECT ISNULL(SUM(MontoPrestado - MontoPagado), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
+                -- 2. CAPITAL PRESTADO: Dinero que está "en la calle" trabajando.
+                (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
 
-                -- Ganancias por intereses ya cobrados
+                -- 3. GANANCIAS BRUTAS: Solo los intereses recolectados (Lo que pediste).
                 (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas,
 
-                -- LA CAJA (Lo que deberías tener en efectivo): Ahorros + Intereses - Lo que está prestado
-                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + 
-                 (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) - 
-                 (SELECT ISNULL(SUM(MontoPrestado - MontoPagado), 0) FROM Prestamos WHERE Estado = 'Activo')
+                -- 4. EFECTIVO EN CAJA: 
+                -- Es: (Ahorros + Ganancias) - (Lo que está prestado actualmente)
+                (
+                    (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + 
+                    (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) - 
+                    (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')
                 ) as CajaDisponible
         `);
         res.json(result.recordset[0]);
