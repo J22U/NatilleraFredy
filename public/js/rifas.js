@@ -1077,3 +1077,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Carga inicial
     cargarRifas();
 });
+
+// Función para cerrar el modal de registro
+function cerrarModal() {
+    const modal = document.getElementById('modalCompra');
+    if (modal) {
+        modal.style.display = 'none';
+        
+        // Limpiamos los campos para que no queden datos viejos al abrirlo después
+        document.getElementById('modalNombre').value = '';
+        document.getElementById('modalPago').checked = false;
+        document.getElementById('modalAdelantado').checked = false;
+    }
+}
+
+// Opcional: Cerrar el modal si el usuario hace clic en el fondo oscuro
+window.onclick = function(event) {
+    const modal = document.getElementById('modalCompra');
+    if (event.target == modal) {
+        cerrarModal();
+    }
+}
