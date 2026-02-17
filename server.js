@@ -85,14 +85,15 @@ app.post('/api/guardar-rifa', async (req, res) => {
     try {
         const pool = await poolPromise;
         const nuevosDatos = req.body;
-        // Sacamos la fecha del objeto info que mandas desde el frontend
+        
+        // Sacamos la fecha del objeto info
         const fechaSorteo = nuevosDatos.info ? nuevosDatos.info.fecha : null;
 
         if (!fechaSorteo) {
             return res.status(400).json({ success: false, error: "La fecha es obligatoria para guardar." });
         }
 
-        // 1. Buscamos si ya existe un registro para ESA fecha específica
+        // 1. Buscamos si ya existe un registro para esa fecha
         const check = await pool.request()
             .input('fecha', sql.Date, fechaSorteo)
             .query("SELECT Id, DatosJSON FROM ConfiguracionRifas WHERE FechaSorteo = @fecha");
@@ -100,16 +101,27 @@ app.post('/api/guardar-rifa', async (req, res) => {
         let datosFinales;
 
         if (check.recordset.length > 0) {
-            // SI EXISTE: Fusionamos lo nuevo con lo que ya había en esa fecha
-            const datosViejos = JSON.parse(check.recordset[0].DatosJSON);
-            datosFinales = { ...datosViejos, ...nuevosDatos };
+            // --- CORRECCIÓN AQUÍ ---
+            // En lugar de hacer {...datosViejos, ...nuevosDatos} que mantenía los nombres borrados,
+            // ahora reemplazamos las tablas y la info con lo que viene del frontend.
+            
+            const datosExistentes = JSON.parse(check.recordset[0].DatosJSON);
+
+            datosFinales = {
+                ...datosExistentes,       // Mantenemos otros datos si existieran
+                info: nuevosDatos.info,   // Sobrescribimos la info general
+                tabla1: nuevosDatos.tabla1, // Reemplazo total de la tabla (esto borra lo que falte)
+                tabla2: nuevosDatos.tabla2,
+                tabla3: nuevosDatos.tabla3,
+                tabla4: nuevosDatos.tabla4
+            };
 
             await pool.request()
                 .input('id', sql.Int, check.recordset[0].Id)
                 .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosFinales))
                 .query("UPDATE ConfiguracionRifas SET DatosJSON = @datos, UltimaActualizacion = GETDATE() WHERE Id = @id");
         } else {
-            // NO EXISTE: Es una fecha nueva (o historial nuevo), creamos fila nueva
+            // Si la fecha no existe, guardamos todo el objeto nuevo
             datosFinales = nuevosDatos;
             await pool.request()
                 .input('fecha', sql.Date, fechaSorteo)
