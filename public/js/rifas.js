@@ -759,29 +759,35 @@ async function confirmarCompra() {
     const slot = document.getElementById(`t${tablaId}-${numStr}`);
     if (!slot) return;
 
-    // 1. LIMPIEZA O ACTUALIZACIÓN VISUAL REAL
     const nameElement = slot.querySelector('.n-name');
+
     if (nombreInput === "") {
-        nameElement.textContent = ""; // IMPORTANTE: Ponemos vacío real
-        slot.classList.remove('paid', 'reserved');
+        // --- LIMPIEZA TOTAL ---
+        nameElement.textContent = ""; 
+        slot.classList.remove('paid', 'reserved'); // Quitamos verde y naranja
         slot.removeAttribute('data-pago');
         slot.removeAttribute('data-adelantado');
     } else {
+        // --- ASIGNACIÓN DE COLOR ---
         nameElement.textContent = nombreInput;
         slot.classList.remove('paid', 'reserved');
-        pago ? slot.classList.add('paid') : slot.classList.add('reserved');
+        
+        if (pago) {
+            slot.classList.add('paid'); // Verde
+        } else {
+            slot.classList.add('reserved'); // Naranja
+        }
+        
         slot.setAttribute('data-pago', pago);
         slot.setAttribute('data-adelantado', adelantado);
     }
 
     cerrarModal();
 
-    // 2. PAUSA DE SEGURIDAD (500ms) 
-    // Esto asegura que el DOM se actualice antes de que recolectarDatosPantalla lea la pantalla
+    // Sincronizamos con el servidor
     setTimeout(async () => {
         actualizarContadoresRifa();
         await guardarTodo();
-        console.log("✅ Cambio sincronizado con éxito");
     }, 500);
 }
 
