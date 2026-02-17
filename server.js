@@ -803,19 +803,28 @@ app.get('/listar-miembros', async (req, res) => {
                 P.ID_Persona as id, 
                 P.Nombre as nombre, 
                 P.Documento as documento,
+                -- Identificamos si es Socio o Externo para el frontend
+                CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
                 ISNULL((
                     SELECT SUM(SaldoActual) 
                     FROM Prestamos 
                     WHERE ID_Persona = P.ID_Persona 
-                    AND SaldoActual > 0 
+                    AND SaldoActual > 0
                 ), 0) as saldoPendiente
             FROM Personas P
-            -- Quitamos temporalmente el filtro de 'Activo' por si se escribe diferente
-            WHERE P.EsSocio = 1 
+            WHERE 
+                -- Condición 1: Que tenga una deuda activa (No importa si es externo)
+                EXISTS (
+                    SELECT 1 FROM Prestamos Pr 
+                    WHERE Pr.ID_Persona = P.ID_Persona AND Pr.SaldoActual > 0
+                )
+                -- Condición 2: O que sea un Socio Activo (aunque no deba)
+                OR (P.EsSocio = 1 AND P.Estado = 'Activo')
             ORDER BY P.Nombre ASC
         `);
         res.json(result.recordset);
     } catch (err) {
+        console.error("Error en /listar-miembros:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
