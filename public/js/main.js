@@ -807,69 +807,83 @@ async function editarSocio(id, nombreActual, cedulaActual, tipoActual) {
 function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const fechaDoc = new Date().toLocaleDateString('es-CO');
+    const fechaDoc = new Date().toLocaleString('es-CO');
 
-    // 1. ENCABEZADO ESTILO "ESTADO DE CUENTA"
-    doc.setFillColor(31, 41, 55); 
-    doc.rect(0, 0, 210, 45, 'F');
+    // 1. ENCABEZADO PREMIUM
+    doc.setFillColor(30, 41, 59); // Slate 800
+    doc.rect(0, 0, 210, 40, 'F');
+    
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
+    doc.setFontSize(20);
     doc.setFont("helvetica", "bold");
-    doc.text("EXTRACTO DE MOVIMIENTOS", 14, 22);
+    doc.text("EXTRACTO FINANCIERO DETALLADO", 14, 20);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(`TITULAR: ${nombre.toUpperCase()}`, 14, 32);
-    doc.text(`FECHA REPORTE: ${fechaDoc}`, 140, 32);
+    doc.text(`TITULAR: ${nombre.toUpperCase()}`, 14, 30);
+    doc.text(`FECHA DE EMISIÓN: ${fechaDoc}`, 140, 30);
 
-    // 2. RESUMEN FINANCIERO (BOTONES SUPERIORES)
+    // 2. RESUMEN DE SALDOS (TARJETAS)
     doc.autoTable({
-        startY: 50,
-        head: [['CONCEPTO', 'SALDO ACUMULADO']],
+        startY: 45,
+        head: [['RESUMEN DE CUENTAS', 'VALOR TOTAL']],
         body: [
-            ['TOTAL AHORRADO A LA FECHA', `$ ${Number(totales.totalAhorrado || 0).toLocaleString('es-CO')}`],
-            ['DEUDA TOTAL PENDIENTE', `$ ${Number(totales.deudaTotal || 0).toLocaleString('es-CO')}`]
+            ['CAPITAL TOTAL AHORRADO', `$ ${Number(totales.totalAhorrado || 0).toLocaleString('es-CO')}`],
+            ['DEUDA PENDIENTE (CAPITAL + INT)', `$ ${Number(totales.deudaTotal || 0).toLocaleString('es-CO')}`]
         ],
-        theme: 'grid',
+        theme: 'striped',
         headStyles: { fillStyle: [79, 70, 229], halign: 'center' },
-        styles: { fontSize: 10, cellPadding: 3 },
-        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: [31, 41, 55] } }
     });
 
-    // 3. HISTORIAL DE AHORROS (DETALLE SOLICITADO: ID + QUINCENA)
+    // 3. SECCIÓN: AHORROS (CON RETROACTIVIDAD)
     doc.setFontSize(11);
-    doc.setTextColor(16, 185, 129);
-    doc.text("1. HISTORIAL DE AHORROS Y PERIODOS", 14, doc.lastAutoTable.finalY + 12);
+    doc.setTextColor(5, 150, 105); // Emerald 600
+    doc.text("1. DETALLE DE AHORROS Y PUNTOS DE UTILIDAD", 14, doc.lastAutoTable.finalY + 12);
     
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['ID', 'Fecha Pago', 'Quincena / Periodo', 'Monto']],
-        body: ahorros.map(a => [
-            `#${a.ID_Ahorro || '---'}`, // ID Real del ahorro
-            a.FechaFormateada || 'S/F',
-            (a.Detalle || "Ahorro General").toUpperCase(), // Muestra "Ene Q1", etc.
-            `$ ${Number(a.Monto).toLocaleString('es-CO')}`
-        ]),
+        head: [['ID', 'Fecha Registro', 'Periodo Aplicado', 'Días Esfuerzo', 'Monto']],
+        body: ahorros.map(a => {
+            // Calculamos días de esfuerzo aproximados para el PDF
+            // Esto le da claridad al socio de por qué gana más o menos
+            const fechaRef = a.Detalle.includes("Diciembre") ? '2025-12-02' : 
+                             a.Detalle.includes("Enero") ? '2026-01-02' : a.FechaAporte;
+            const dias = Math.max(0, Math.floor((new Date() - new Date(fechaRef)) / (1000 * 60 * 60 * 24)));
+
+            return [
+                `#${a.ID_Ahorro || '---'}`,
+                a.FechaFormateada || 'S/F',
+                (a.Detalle || "Ahorro").toUpperCase(),
+                `${dias} d`,
+                `$ ${Number(a.Monto).toLocaleString('es-CO')}`
+            ];
+        }),
         headStyles: { fillStyle: [16, 185, 129] },
-        styles: { fontSize: 8.5 },
-        columnStyles: { 0: { cellWidth: 15 }, 3: { halign: 'right', fontStyle: 'bold' } }
+        styles: { fontSize: 8 },
+        columnStyles: { 
+            0: { cellWidth: 12 }, 
+            3: { halign: 'center' },
+            4: { halign: 'right', fontStyle: 'bold' } 
+        }
     });
 
-    // 4. DETALLE DE PRÉSTAMOS (DETALLE SOLICITADO: FECHA DE REALIZACIÓN)
+    // 4. SECCIÓN: PRÉSTAMOS (DIAGNÓSTICO)
     doc.setFontSize(11);
-    doc.setTextColor(59, 130, 246);
-    doc.text("2. PRÉSTAMOS Y CRÉDITOS ACTIVOS", 14, doc.lastAutoTable.finalY + 12);
+    doc.setTextColor(37, 99, 235); // Blue 600
+    doc.text("2. ESTADO DE CRÉDITOS Y FINANCIACIÓN", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['REF', 'Fecha Realización', 'Tasa %', 'Capital', 'Int. Acum.', 'Saldo Actual']],
+        head: [['REF', 'Fecha Inicio', 'Tasa', 'Capital', 'Int. Acum.', 'Saldo Hoy']],
         body: prestamos.map(p => {
             const intAcum = Number(p.InteresGenerado || p.MontoInteres || 0);
             const saldoH = (Number(p.MontoPrestado) + intAcum) - Number(p.MontoPagado || 0);
             return [
                 `PR-${p.ID_Prestamo}`,
-                p.FechaInicioFormateada || p.FechaPrestamo || 'S/F', // Fecha solicitada
-                `${p.TasaInteres || 3}%`,
+                p.FechaInicioFormateada || 'S/F',
+                `${p.TasaInteres}%`,
                 `$ ${Number(p.MontoPrestado).toLocaleString('es-CO')}`,
                 `$ ${intAcum.toLocaleString('es-CO')}`,
                 `$ ${Math.max(0, saldoH).toLocaleString('es-CO')}`
@@ -877,38 +891,45 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         }),
         headStyles: { fillStyle: [59, 130, 246] },
         styles: { fontSize: 8 },
-        columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' } }
+        columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] } }
     });
 
-    // 5. HISTORIAL DE ABONOS (TRAZABILIDAD)
+    // 5. SECCIÓN: ABONOS (TRAZABILIDAD)
     doc.setFontSize(11);
-    doc.setTextColor(225, 29, 72);
-    doc.text("3. ABONOS A DEUDA REALIZADOS", 14, doc.lastAutoTable.finalY + 12);
+    doc.setTextColor(225, 29, 72); // Rose 600
+    doc.text("3. RELACIÓN DE PAGOS Y ABONOS", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['Fecha Abono', 'Referencia Aplicación', 'Monto Pagado']],
+        head: [['Fecha Abono', 'Referencia', 'Aplicación', 'Monto']],
         body: abonos.map(ab => [
             ab.FechaFormateada || 'S/F',
-            `Abono a Préstamo REF: PR-${ab.ID_Prestamo}`,
+            `PR-${ab.ID_Prestamo}`,
+            (ab.MesesCorrespondientes || 'Abono General').toUpperCase(),
             `$ ${Number(ab.Monto_Abonado || ab.Monto || 0).toLocaleString('es-CO')}`
         ]),
         headStyles: { fillStyle: [225, 29, 72] },
-        styles: { fontSize: 9 },
-        columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } }
+        styles: { fontSize: 8 },
+        columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // PIE DE PÁGINA
+    // PIE DE PÁGINA NOTARIAL
     const totalPages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(`Página ${i} de ${totalPages} - Documento oficial Natillera`, 14, 285);
+        doc.setFontSize(7);
+        doc.setTextColor(100);
+        doc.text(`Documento generado para fines informativos. La "Fecha de Aplicación" determina el cálculo de utilidades.`, 14, 282);
+        doc.text(`Página ${i} de ${totalPages}`, 180, 282);
+        
+        // Línea decorativa final
+        doc.setDrawColor(200);
+        doc.line(14, 285, 196, 285);
     }
 
-    doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}.pdf`);
+    doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
 }
+
 async function verListaRapidaDeudores() {
     try {
         const res = await fetch('/listar-miembros');
