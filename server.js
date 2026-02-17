@@ -464,45 +464,45 @@ app.post('/procesar-movimiento', async (req, res) => {
         const mesesParaSQL = MesesCorrespondientes || "Abono General";
 
         if (tipoMovimiento === 'deuda') {
-            // 1. OBTENEMOS EL INTERÉS REAL QUE DEBE EL PRÉSTAMO
+            // 1. OBTENEMOS EL ESTADO REAL DEL PRÉSTAMO
+            // Usamos los nombres confirmados: MontoInteres e InteresesPagados
             const checkPrestamo = await pool.request()
                 .input('idP', sql.Int, idPrestamo)
-                .query(`SELECT SaldoActual, InteresGenerado, InteresesPagados 
+                .query(`SELECT SaldoActual, MontoInteres, InteresesPagados 
                         FROM Prestamos WHERE ID_Prestamo = @idP`);
             
             const p = checkPrestamo.recordset[0];
             if (!p) return res.status(404).json({ success: false, error: "Préstamo no encontrado." });
 
-            // El interés pendiente es lo generado menos lo ya pagado
-            const interesGenerado = parseFloat(p.InteresGenerado || 0);
-            const interesesPagados = parseFloat(p.InteresesPagados || 0);
-            const interesPendiente = interesGenerado - interesesPagados;
+            const interesTotalGenerado = parseFloat(p.MontoInteres || 0);
+            const interesesYaPagados = parseFloat(p.InteresesPagados || 0);
+            const interesPendiente = interesTotalGenerado - interesesYaPagados;
 
             if (destinoAbono === 'interes') {
-                // VALIDACIÓN CRÍTICA: Si el interés pendiente es 0 o menor, bloqueamos
+                // BLOQUEO: Si el interés pendiente es 0 o menor
                 if (interesPendiente <= 0) {
                     return res.status(400).json({ 
                         success: false, 
-                        error: "No puedes abonar a interés. Este préstamo no tiene intereses acumulados pendientes." 
+                        error: "No hay intereses pendientes por pagar. El abono debe ser a capital." 
                     });
                 }
 
-                // VALIDACIÓN: No permitir pagar más interés del que se debe
-                if (m > (interesPendiente + 0.01)) {
+                // VALIDACIÓN: El monto no puede superar lo que se debe de interés
+                if (m > (interesPendiente + 0.1)) { // Margen mínimo por decimales
                     return res.status(400).json({ 
                         success: false, 
                         error: `El monto excede el interés pendiente ($${interesPendiente.toLocaleString()}).` 
                     });
                 }
 
-                // SI PASA: ACTUALIZAMOS SOLO INTERESES PAGADOS
+                // SI TODO OK: Actualizamos InteresesPagados
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
                     .input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET InteresesPagados += @m WHERE ID_Prestamo = @idP");
             } 
             else if (destinoAbono === 'capital') {
-                // ABONO A CAPITAL (Mantenemos tu lógica original)
+                // ABONO A CAPITAL (MontoPagado y SaldoActual)
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
                     .input('m', sql.Decimal(18, 2), m)
@@ -515,7 +515,7 @@ app.post('/procesar-movimiento', async (req, res) => {
                     `);
             }
             
-            // Registro en Historial
+            // Historial de Pagos
             await pool.request()
                 .input('idPers', sql.Int, idPersona).input('idPre', sql.Int, idPrestamo)
                 .input('m', sql.Decimal(18, 2), m).input('det', sql.VarChar, mesesParaSQL)
@@ -531,8 +531,8 @@ app.post('/procesar-movimiento', async (req, res) => {
 
         res.json({ success: true });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, error: err.message });
+        console.error("Error en procesar-movimiento:", err.message);
+        res.status(500).json({ success: false, error: "Error de base de datos: " + err.message });
     }
 });
 
