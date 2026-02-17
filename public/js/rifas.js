@@ -731,7 +731,6 @@ function recolectarDatosPantalla() {
     const tablas = document.querySelectorAll('.rifa-card');
     
     tablas.forEach((card) => {
-        // EXTRAEMOS EL ID REAL (ej: de "rifa-1" sacamos el "1")
         const idTablaMatch = card.id.match(/\d+/);
         const numeroDeTabla = idTablaMatch ? idTablaMatch[0] : null;
         
@@ -744,16 +743,13 @@ function recolectarDatosPantalla() {
             const numeroStr = slot.querySelector('.n-number')?.textContent.trim();
             const nombreParticipante = slot.querySelector('.n-name')?.textContent.trim();
             
-            // --- CLAVE: SOLO AGREGAR SI EL NOMBRE TIENE CONTENIDO ---
-            // Si el nombre es "" (vacío), no se agrega al objeto 'participantes'
-            // Esto le dice a la base de datos: "Este número ya no existe"
-            if (nombreParticipante && nombreParticipante !== "") {
-                participantes[numeroStr] = {
-                    nombre: nombreParticipante,
-                    pago: slot.classList.contains('paid'),
-                    adelantado: slot.getAttribute('data-adelantado') === 'true'
-                };
-            }
+            // --- CAMBIO AQUÍ: QUITAMOS EL IF PARA ENVIAR TODO ---
+            // Al enviar nombre: "" el servidor sabe que debe borrar el nombre anterior
+            participantes[numeroStr] = {
+                nombre: nombreParticipante || "", // Si está vacío, manda ""
+                pago: slot.classList.contains('paid'),
+                adelantado: slot.getAttribute('data-adelantado') === 'true'
+            };
         });
 
         payload[`tabla${numeroDeTabla}`] = {
