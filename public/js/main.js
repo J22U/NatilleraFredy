@@ -910,10 +910,10 @@ async function verListaRapidaDeudores() {
         const res = await fetch('/listar-miembros');
         const miembros = await res.json();
 
-        // Filtramos y ordenamos: el que más debe va arriba
+        // CORRECCIÓN: Usamos 'saldoPendiente' que es el nombre real que viene del servidor
         const deudores = miembros
-            .filter(m => parseFloat(m.deudaTotal || 0) > 0)
-            .sort((a, b) => b.deudaTotal - a.deudaTotal);
+            .filter(m => parseFloat(m.saldoPendiente || 0) > 0)
+            .sort((a, b) => parseFloat(b.saldoPendiente) - parseFloat(a.saldoPendiente));
 
         if (deudores.length === 0) {
             return Swal.fire({
@@ -924,7 +924,8 @@ async function verListaRapidaDeudores() {
             });
         }
 
-        const totalCartera = deudores.reduce((sum, m) => sum + parseFloat(m.deudaTotal), 0);
+        // CORRECCIÓN: Sumatoria usando saldoPendiente
+        const totalCartera = deudores.reduce((sum, m) => sum + parseFloat(m.saldoPendiente), 0);
 
         let htmlDeudores = `
             <div class="recaudo-container text-left font-sans">
@@ -943,8 +944,11 @@ async function verListaRapidaDeudores() {
                 
                 <div class="space-y-3 max-h-[450px] overflow-y-auto pr-2 custom-scroll">
                     ${deudores.map((d, index) => {
-                        // Color según el monto (más de 1M es crítico)
-                        const esCritico = d.deudaTotal > 1000000;
+                        // CORRECCIÓN: Validación de monto crítico
+                        const monto = parseFloat(d.saldoPendiente);
+                        const esCritico = monto > 1000000;
+                        const tipoEtiqueta = d.tipo || 'SOCIO'; // Por si el server no envía el tipo
+
                         return `
                         <div class="group bg-white border-2 border-slate-50 hover:border-indigo-100 p-4 rounded-2xl transition-all shadow-sm">
                             <div class="flex justify-between items-start">
@@ -954,14 +958,14 @@ async function verListaRapidaDeudores() {
                                     </div>
                                     <div>
                                         <h4 class="font-bold text-slate-800 leading-tight">${d.nombre}</h4>
-                                        <span class="inline-block mt-1 text-[9px] px-2 py-0.5 rounded-lg font-bold ${d.tipo === 'SOCIO' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}">
-                                            ${d.tipo}
+                                        <span class="inline-block mt-1 text-[9px] px-2 py-0.5 rounded-lg font-bold ${tipoEtiqueta === 'SOCIO' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}">
+                                            ${tipoEtiqueta}
                                         </span>
                                     </div>
                                 </div>
                                 <div class="text-right">
                                     <p class="text-lg font-black ${esCritico ? 'text-rose-600' : 'text-indigo-600'}">
-                                        $${Number(d.deudaTotal).toLocaleString()}
+                                        $${monto.toLocaleString()}
                                     </p>
                                     <button onclick="verHistorialFechas(${d.id}, '${d.nombre}')" class="text-[10px] font-bold text-indigo-400 hover:text-indigo-600 uppercase tracking-tighter">
                                         Ver Detalles <i class="fas fa-chevron-right ml-1"></i>
@@ -991,6 +995,7 @@ async function verListaRapidaDeudores() {
         });
 
     } catch (err) {
+        console.error("Error en lista de deudores:", err);
         Swal.fire('Error', 'No se pudo conectar con los deudores', 'error');
     }
 }
