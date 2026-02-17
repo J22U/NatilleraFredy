@@ -909,23 +909,28 @@ async function verListaRapidaDeudores() {
     try {
         const res = await fetch('/listar-miembros');
         const miembros = await res.json();
+        
+        // LOG DE DEPURACIÓN: Abre la consola (F12) para ver qué llega
+        console.log("Datos recibidos del servidor:", miembros);
 
-        // CORRECCIÓN: Usamos 'saldoPendiente' que es el nombre real que viene del servidor
+        // Filtramos asegurando que el saldo sea tratado como número
         const deudores = miembros
-            .filter(m => parseFloat(m.saldoPendiente || 0) > 0)
-            .sort((a, b) => parseFloat(b.saldoPendiente) - parseFloat(a.saldoPendiente));
+            .filter(m => {
+                const saldo = Number(m.saldoPendiente);
+                return !isNaN(saldo) && saldo > 0;
+            })
+            .sort((a, b) => Number(b.saldoPendiente) - Number(a.saldoPendiente));
 
         if (deudores.length === 0) {
             return Swal.fire({
                 title: '¡Cuentas Limpias!',
-                text: 'No hay saldos pendientes. ¡Buen trabajo!',
+                text: 'No hay saldos pendientes detectados en la base de datos.',
                 icon: 'success',
                 confirmButtonColor: '#10b981'
             });
         }
 
-        // CORRECCIÓN: Sumatoria usando saldoPendiente
-        const totalCartera = deudores.reduce((sum, m) => sum + parseFloat(m.saldoPendiente), 0);
+        const totalCartera = deudores.reduce((sum, m) => sum + Number(m.saldoPendiente), 0);
 
         let htmlDeudores = `
             <div class="recaudo-container text-left font-sans">
@@ -939,64 +944,30 @@ async function verListaRapidaDeudores() {
                         <p class="text-xl font-black text-slate-700">${deudores.length}</p>
                     </div>
                 </div>
-
-                <p class="text-xs font-black text-slate-400 uppercase mb-3 tracking-widest px-1">Ranking de Deuda</p>
-                
-                <div class="space-y-3 max-h-[450px] overflow-y-auto pr-2 custom-scroll">
-                    ${deudores.map((d, index) => {
-                        // CORRECCIÓN: Validación de monto crítico
-                        const monto = parseFloat(d.saldoPendiente);
-                        const esCritico = monto > 1000000;
-                        const tipoEtiqueta = d.tipo || 'SOCIO'; // Por si el server no envía el tipo
-
-                        return `
-                        <div class="group bg-white border-2 border-slate-50 hover:border-indigo-100 p-4 rounded-2xl transition-all shadow-sm">
-                            <div class="flex justify-between items-start">
-                                <div class="flex gap-3">
-                                    <div class="flex flex-col items-center justify-center bg-slate-100 rounded-xl h-12 w-10 font-black text-slate-400">
-                                        <span class="text-[10px]">#</span>${index + 1}
-                                    </div>
-                                    <div>
-                                        <h4 class="font-bold text-slate-800 leading-tight">${d.nombre}</h4>
-                                        <span class="inline-block mt-1 text-[9px] px-2 py-0.5 rounded-lg font-bold ${tipoEtiqueta === 'SOCIO' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}">
-                                            ${tipoEtiqueta}
-                                        </span>
-                                    </div>
+                <div class="space-y-3 max-h-[450px] overflow-y-auto pr-2">
+                    ${deudores.map((d, index) => `
+                        <div class="bg-white border-2 border-slate-50 p-4 rounded-2xl shadow-sm">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h4 class="font-bold text-slate-800">${d.nombre}</h4>
+                                    <p class="text-[10px] text-slate-400">${d.documento || ''}</p>
                                 </div>
                                 <div class="text-right">
-                                    <p class="text-lg font-black ${esCritico ? 'text-rose-600' : 'text-indigo-600'}">
-                                        $${monto.toLocaleString()}
-                                    </p>
-                                    <button onclick="verHistorialFechas(${d.id}, '${d.nombre}')" class="text-[10px] font-bold text-indigo-400 hover:text-indigo-600 uppercase tracking-tighter">
-                                        Ver Detalles <i class="fas fa-chevron-right ml-1"></i>
-                                    </button>
+                                    <p class="text-lg font-black text-indigo-600">$${Number(d.saldoPendiente).toLocaleString()}</p>
+                                    <button onclick="verHistorialFechas(${d.id}, '${d.nombre}')" class="text-[10px] font-bold text-indigo-400 uppercase">Ver Detalles</button>
                                 </div>
                             </div>
                         </div>
-                        `;
-                    }).join('')}
+                    `).join('')}
                 </div>
-
-                <button onclick="window.print()" class="w-full mt-6 py-4 bg-slate-800 text-white rounded-2xl font-bold text-sm hover:bg-black transition-all shadow-lg">
-                    <i class="fas fa-print mr-2"></i> IMPRIMIR LISTA DE CORTE
-                </button>
             </div>
         `;
 
-        Swal.fire({
-            html: htmlDeudores,
-            width: '500px',
-            showConfirmButton: false,
-            showCloseButton: true,
-            background: '#ffffff',
-            customClass: {
-                popup: 'rounded-[2.5rem] shadow-2xl p-4',
-            }
-        });
+        Swal.fire({ html: htmlDeudores, width: '500px', showConfirmButton: false, showCloseButton: true });
 
     } catch (err) {
-        console.error("Error en lista de deudores:", err);
-        Swal.fire('Error', 'No se pudo conectar con los deudores', 'error');
+        console.error("Error cargando deudores:", err);
+        Swal.fire('Error', 'Error de conexión', 'error');
     }
 }
 

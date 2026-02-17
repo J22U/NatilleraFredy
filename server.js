@@ -803,24 +803,22 @@ app.get('/listar-miembros', async (req, res) => {
                 P.ID_Persona as id, 
                 P.Nombre as nombre, 
                 P.Documento as documento,
-                -- Usamos SaldoActual que es tu columna real de deuda
                 ISNULL((
                     SELECT SUM(SaldoActual) 
                     FROM Prestamos 
                     WHERE ID_Persona = P.ID_Persona 
-                    AND Estado = 'Activo'
+                    AND SaldoActual > 0 
                 ), 0) as saldoPendiente
             FROM Personas P
-            WHERE P.Estado = 'Activo' AND P.EsSocio = 1
+            -- Quitamos temporalmente el filtro de 'Activo' por si se escribe diferente
+            WHERE P.EsSocio = 1 
             ORDER BY P.Nombre ASC
         `);
         res.json(result.recordset);
     } catch (err) {
-        console.error("Error en /listar-miembros:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
-
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
