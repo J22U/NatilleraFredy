@@ -480,7 +480,6 @@ app.post('/procesar-movimiento', async (req, res) => {
         const pool = await poolPromise;
         const { idPersona, monto, tipoMovimiento, idPrestamo, destinoAbono, MesesCorrespondientes } = req.body;
         
-        // Convertimos a número y validamos
         const m = parseFloat(monto);
         if (isNaN(m) || m <= 0) {
             return res.status(400).json({ success: false, error: "El monto debe ser un número válido." });
@@ -489,52 +488,66 @@ app.post('/procesar-movimiento', async (req, res) => {
         const mesesParaSQL = MesesCorrespondientes || "Abono General";
 
         if (tipoMovimiento === 'deuda') {
-            // Preparamos la petición base para evitar repetir código de inputs
-            const request = pool.request()
+            // 1. OBTENER ESTADO ACTUAL DEL PRÉSTAMO PARA VALIDAR
+            // Ajusta 'MontoInteresTotal' al nombre real de tu columna que guarda el interés generado
+            const checkPrestamo = await pool.request()
                 .input('idP', sql.Int, idPrestamo)
-                .input('m', sql.Decimal(18, 2), m); // Aquí se define 'm' UNA SOLA VEZ para evitar errores
+                .query(`SELECT MontoPrestado, InteresesPagados, 
+                        (MontoPrestado * 0.05) as InteresEsperado -- Ejemplo si es el 5% fijo
+                        FROM Prestamos WHERE ID_Prestamo = @idP`);
+            
+            const p = checkPrestamo.recordset[0];
+            // Si no tienes una columna de interés total, calculamos el pendiente:
+            // InteresPendiente = (Lo que debe pagar de interés) - (Lo que ya pagó de interés)
+            const interesPendiente = (p.InteresEsperado) - p.InteresesPagados;
 
-            if (destinoAbono === 'capital') {
-                // ABONO A CAPITAL: Resta la deuda
-                await request.query(`
-                    UPDATE Prestamos 
-                    SET MontoPagado += @m,
-                        SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
-                        Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END 
-                    WHERE ID_Prestamo = @idP
-                `);
-            } else {
-                // ABONO A INTERÉS: No toca el capital, solo suma ganancia
-                await request.query(`
-                    UPDATE Prestamos 
-                    SET InteresesPagados += @m 
-                    WHERE ID_Prestamo = @idP
-                `);
+            if (destinoAbono === 'interes') {
+                // VALIDACIÓN: No tiene intereses pendientes
+                if (interesPendiente <= 0) {
+                    return res.status(400).json({ success: false, error: "No hay intereses pendientes por pagar en este préstamo." });
+                }
+                // VALIDACIÓN: El abono excede el interés debido
+                if (m > (interesPendiente + 0.01)) { // +0.01 por temas de decimales
+                    return res.status(400).json({ success: false, error: `El monto excede el interés pendiente ($${interesPendiente.toLocaleString()}).` });
+                }
+
+                // SI PASA: ABONO A INTERÉS
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('m', sql.Decimal(18, 2), m)
+                    .query("UPDATE Prestamos SET InteresesPagados += @m WHERE ID_Prestamo = @idP");
+            } 
+            else if (destinoAbono === 'capital') {
+                // ABONO A CAPITAL
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('m', sql.Decimal(18, 2), m)
+                    .query(`
+                        UPDATE Prestamos 
+                        SET MontoPagado += @m,
+                            SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
+                            Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END 
+                        WHERE ID_Prestamo = @idP
+                    `);
             }
             
             // Registro en Historial
             await pool.request()
-                .input('idPers', sql.Int, idPersona)
-                .input('idPre', sql.Int, idPrestamo)
-                .input('m', sql.Decimal(18, 2), m)
-                .input('det', sql.VarChar, mesesParaSQL)
-                .query(`
-                    INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento, Detalle) 
-                    VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda', @det)
-                `);
+                .input('idPers', sql.Int, idPersona).input('idPre', sql.Int, idPrestamo)
+                .input('m', sql.Decimal(18, 2), m).input('det', sql.VarChar, mesesParaSQL)
+                .query(`INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento, Detalle) 
+                        VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda', @det)`);
         } 
         else if (tipoMovimiento === 'ahorro') {
-            // Tu lógica de ahorros existente...
             await pool.request()
-                .input('id', sql.Int, idPersona)
-                .input('m', sql.Decimal(18, 2), m)
+                .input('id', sql.Int, idPersona).input('m', sql.Decimal(18, 2), m)
                 .input('txtMeses', sql.VarChar(sql.MAX), mesesParaSQL) 
                 .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) VALUES (@id, @m, GETDATE(), @txtMeses)");
         }
 
         res.json({ success: true });
     } catch (err) {
-        console.error("Error detallado:", err);
+        console.error(err);
         res.status(500).json({ success: false, error: err.message });
     }
 });

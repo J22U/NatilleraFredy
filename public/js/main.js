@@ -408,31 +408,40 @@ function toggleAcordeon(id, btn) {
     const selectDeuda = document.getElementById('mov_prestamo_id');
     const idReal = window.mapeoIdentificadores[numPantalla];
 
-    // --- NUEVO: Capturar el destino del abono (Capital o Interés) ---
-    // Buscamos cuál radio button está marcado
     const radioDestino = document.querySelector('input[name="destinoAbono"]:checked');
     const destinoAbono = radioDestino ? radioDestino.value : 'interes'; 
 
     if (!idReal || isNaN(monto)) {
-        return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
+        return Swal.fire('Faltan datos', 'Ingresa un monto válido', 'warning');
+    }
+
+    // --- NUEVA VALIDACIÓN LOCAL ---
+    if (tipo === 'deuda' && destinoAbono === 'interes') {
+        // Suponiendo que tienes un elemento que muestra el interés pendiente en el modal
+        const interesPendienteElement = document.getElementById('txt_interes_pendiente'); 
+        if (interesPendienteElement) {
+            const pendiente = parseFloat(interesPendienteElement.getAttribute('data-valor') || 0);
+            if (pendiente <= 0) {
+                return Swal.fire('No permitido', 'Este préstamo no tiene intereses pendientes.', 'error');
+            }
+            if (monto > pendiente) {
+                return Swal.fire('Monto excesivo', `El interés pendiente es solo de $${pendiente.toLocaleString()}`, 'warning');
+            }
+        }
     }
 
     let mesesParaEnviar = (tipo === 'ahorro') ? mesesSeleccionadosTemporales : `Abono a ${destinoAbono.toUpperCase()}`;
 
-    // --- 2. CONFIRMACIÓN MODIFICADA ---
     const confirmacion = await Swal.fire({
         title: '¿Confirmar movimiento?',
-        text: `Registro de ${tipo.toUpperCase()} (${destinoAbono}) por $${monto.toLocaleString()} - ${mesesParaEnviar}`,
+        text: `Registro de ${tipo.toUpperCase()} (${destinoAbono}) por $${monto.toLocaleString()}`,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#f59e0b',
-        confirmButtonText: 'Sí, registrar',
-        cancelButtonText: 'Cancelar'
+        confirmButtonText: 'Sí, registrar'
     });
 
     if (!confirmacion.isConfirmed) return;
 
-    // --- 3. ENVÍO AL SERVIDOR ---
     try {
         const respuesta = await fetch('/procesar-movimiento', {
             method: 'POST',
@@ -443,7 +452,6 @@ function toggleAcordeon(id, btn) {
                 tipoMovimiento: tipo,
                 idPrestamo: (tipo === 'deuda') ? selectDeuda.value : null,
                 MesesCorrespondientes: mesesParaEnviar,
-                // --- NUEVO: Enviamos el destino al servidor ---
                 destinoAbono: (tipo === 'deuda') ? destinoAbono : null 
             })
         });
@@ -452,24 +460,14 @@ function toggleAcordeon(id, btn) {
 
         if (resultado.success) {
             Swal.fire('¡Éxito!', 'Guardado correctamente', 'success');
-            
             montoInput.value = '';
-            mesesSeleccionadosTemporales = "Abono General"; 
-            
-            const indicador = document.getElementById('indicadorMeses');
-            if (indicador) indicador.textContent = "Abono General";
-
-            document.querySelectorAll('#contenedorMesesModal .btn-quincena').forEach(btn => {
-                btn.classList.remove('active', 'bg-red-500', 'text-white', 'border-red-500');
-            });
-
             cargarTodo();
         } else {
-            Swal.fire('Error', resultado.error || 'Error desconocido', 'error');
+            // Aquí atrapará el error de "No hay intereses" enviado por el servidor
+            Swal.fire('Error', resultado.error, 'error');
         }
     } catch (error) {
-        console.error("Error:", error);
-        Swal.fire('Error', 'Falla de conexión con el servidor', 'error');
+        Swal.fire('Error', 'Falla de conexión', 'error');
     }
 }
 
