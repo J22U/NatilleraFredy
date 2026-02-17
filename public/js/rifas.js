@@ -670,13 +670,16 @@ function reordenarBadges() {
  * para guardarlos en el LocalStorage y enviarlos al servidor.
  */
 function recolectarDatosPantalla() {
+    // Buscamos la fecha en cualquiera de los dos inputs disponibles
+    const fechaSeleccionada = document.getElementById('rifaDate')?.value || 
+                              document.getElementById('filtroFecha')?.value;
+
     const payload = {
         info: {
             nombre: document.getElementById('rifaName')?.value || '',
             premio: document.getElementById('rifaPrize')?.value || '',
             valor: document.getElementById('rifaCost')?.value || '',
-            // ESTA ES LA FECHA QUE AHORA SÍ SE GUARDARÁ EN LA NUEVA COLUMNA:
-            fecha: document.getElementById('rifaDate')?.value || '',
+            fecha: fechaSeleccionada, // Aquí ya no irá vacío
             inversion: document.getElementById('costoPremio')?.value || ''
         }
     };
@@ -1040,3 +1043,23 @@ function obtenerViernesSorteo(fechaReferencia = new Date()) {
 
     return fechaObjetivo.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
 }
+
+// Al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+    const f1 = document.getElementById('filtroFecha');
+    const f2 = document.getElementById('rifaDate');
+
+    // Si ambos están vacíos, ponemos la fecha de hoy
+    if (f1 && !f1.value) {
+        const hoy = new Date().toISOString().split('T')[0];
+        f1.value = hoy;
+        if (f2) f2.value = hoy;
+    }
+
+    // Sincronizar: si cambias uno, se cambia el otro
+    f1?.addEventListener('change', () => { if(f2) f2.value = f1.value; cargarRifas(); });
+    f2?.addEventListener('change', () => { if(f1) f1.value = f2.value; cargarRifas(); });
+
+    // Carga inicial
+    cargarRifas();
+});
