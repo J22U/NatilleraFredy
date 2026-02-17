@@ -593,8 +593,19 @@ function actualizarSoloNombres(idTabla, participantes) {
             
             if (p && nameDiv) {
                 nameDiv.innerText = p.nombre;
+                
+                // MANTENER EL COLOR NARANJA EN EL REFRESCO
+                if (!p.pago && !p.adelantado) {
+                    nameDiv.style.color = '#e67e22';
+                    nameDiv.style.fontWeight = 'bold';
+                } else {
+                    nameDiv.style.color = '';
+                    nameDiv.style.fontWeight = 'normal';
+                }
+
                 slot.classList.toggle('paid', p.pago);
                 slot.classList.toggle('reserved', !p.pago);
+                slot.setAttribute('data-adelantado', p.adelantado ? 'true' : 'false');
             } else if (nameDiv) {
                 nameDiv.innerText = '';
                 slot.classList.remove('paid', 'reserved');
@@ -755,32 +766,46 @@ async function confirmarCompra() {
     const pago = document.getElementById('modalPago').checked;
     const adelantado = document.getElementById('modalAdelantado').checked;
 
+    // Obtenemos la referencia de qué cuadrito estamos editando
+    const modal = document.getElementById('modalCompra');
+    const idTabla = modal.dataset.tablaRef;
+    const numero = modal.dataset.numeroRef;
+
     if (!nombre) {
-        Swal.fire('Atención', 'Debes ingresar el nombre del cliente', 'warning');
+        Swal.fire('Atención', 'Debes ingresar el nombre', 'warning');
         return;
     }
 
     try {
-        const tablaId = window.currentTablaId;
-        const numero = window.currentNumero;
+        // 1. Buscamos el cuadrito (slot) en la pantalla
+        const slotId = `t${idTabla}-${numero}`;
+        const slot = document.getElementById(slotId);
 
-        // VOLVEMOS A TUS NOMBRES ORIGINALES: 'nombre' y 'pago' en minúsculas
-        if (typeof rifasData !== 'undefined' && rifasData[tablaId]) {
-            rifasData[tablaId].participantes[numero] = {
-                "nombre": nombre,  
-                "pago": pago,      
-                "adelantado": adelantado
-            };
+        if (slot) {
+            // 2. Actualizamos el HTML del cuadrito para que 'recolectarDatosPantalla' lo vea
+            slot.classList.remove('paid', 'reserved');
+            slot.classList.add(pago ? 'paid' : 'reserved');
+            
+            // Guardamos el estado 'adelantado' en un atributo para el recolector
+            slot.setAttribute('data-adelantado', adelantado ? 'true' : 'false');
+
+            // Aplicamos el color NARANJA si no ha pagado
+            const estiloNaranja = (!pago && !adelantado) ? 'style="color: #e67e22; font-weight: bold;"' : '';
+
+            slot.innerHTML = `
+                <span class="n-number">${numero}</span>
+                <div class="n-name" ${estiloNaranja}>${nombre}</div>
+            `;
         }
 
-        // Cerramos y dibujamos primero para que la pantalla tenga los datos
+        // 3. Cerramos el modal
         cerrarModal();
-        if (typeof renderizarTablas === 'function') renderizarTablas();
 
-        // MANDAMOS A GUARDAR (Sin inventar funciones nuevas)
-        if (typeof guardarTodo === 'function') {
-            await guardarTodo();
-        }
+        // 4. MANDAMOS A GUARDAR (Ahora sí encontrará datos reales)
+        await guardarTodo();
+        
+        // 5. Actualizamos los totales de dinero
+        actualizarContadoresRifa();
 
     } catch (error) {
         console.error("Error al confirmar:", error);
