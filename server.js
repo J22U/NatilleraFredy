@@ -145,40 +145,16 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
             SELECT 
                 P.ID_Persona as id, 
                 P.Nombre as nombre,
-                P.Documento as documento, -- Cambiado de Cedula a Documento según tu imagen
+                P.Documento as documento,
                 P.EsSocio,
-                -- Determinamos el tipo basado en el booleano EsSocio
                 CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
-                -- Saldo Total (Asegúrate que en la tabla Ahorros la columna se llame Monto)
+                -- Saldo Total Real
                 ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
-                -- Cálculo de Puntos por Quincena
+                
+                -- LÓGICA DINÁMICA DE PUNTOS:
+                -- Sumamos (Monto del ahorro * Meses que lleva ese dinero en la natillera)
                 ISNULL((
-                    SELECT SUM(Monto * (
-                        (CASE WHEN MesesCorrespondientes LIKE '%Enero (Q1)%' THEN 24 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Enero (Q2)%' THEN 23 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Febrero (Q1)%' THEN 22 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Febrero (Q2)%' THEN 21 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Marzo (Q1)%' THEN 20 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Marzo (Q2)%' THEN 19 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Abril (Q1)%' THEN 18 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Abril (Q2)%' THEN 17 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Mayo (Q1)%' THEN 16 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Mayo (Q2)%' THEN 15 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Junio (Q1)%' THEN 14 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Junio (Q2)%' THEN 13 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Julio (Q1)%' THEN 12 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Julio (Q2)%' THEN 11 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Agosto (Q1)%' THEN 10 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Agosto (Q2)%' THEN 9 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Septiembre (Q1)%' THEN 8 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Septiembre (Q2)%' THEN 7 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Octubre (Q1)%' THEN 6 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Octubre (Q2)%' THEN 5 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Noviembre (Q1)%' THEN 4 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Noviembre (Q2)%' THEN 3 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Diciembre (Q1)%' THEN 2 ELSE 0 END) +
-                        (CASE WHEN MesesCorrespondientes LIKE '%Diciembre (Q2)%' THEN 1 ELSE 0 END)
-                    ))
+                    SELECT SUM(Monto * (DATEDIFF(MONTH, FechaAporte, GETDATE()) + 1))
                     FROM Ahorros 
                     WHERE ID_Persona = P.ID_Persona
                 ), 0) as puntosEsfuerzo
