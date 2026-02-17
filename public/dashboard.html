@@ -26,6 +26,14 @@
         .card-gradient-emerald {
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
+
+        /* Estilos para el radio selector de destino */
+        .destino-radio:checked + div {
+            background-color: white !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .destino-radio[value="capital"]:checked + div { color: #059669 !important; }
+        .destino-radio[value="interes"]:checked + div { color: #4f46e5 !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -134,9 +142,20 @@
                                 </div>
                             </div>
 
-                            <div id="div_selector_deuda" class="hidden">
-                                <label class="text-[10px] font-black text-indigo-500 mb-1 block uppercase">Seleccionar Préstamo:</label>
+                            <div id="div_selector_deuda" class="hidden space-y-3">
+                                <label class="text-[10px] font-black text-indigo-500 mb-1 block uppercase tracking-tighter">Detalles del Abono:</label>
                                 <select id="mov_prestamo_id" class="w-full p-3 rounded-xl border-2 border-indigo-200 outline-none text-xs bg-white font-bold"></select>
+                                
+                                <div class="grid grid-cols-2 gap-2 p-1 bg-slate-200/50 rounded-xl border border-slate-200">
+                                    <label class="relative flex items-center justify-center cursor-pointer">
+                                        <input type="radio" name="destinoAbono" value="interes" class="destino-radio hidden" checked>
+                                        <div class="w-full py-2 rounded-lg text-center text-[9px] font-black text-slate-400 transition-all uppercase">A Interés</div>
+                                    </label>
+                                    <label class="relative flex items-center justify-center cursor-pointer">
+                                        <input type="radio" name="destinoAbono" value="capital" class="destino-radio hidden">
+                                        <div class="w-full py-2 rounded-lg text-center text-[9px] font-black text-slate-400 transition-all uppercase">A Capital</div>
+                                    </label>
+                                </div>
                             </div>
 
                             <button onclick="registrarMovimiento()" class="w-full bg-amber-500 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-amber-600 transition-all shadow-md">Procesar Movimiento</button>

@@ -289,26 +289,39 @@ async function verHistorialFechas(id, nombre) {
 };
 
         const renderAbonosDetallados = (data, listaPrestamos) => {
-            if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos realizados</p>';
-            const prestamosSeguros = Array.isArray(listaPrestamos) ? listaPrestamos : [];
-            const prestamosOrdenados = [...prestamosSeguros].sort((a, b) => new Date(a.FechaInicio) - new Date(b.FechaInicio));
-            return data.map(m => {
-                const indicePrestamo = prestamosOrdenados.findIndex(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
-                const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'Ref';
-                return `
-                    <div class="p-2 border-b border-slate-100 text-[11px]">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
-                                <p class="text-[9px] text-indigo-500 font-bold uppercase mt-0.5">Aplicado a: Préstamo #${numeroAmigable}</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="font-bold text-rose-600">-$${Number(m.Monto_Abonado || m.Monto || 0).toLocaleString()}</span>
-                            </div>
-                        </div>
-                    </div>`;
-            }).join('');
-        };
+    if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos realizados</p>';
+    
+    const prestamosSeguros = Array.isArray(listaPrestamos) ? listaPrestamos : [];
+    const prestamosOrdenados = [...prestamosSeguros].sort((a, b) => new Date(a.FechaInicio) - new Date(b.FechaInicio));
+    
+    return data.map(m => {
+        const indicePrestamo = prestamosOrdenados.findIndex(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
+        const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'Ref';
+        
+        // --- LÓGICA DE DESTINO ---
+        // Asumimos que m.MesesCorrespondientes contiene "Abono a CAPITAL" o "Abono a INTERES"
+        // o que tienes un campo directo m.Destino
+        const esCapital = String(m.MesesCorrespondientes || m.Detalle || '').toLowerCase().includes('capital');
+        const colorBadge = esCapital ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
+        const textoDestino = esCapital ? 'CAPITAL' : 'INTERÉS';
+
+        return `
+            <div class="p-2 border-b border-slate-100 text-[11px]">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
+                        <p class="text-[9px] text-indigo-500 font-bold uppercase mt-0.5">Aplicado a: Préstamo #${numeroAmigable}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="font-bold text-rose-600 block">-$${Number(m.Monto_Abonado || m.Monto || 0).toLocaleString()}</span>
+                        <span class="inline-block px-1.5 py-0.5 rounded text-[7px] font-black uppercase mt-1 ${colorBadge}">
+                            ${textoDestino}
+                        </span>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+};
 
         Swal.fire({
             title: `<span class="text-xl font-black">${nombre}</span>`,
@@ -395,18 +408,21 @@ function toggleAcordeon(id, btn) {
     const selectDeuda = document.getElementById('mov_prestamo_id');
     const idReal = window.mapeoIdentificadores[numPantalla];
 
+    // --- NUEVO: Capturar el destino del abono (Capital o Interés) ---
+    // Buscamos cuál radio button está marcado
+    const radioDestino = document.querySelector('input[name="destinoAbono"]:checked');
+    const destinoAbono = radioDestino ? radioDestino.value : 'interes'; 
+
     if (!idReal || isNaN(monto)) {
         return Toast.fire({ icon: 'warning', title: 'Faltan datos' });
     }
 
-    // --- 1. DETERMINAR MESES (DESDE EL MODAL O POR DEFECTO) ---
-    // Si es deuda, ponemos un texto fijo. Si es ahorro, usamos lo que capturó el modal.
-    let mesesParaEnviar = (tipo === 'ahorro') ? mesesSeleccionadosTemporales : "Pago de Deuda";
+    let mesesParaEnviar = (tipo === 'ahorro') ? mesesSeleccionadosTemporales : `Abono a ${destinoAbono.toUpperCase()}`;
 
-    // --- 2. CONFIRMACIÓN ---
+    // --- 2. CONFIRMACIÓN MODIFICADA ---
     const confirmacion = await Swal.fire({
         title: '¿Confirmar movimiento?',
-        text: `Registro de ${tipo.toUpperCase()} por $${monto.toLocaleString()} (${mesesParaEnviar})`,
+        text: `Registro de ${tipo.toUpperCase()} (${destinoAbono}) por $${monto.toLocaleString()} - ${mesesParaEnviar}`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#f59e0b',
@@ -426,7 +442,9 @@ function toggleAcordeon(id, btn) {
                 monto: monto,
                 tipoMovimiento: tipo,
                 idPrestamo: (tipo === 'deuda') ? selectDeuda.value : null,
-                MesesCorrespondientes: mesesParaEnviar 
+                MesesCorrespondientes: mesesParaEnviar,
+                // --- NUEVO: Enviamos el destino al servidor ---
+                destinoAbono: (tipo === 'deuda') ? destinoAbono : null 
             })
         });
 
@@ -435,14 +453,12 @@ function toggleAcordeon(id, btn) {
         if (resultado.success) {
             Swal.fire('¡Éxito!', 'Guardado correctamente', 'success');
             
-            // Limpieza de interfaz
             montoInput.value = '';
-            mesesSeleccionadosTemporales = "Abono General"; // Reset variable
+            mesesSeleccionadosTemporales = "Abono General"; 
             
             const indicador = document.getElementById('indicadorMeses');
             if (indicador) indicador.textContent = "Abono General";
 
-            // Limpiar clases de botones dentro del modal si es necesario
             document.querySelectorAll('#contenedorMesesModal .btn-quincena').forEach(btn => {
                 btn.classList.remove('active', 'bg-red-500', 'text-white', 'border-red-500');
             });
