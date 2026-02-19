@@ -404,13 +404,15 @@ function toggleAcordeon(id, btn) {
     }
 }
 
-        async function registrarMovimiento() {
+     async function registrarMovimiento() {
     const numPantalla = document.getElementById('mov_id').value;
     const montoInput = document.getElementById('mov_monto');
     const monto = parseFloat(montoInput.value);
     const tipo = document.getElementById('mov_tipo').value;
     const selectDeuda = document.getElementById('mov_prestamo_id');
     const idReal = window.mapeoIdentificadores[numPantalla];
+    // Capturamos la fecha manual que agregamos al HTML
+    const fechaManual = document.getElementById('mov_fecha_manual')?.value || new Date().toISOString().split('T')[0];
 
     const radioDestino = document.querySelector('input[name="destinoAbono"]:checked');
     const destinoAbono = radioDestino ? radioDestino.value : 'interes'; 
@@ -419,17 +421,23 @@ function toggleAcordeon(id, btn) {
         return Swal.fire('Faltan datos', 'Ingresa un monto válido', 'warning');
     }
 
-    // --- NUEVA VALIDACIÓN LOCAL ---
+    // --- VALIDACIÓN LOCAL CORREGIDA ---
     if (tipo === 'deuda' && destinoAbono === 'interes') {
-        // Suponiendo que tienes un elemento que muestra el interés pendiente en el modal
-        const interesPendienteElement = document.getElementById('txt_interes_pendiente'); 
-        if (interesPendienteElement) {
-            const pendiente = parseFloat(interesPendienteElement.getAttribute('data-valor') || 0);
-            if (pendiente <= 0) {
-                return Swal.fire('No permitido', 'Este préstamo no tiene intereses pendientes.', 'error');
-            }
-            if (monto > pendiente) {
-                return Swal.fire('Monto excesivo', `El interés pendiente es solo de $${pendiente.toLocaleString()}`, 'warning');
+        // Buscamos el interés pendiente en el option seleccionado del select de préstamos
+        const optionSeleccionado = selectDeuda.options[selectDeuda.selectedIndex];
+        if (optionSeleccionado) {
+            // Intentamos obtener el interés desde un atributo data o del texto del option
+            const pendiente = parseFloat(optionSeleccionado.getAttribute('data-interes') || 0);
+            
+            // Si el pendiente es 0, pero el servidor dice que hay, es posible que el mapeo del select esté fallando
+            // Por ahora, si no encuentra el atributo, dejaremos que el servidor valide para no bloquearte
+            if (optionSeleccionado.hasAttribute('data-interes')) {
+                if (pendiente <= 0) {
+                    return Swal.fire('No permitido', 'Este préstamo no tiene intereses pendientes.', 'error');
+                }
+                if (monto > (pendiente + 0.01)) { // Margen pequeño por decimales
+                    return Swal.fire('Monto excesivo', `El interés pendiente es solo de $${pendiente.toLocaleString()}`, 'warning');
+                }
             }
         }
     }
@@ -456,7 +464,8 @@ function toggleAcordeon(id, btn) {
                 tipoMovimiento: tipo,
                 idPrestamo: (tipo === 'deuda') ? selectDeuda.value : null,
                 MesesCorrespondientes: mesesParaEnviar,
-                destinoAbono: (tipo === 'deuda') ? destinoAbono : null 
+                destinoAbono: (tipo === 'deuda') ? destinoAbono : null,
+                fechaManual: fechaManual // Enviamos la fecha al servidor
             })
         });
 
@@ -467,7 +476,6 @@ function toggleAcordeon(id, btn) {
             montoInput.value = '';
             cargarTodo();
         } else {
-            // Aquí atrapará el error de "No hay intereses" enviado por el servidor
             Swal.fire('Error', resultado.error, 'error');
         }
     } catch (error) {
