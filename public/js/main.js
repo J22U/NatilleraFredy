@@ -421,22 +421,24 @@ function toggleAcordeon(id, btn) {
         return Swal.fire('Faltan datos', 'Ingresa un monto válido', 'warning');
     }
 
-    // --- VALIDACIÓN LOCAL CORREGIDA ---
+    // --- VALIDACIÓN LOCAL CORREGIDA Y TOLERANTE ---
     if (tipo === 'deuda' && destinoAbono === 'interes') {
-        // Buscamos el interés pendiente en el option seleccionado del select de préstamos
         const optionSeleccionado = selectDeuda.options[selectDeuda.selectedIndex];
         if (optionSeleccionado) {
-            // Intentamos obtener el interés desde un atributo data o del texto del option
-            const pendiente = parseFloat(optionSeleccionado.getAttribute('data-interes') || 0);
+            // Leemos el atributo crudo para saber si realmente existe
+            const rawInteres = optionSeleccionado.getAttribute('data-interes');
             
-            // Si el pendiente es 0, pero el servidor dice que hay, es posible que el mapeo del select esté fallando
-            // Por ahora, si no encuentra el atributo, dejaremos que el servidor valide para no bloquearte
-            if (optionSeleccionado.hasAttribute('data-interes')) {
+            // Solo validamos si el atributo existe (no es null). 
+            // Si es null (como pasa con algunos externos), dejamos que el servidor decida.
+            if (rawInteres !== null) {
+                const pendiente = parseFloat(rawInteres);
+                
                 if (pendiente <= 0) {
-                    return Swal.fire('No permitido', 'Este préstamo no tiene intereses pendientes.', 'error');
+                    return Swal.fire('No permitido', 'Este préstamo no tiene intereses pendientes a la fecha.', 'info');
                 }
-                if (monto > (pendiente + 0.01)) { // Margen pequeño por decimales
-                    return Swal.fire('Monto excesivo', `El interés pendiente es solo de $${pendiente.toLocaleString()}`, 'warning');
+                // Añadimos un pequeño margen de 100 pesos por temas de redondeo
+                if (monto > (pendiente + 100)) { 
+                    return Swal.fire('Monto excesivo', `El interés pendiente es solo de $${Math.round(pendiente).toLocaleString()}`, 'warning');
                 }
             }
         }
