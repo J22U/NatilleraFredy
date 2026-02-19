@@ -158,6 +158,11 @@
                                 </div>
                             </div>
 
+                            <div class="bg-white p-3 rounded-2xl border border-slate-200">
+                                <label class="text-[10px] font-black text-slate-400 mb-1 block uppercase tracking-wider">Fecha del Movimiento</label>
+                                <input type="date" id="mov_fecha_manual" class="w-full text-xs font-bold text-slate-700 outline-none bg-transparent">
+                            </div>
+
                             <button onclick="registrarMovimiento()" class="w-full bg-amber-500 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-amber-600 transition-all shadow-md">Procesar Movimiento</button>
                         </div>
 
@@ -249,5 +254,9 @@
     </div>
 
     <script src="/js/main.js"></script>
+    <script>
+        // Inicializar la fecha de hoy por defecto en el campo manual
+        document.getElementById('mov_fecha_manual').value = new Date().toISOString().split('T')[0];
+    </script>
 </body>
 </html>
