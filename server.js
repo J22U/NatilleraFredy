@@ -481,7 +481,8 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 app.post('/procesar-movimiento', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const { idPersona, monto, tipoMovimiento, idPrestamo, destinoAbono, MesesCorrespondientes } = req.body;
+        // 1. Extraemos fechaManual del req.body
+        const { idPersona, monto, tipoMovimiento, idPrestamo, destinoAbono, MesesCorrespondientes, fechaManual } = req.body;
         
         const m = parseFloat(monto);
         if (isNaN(m) || m <= 0) {
@@ -489,9 +490,10 @@ app.post('/procesar-movimiento', async (req, res) => {
         }
 
         const mesesParaSQL = MesesCorrespondientes || "Abono General";
+        // Si no viene fechaManual, usamos la fecha actual del servidor
+        const fAporte = fechaManual || new Date().toISOString().split('T')[0];
 
         if (tipoMovimiento === 'deuda') {
-            // 1. OBTENEMOS EL ESTADO REAL Y CALCULAMOS EL INTERÉS DINÁMICO
             const checkPrestamo = await pool.request()
                 .input('idP', sql.Int, idPrestamo)
                 .query(`
@@ -501,7 +503,6 @@ app.post('/procesar-movimiento', async (req, res) => {
                         TasaInteres, 
                         FechaInicio, 
                         ISNULL(InteresesPagados, 0) as InteresesPagados,
-                        -- Calculamos el interés generado a la fecha
                         (MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
                          ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) END) as InteresTotalGenerado
                     FROM Prestamos 
@@ -515,15 +516,13 @@ app.post('/procesar-movimiento', async (req, res) => {
             const interesPendiente = interesTotalGenerado - interesesYaPagados;
 
             if (destinoAbono === 'interes') {
-                // Bloqueo si no hay deuda de interés
-                if (interesPendiente <= 0.01) { // Pequeño margen para evitar errores de redondeo
+                if (interesPendiente <= 0.01) {
                     return res.status(400).json({ 
                         success: false, 
                         error: "No hay intereses pendientes por pagar a la fecha de hoy." 
                     });
                 }
 
-                // Validación de monto
                 if (m > (interesPendiente + 0.1)) {
                     return res.status(400).json({ 
                         success: false, 
@@ -531,7 +530,6 @@ app.post('/procesar-movimiento', async (req, res) => {
                     });
                 }
 
-                // Actualizamos InteresesPagados
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
                     .input('m', sql.Decimal(18, 2), m)
@@ -550,18 +548,23 @@ app.post('/procesar-movimiento', async (req, res) => {
                     `);
             }
             
-            // Historial de Pagos
+            // Historial de Pagos con la fecha manual (fAporte)
             await pool.request()
                 .input('idPers', sql.Int, idPersona).input('idPre', sql.Int, idPrestamo)
                 .input('m', sql.Decimal(18, 2), m).input('det', sql.VarChar, mesesParaSQL)
+                .input('fAporte', sql.Date, fAporte)
                 .query(`INSERT INTO HistorialPagos (ID_Persona, ID_Prestamo, Monto, Fecha, TipoMovimiento, Detalle) 
-                        VALUES (@idPers, @idPre, @m, GETDATE(), 'Abono Deuda', @det)`);
+                        VALUES (@idPers, @idPre, @m, @fAporte, 'Abono Deuda', @det)`);
         } 
         else if (tipoMovimiento === 'ahorro') {
+            // AHORROS: Insertamos fAporte en la columna FechaAporte
             await pool.request()
-                .input('id', sql.Int, idPersona).input('m', sql.Decimal(18, 2), m)
+                .input('id', sql.Int, idPersona)
+                .input('m', sql.Decimal(18, 2), m)
                 .input('txtMeses', sql.VarChar(sql.MAX), mesesParaSQL) 
-                .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) VALUES (@id, @m, GETDATE(), @txtMeses)");
+                .input('fAporte', sql.Date, fAporte)
+                .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, FechaAporte, MesesCorrespondientes) 
+                        VALUES (@id, @m, GETDATE(), @fAporte, @txtMeses)`);
         }
 
         res.json({ success: true });
