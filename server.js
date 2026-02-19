@@ -458,37 +458,34 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
     }
 });
 // --- OBTENER PRÉSTAMOS ACTIVOS DE UN SOCIO PARA EL SELECTOR ---
-app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
+app.get('/api/cobro-general', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request()
-            .input('id', sql.Int, req.params.idPersona)
-            .query(`
-                SELECT 
-                    ID_Prestamo, 
-                    SaldoActual, -- Capital puro
-                    MontoPrestado,
-                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada,
-                    -- Calculamos el interés acumulado a la fecha actual
-                    ROUND(
-                        (MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
-                             ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) END) 
-                        - ISNULL(InteresesPagados, 0), 0
-                    ) AS InteresPendiente,
-                    -- Calculamos el Total (Capital + Interés Pendiente)
-                    ROUND(
-                        SaldoActual + 
-                        ((MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
-                             ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) END) 
-                        - ISNULL(InteresesPagados, 0)), 0
-                    ) AS TotalHoy
-                FROM Prestamos 
-                WHERE ID_Persona = @id AND Estado = 'Activo'
-            `);
+        const result = await pool.request().query(`
+            SELECT 
+                p.ID_Persona,
+                per.Nombre,
+                -- Sumamos Capital + Interés calculado por cada préstamo del socio
+                SUM(p.SaldoActual) as TotalCapital,
+                SUM(ROUND(
+                    (p.MontoPrestado * (p.TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, p.FechaInicio, GETDATE()) < 0 THEN 0 
+                    ELSE DATEDIFF(DAY, p.FechaInicio, GETDATE()) END) 
+                    - ISNULL(p.InteresesPagados, 0), 0
+                )) as TotalInteres,
+                -- El Gran Total que debe aparecer en el cuadro azul
+                SUM(p.SaldoActual + ROUND(
+                    (p.MontoPrestado * (p.TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, p.FechaInicio, GETDATE()) < 0 THEN 0 
+                    ELSE DATEDIFF(DAY, p.FechaInicio, GETDATE()) END) 
+                    - ISNULL(p.InteresesPagados, 0), 0
+                )) as GranTotal
+            FROM Prestamos p
+            INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
+            WHERE p.Estado = 'Activo'
+            GROUP BY p.ID_Persona, per.Nombre
+        `);
         res.json(result.recordset);
     } catch (err) {
-        console.error("Error al obtener préstamos:", err);
-        res.status(500).json([]);
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -918,32 +915,27 @@ app.get('/listar-miembros', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT 
-                P.ID_Persona as id, 
-                P.Nombre as nombre, 
-                P.Documento as documento,
-                -- Identificamos si es Socio o Externo para el frontend
-                CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
+                per.ID_Persona as id,
+                per.Nombre as nombre,
+                per.Documento as documento,
+                -- Calculamos el total real (Capital + Interés) por cada persona
                 ISNULL((
-                    SELECT SUM(SaldoActual) 
-                    FROM Prestamos 
-                    WHERE ID_Persona = P.ID_Persona 
-                    AND SaldoActual > 0
+                    SELECT SUM(
+                        p.SaldoActual + 
+                        ( (p.MontoPrestado * (p.TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, p.FechaInicio, GETDATE()) < 0 THEN 0 
+                           ELSE DATEDIFF(DAY, p.FechaInicio, GETDATE()) END
+                          ) - ISNULL(p.InteresesPagados, 0)
+                        )
+                    )
+                    FROM Prestamos p
+                    WHERE p.ID_Persona = per.ID_Persona AND p.Estado = 'Activo'
                 ), 0) as saldoPendiente
-            FROM Personas P
-            WHERE 
-                -- Condición 1: Que tenga una deuda activa (No importa si es externo)
-                EXISTS (
-                    SELECT 1 FROM Prestamos Pr 
-                    WHERE Pr.ID_Persona = P.ID_Persona AND Pr.SaldoActual > 0
-                )
-                -- Condición 2: O que sea un Socio Activo (aunque no deba)
-                OR (P.EsSocio = 1 AND P.Estado = 'Activo')
-            ORDER BY P.Nombre ASC
+            FROM Personas per
         `);
         res.json(result.recordset);
     } catch (err) {
-        console.error("Error en /listar-miembros:", err.message);
-        res.status(500).json({ error: err.message });
+        console.error(err);
+        res.status(500).json({ error: "Error al obtener miembros" });
     }
 });
 
