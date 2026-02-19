@@ -410,6 +410,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ID_Prestamo,
                     MontoPrestado,
                     MontoPagado,
+                    ISNULL(InteresesPagados, 0) as InteresesPagados, -- Importante para el descuento
                     TasaInteres,         
                     FechaInicio,         
                     -- Calculamos días desde la FechaInicio grabada hasta hoy
@@ -428,19 +429,24 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
 
         const prestamosCalculados = result.recordset.map(p => {
             const capital = Number(p.MontoPrestado || 0);
-            const interes = Number(p.InteresAcumulado || 0);
-            const pagado = Number(p.MontoPagado || 0);
+            const interesTotal = Number(p.InteresAcumulado || 0);
+            const pagadoCapital = Number(p.MontoPagado || 0);
+            const pagadoInteres = Number(p.InteresesPagados || 0); // Nuevo valor
             
-            const saldoActual = (capital + interes) - pagado;
+            // Cálculo del interés neto pendiente
+            const interesPendiente = interesTotal - pagadoInteres;
+            // Cálculo del saldo total real (Capital pendiente + Interés pendiente)
+            const saldoActual = (capital - pagadoCapital) + interesPendiente;
 
             return {
                 ID_Prestamo: p.ID_Prestamo,
                 MontoPrestado: capital,
-                MontoPagado: pagado,
+                MontoPagado: pagadoCapital,
+                InteresesPagados: pagadoInteres, // Informativo
                 TasaInteres: p.TasaInteres,
                 FechaInicio: p.FechaInicio,
                 DiasTranscurridos: p.DiasTranscurridos || 0,
-                InteresGenerado: interes,
+                InteresGenerado: interesPendiente > 0 ? interesPendiente : 0,
                 saldoHoy: saldoActual > 0 ? saldoActual : 0,
                 // Formateo de la fecha manual para el frontend
                 FechaInicioFormateada: p.FechaInicio ? new Date(p.FechaInicio).toLocaleDateString('es-CO') : 'S/F'
@@ -453,7 +459,6 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 // --- OBTENER PRÉSTAMOS ACTIVOS DE UN SOCIO PARA EL SELECTOR ---
 app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
     try {
