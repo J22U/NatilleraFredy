@@ -481,7 +481,6 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 app.post('/procesar-movimiento', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // 1. Extraemos fechaManual del req.body
         const { idPersona, monto, tipoMovimiento, idPrestamo, destinoAbono, MesesCorrespondientes, fechaManual } = req.body;
         
         const m = parseFloat(monto);
@@ -498,10 +497,7 @@ app.post('/procesar-movimiento', async (req, res) => {
                 .input('idP', sql.Int, idPrestamo)
                 .query(`
                     SELECT 
-                        SaldoActual, 
-                        MontoPrestado, 
-                        TasaInteres, 
-                        FechaInicio, 
+                        SaldoActual, MontoPrestado, TasaInteres, FechaInicio, 
                         ISNULL(InteresesPagados, 0) as InteresesPagados,
                         (MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
                          ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) END) as InteresTotalGenerado
@@ -517,17 +513,10 @@ app.post('/procesar-movimiento', async (req, res) => {
 
             if (destinoAbono === 'interes') {
                 if (interesPendiente <= 0.01) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        error: "No hay intereses pendientes por pagar a la fecha de hoy." 
-                    });
+                    return res.status(400).json({ success: false, error: "No hay intereses pendientes." });
                 }
-
                 if (m > (interesPendiente + 0.1)) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        error: `El monto excede el interés pendiente ($${Math.round(interesPendiente).toLocaleString()}).` 
-                    });
+                    return res.status(400).json({ success: false, error: `Excede el interés ($${Math.round(interesPendiente).toLocaleString()}).` });
                 }
 
                 await pool.request()
@@ -548,7 +537,7 @@ app.post('/procesar-movimiento', async (req, res) => {
                     `);
             }
             
-            // Historial de Pagos con la fecha manual (fAporte)
+            // Historial de Pagos: Cambiamos Fecha por @fAporte
             await pool.request()
                 .input('idPers', sql.Int, idPersona).input('idPre', sql.Int, idPrestamo)
                 .input('m', sql.Decimal(18, 2), m).input('det', sql.VarChar, mesesParaSQL)
@@ -557,14 +546,14 @@ app.post('/procesar-movimiento', async (req, res) => {
                         VALUES (@idPers, @idPre, @m, @fAporte, 'Abono Deuda', @det)`);
         } 
         else if (tipoMovimiento === 'ahorro') {
-            // AHORROS: Insertamos fAporte en la columna FechaAporte
+            // AHORROS: Cambiamos Fecha por @fAporte para que el historial muestre la elegida
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18, 2), m)
                 .input('txtMeses', sql.VarChar(sql.MAX), mesesParaSQL) 
                 .input('fAporte', sql.Date, fAporte)
                 .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, FechaAporte, MesesCorrespondientes) 
-                        VALUES (@id, @m, GETDATE(), @fAporte, @txtMeses)`);
+                        VALUES (@id, @m, @fAporte, @fAporte, @txtMeses)`);
         }
 
         res.json({ success: true });
