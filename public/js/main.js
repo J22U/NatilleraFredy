@@ -556,9 +556,15 @@ async function crearPersona() {
         title: 'Nuevo Préstamo',
         html: `
             <div class="text-left space-y-3">
-                <div>
-                    <label class="swal-input-label"># Socio en pantalla</label>
-                    <input id="p-id" type="number" class="swal-custom-input" placeholder="Ej: 1, 2...">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="swal-input-label"># Socio en pantalla</label>
+                        <input id="p-id" type="number" class="swal-custom-input" placeholder="Ej: 1, 2...">
+                    </div>
+                    <div>
+                        <label class="swal-input-label">Fecha de Préstamo</label>
+                        <input id="p-fecha" type="date" class="swal-custom-input" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -626,16 +632,19 @@ async function crearPersona() {
             const idReal = window.mapeoIdentificadores[document.getElementById('p-id').value];
             const monto = parseFloat(document.getElementById('p-m').value);
             const tasa = parseFloat(document.getElementById('p-tasa').value);
+            const fecha = document.getElementById('p-fecha').value;
 
             if (!idReal) return Swal.showValidationMessage(`Socio no encontrado`);
             if (!monto || monto <= 0) return Swal.showValidationMessage(`Monto inválido`);
             if (!tasa || tasa <= 0) return Swal.showValidationMessage(`Tasa inválida`);
+            if (!fecha) return Swal.showValidationMessage(`Seleccione una fecha`);
             
             return { 
                 idPersona: idReal, 
                 monto, 
                 tasaInteresMensual: tasa,
-                esDiario: true // Flag para que el backend sepa que es el nuevo modelo
+                fechaInicio: fecha,
+                esDiario: true 
             };
         }
     });

@@ -229,19 +229,21 @@ app.post('/eliminar-socio', async (req, res) => {
 
 app.post('/registrar-prestamo-diario', async (req, res) => {
     try {
-        const { idPersona, monto, tasaInteresMensual } = req.body;
+        // Recibimos fechaInicio del body enviada por el frontend
+        const { idPersona, monto, tasaInteresMensual, fechaInicio } = req.body;
         const pool = await poolPromise;
 
         await pool.request()
             .input('idPersona', sql.Int, idPersona)
             .input('monto', sql.Decimal(18, 2), monto)
             .input('tasa', sql.Decimal(18, 2), tasaInteresMensual)
+            .input('fechaInicio', sql.Date, fechaInicio) // <-- Nuevo input para la fecha
             .query(`
                 INSERT INTO Prestamos (
                     ID_Persona, 
                     MontoPrestado, 
-                    TasaInteres,     -- Nombre corregido según tu imagen
-                    FechaInicio,     -- Nombre corregido según tu imagen
+                    TasaInteres,     
+                    FechaInicio,     
                     MontoPagado, 
                     SaldoActual, 
                     Estado
@@ -250,7 +252,7 @@ app.post('/registrar-prestamo-diario', async (req, res) => {
                     @idPersona, 
                     @monto, 
                     @tasa, 
-                    GETDATE(), 
+                    @fechaInicio, -- Ahora usa la fecha manual en lugar de GETDATE()
                     0, 
                     @monto, 
                     'Activo'
@@ -408,17 +410,23 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ID_Prestamo,
                     MontoPrestado,
                     MontoPagado,
-                    TasaInteres,         -- Nombre real en tu DB
-                    FechaInicio,         -- Nombre real en tu DB
-                    -- Cálculo de días y de interés acumulado (100.0 y 30.0 para forzar decimales)
-                    DATEDIFF(DAY, FechaInicio, GETDATE()) as DiasTranscurridos,
-                    (MontoPrestado * (TasaInteres / 100.0 / 30.0) * DATEDIFF(DAY, FechaInicio, GETDATE())) as InteresAcumulado
+                    TasaInteres,         
+                    FechaInicio,         
+                    -- Calculamos días desde la FechaInicio grabada hasta hoy
+                    CASE 
+                        WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
+                        ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) 
+                    END as DiasTranscurridos,
+                    -- Interés basado en la fecha manual seleccionada
+                    (MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE 
+                            WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
+                            ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) 
+                        END) as InteresAcumulado
                 FROM Prestamos 
                 WHERE ID_Persona = @id
             `);
 
         const prestamosCalculados = result.recordset.map(p => {
-            // Aseguramos que los valores sean números para evitar el 'undefined'
             const capital = Number(p.MontoPrestado || 0);
             const interes = Number(p.InteresAcumulado || 0);
             const pagado = Number(p.MontoPagado || 0);
@@ -429,11 +437,12 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                 ID_Prestamo: p.ID_Prestamo,
                 MontoPrestado: capital,
                 MontoPagado: pagado,
-                TasaInteres: p.TasaInteres, // Este es el que el frontend busca para el %
+                TasaInteres: p.TasaInteres,
                 FechaInicio: p.FechaInicio,
                 DiasTranscurridos: p.DiasTranscurridos || 0,
-                InteresGenerado: interes,    // Nombre que espera tu función renderPrestamos
+                InteresGenerado: interes,
                 saldoHoy: saldoActual > 0 ? saldoActual : 0,
+                // Formateo de la fecha manual para el frontend
                 FechaInicioFormateada: p.FechaInicio ? new Date(p.FechaInicio).toLocaleDateString('es-CO') : 'S/F'
             };
         });
