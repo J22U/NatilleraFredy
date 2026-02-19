@@ -488,51 +488,59 @@ app.post('/procesar-movimiento', async (req, res) => {
         const mesesParaSQL = MesesCorrespondientes || "Abono General";
 
         if (tipoMovimiento === 'deuda') {
-            // 1. OBTENEMOS EL ESTADO REAL DEL PRÉSTAMO
-            // Usamos los nombres confirmados: MontoInteres e InteresesPagados
+            // 1. OBTENEMOS EL ESTADO REAL Y CALCULAMOS EL INTERÉS DINÁMICO
             const checkPrestamo = await pool.request()
                 .input('idP', sql.Int, idPrestamo)
-                .query(`SELECT SaldoActual, MontoInteres, InteresesPagados 
-                        FROM Prestamos WHERE ID_Prestamo = @idP`);
+                .query(`
+                    SELECT 
+                        SaldoActual, 
+                        MontoPrestado, 
+                        TasaInteres, 
+                        FechaInicio, 
+                        ISNULL(InteresesPagados, 0) as InteresesPagados,
+                        -- Calculamos el interés generado a la fecha
+                        (MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
+                         ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) END) as InteresTotalGenerado
+                    FROM Prestamos 
+                    WHERE ID_Prestamo = @idP`);
             
             const p = checkPrestamo.recordset[0];
             if (!p) return res.status(404).json({ success: false, error: "Préstamo no encontrado." });
 
-            const interesTotalGenerado = parseFloat(p.MontoInteres || 0);
+            const interesTotalGenerado = parseFloat(p.InteresTotalGenerado || 0);
             const interesesYaPagados = parseFloat(p.InteresesPagados || 0);
             const interesPendiente = interesTotalGenerado - interesesYaPagados;
 
             if (destinoAbono === 'interes') {
-                // BLOQUEO: Si el interés pendiente es 0 o menor
-                if (interesPendiente <= 0) {
+                // Bloqueo si no hay deuda de interés
+                if (interesPendiente <= 0.01) { // Pequeño margen para evitar errores de redondeo
                     return res.status(400).json({ 
                         success: false, 
-                        error: "No hay intereses pendientes por pagar. El abono debe ser a capital." 
+                        error: "No hay intereses pendientes por pagar a la fecha de hoy." 
                     });
                 }
 
-                // VALIDACIÓN: El monto no puede superar lo que se debe de interés
-                if (m > (interesPendiente + 0.1)) { // Margen mínimo por decimales
+                // Validación de monto
+                if (m > (interesPendiente + 0.1)) {
                     return res.status(400).json({ 
                         success: false, 
-                        error: `El monto excede el interés pendiente ($${interesPendiente.toLocaleString()}).` 
+                        error: `El monto excede el interés pendiente ($${Math.round(interesPendiente).toLocaleString()}).` 
                     });
                 }
 
-                // SI TODO OK: Actualizamos InteresesPagados
+                // Actualizamos InteresesPagados
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
                     .input('m', sql.Decimal(18, 2), m)
-                    .query("UPDATE Prestamos SET InteresesPagados += @m WHERE ID_Prestamo = @idP");
+                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
             } 
             else if (destinoAbono === 'capital') {
-                // ABONO A CAPITAL (MontoPagado y SaldoActual)
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
                     .input('m', sql.Decimal(18, 2), m)
                     .query(`
                         UPDATE Prestamos 
-                        SET MontoPagado += @m,
+                        SET MontoPagado = ISNULL(MontoPagado, 0) + @m,
                             SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END,
                             Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END 
                         WHERE ID_Prestamo = @idP
