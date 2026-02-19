@@ -157,18 +157,18 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
                         DATEDIFF(DAY, 
                             CASE 
                                 -- DICIEMBRE
-                                WHEN MesesCorrespondientes LIKE '%Diciembre%Quincena 1%' THEN '2025-12-02'
-                                WHEN MesesCorrespondientes LIKE '%Diciembre%Quincena 2%' THEN '2025-12-17'
+                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Diciembre%Quincena 1%' THEN '2025-12-02'
+                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Diciembre%Quincena 2%' THEN '2025-12-17'
                                 -- ENERO
-                                WHEN MesesCorrespondientes LIKE '%Enero%Quincena 1%'     THEN '2026-01-02'
-                                WHEN MesesCorrespondientes LIKE '%Enero%Quincena 2%'     THEN '2026-01-17'
+                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Enero%Quincena 1%'     THEN '2026-01-02'
+                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Enero%Quincena 2%'     THEN '2026-01-17'
                                 -- FEBRERO
-                                WHEN MesesCorrespondientes LIKE '%Febrero%Quincena 1%'   THEN '2026-02-02'
-                                WHEN MesesCorrespondientes LIKE '%Febrero%Quincena 2%'   THEN '2026-02-17'
-                                -- Por defecto usa la fecha real si no coincide con las etiquetas
-                                ELSE FechaAporte 
+                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Febrero%Quincena 1%'   THEN '2026-02-02'
+                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Febrero%Quincena 2%'   THEN '2026-02-17'
+                                -- Por defecto usa FechaAporte, y si es nula, usa Fecha (la del sistema)
+                                ELSE ISNULL(FechaAporte, Fecha) 
                             END, 
-                            GETDATE()) + 1 -- El +1 asegura que si ahorró hoy, al menos tenga 1 día de esfuerzo
+                            GETDATE()) + 1
                     ))
                     FROM Ahorros 
                     WHERE ID_Persona = P.ID_Persona
