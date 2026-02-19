@@ -797,7 +797,7 @@ app.post('/api/registrar-gasto-ganancias', async (req, res) => {
 
 // --- RUTA PARA EJECUTAR EL REPARTO REAL A LOS SOCIOS ---
 app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
-    const { sociosAptos } = req.body;
+    const { sociosAptos } = req.body; // Se asume que sociosAptos ya viene calculado por días desde el cliente
     const pool = await poolPromise;
     const transaction = new sql.Transaction(pool);
 
@@ -811,22 +811,23 @@ app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
             await transaction.request()
                 .input('id', sql.Int, s.id)
                 .input('monto', sql.Decimal(18, 2), s.interes)
-                .input('detalle', sql.VarChar(sql.MAX), s.detalle || 'REPARTO UTILIDADES EQUITATIVO')
+                // Detalle actualizado para especificar que es por días de permanencia
+                .input('detalle', sql.VarChar(sql.MAX), s.detalle || 'REPARTO UTILIDADES EQUITATIVO (POR DÍAS)')
                 .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, FechaAporte, MesesCorrespondientes) 
                         VALUES (@id, @monto, GETDATE(), GETDATE(), @detalle)`);
         }
 
-        // 2. RESTA PROPORCIONAL usando los nombres reales: ID_Prestamo e InteresesPagados
+        // 2. RESTA PROPORCIONAL: Corregido el ORDER BY para usar FechaInicio (nombre real en tu DB)
         await transaction.request()
             .input('totalADescontar', sql.Decimal(18, 2), totalRepartido)
             .query(`
                 UPDATE Prestamos 
-                SET InteresesPagados = InteresesPagados - @totalADescontar 
+                SET InteresesPagados = ISNULL(InteresesPagados, 0) - @totalADescontar 
                 WHERE ID_Prestamo = (
                     SELECT TOP 1 ID_Prestamo 
                     FROM Prestamos 
                     WHERE InteresesPagados > 0 
-                    ORDER BY Fecha DESC
+                    ORDER BY FechaInicio DESC -- Nombre corregido de la columna
                 )
             `);
 
@@ -835,6 +836,74 @@ app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
     } catch (err) {
         if (transaction) await transaction.rollback();
         console.error("Error exacto en DB:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.get('/api/previsualizar-reparto-diario', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+
+        // 1. Calculamos la utilidad neta total (Intereses cobrados - Gastos)
+        const utilidadRes = await pool.request().query(`
+            SELECT 
+                (SELECT ISNULL(SUM(Monto), 0) FROM HistorialPagos WHERE TipoMovimiento = 'Abono Deuda' AND Detalle LIKE '%INTERES%') -
+                (SELECT ISNULL(SUM(Monto), 0) FROM Gastos) as UtilidadNeta
+        `);
+        const utilidadTotal = utilidadRes.recordset[0].UtilidadNeta;
+
+        // 2. Traemos los ahorros y calculamos los días de permanencia de cada uno
+        const ahorrosRes = await pool.request().query(`
+            SELECT 
+                A.ID_Persona, 
+                P.Nombre, 
+                A.Monto, 
+                A.Fecha,
+                DATEDIFF(DAY, A.Fecha, GETDATE()) as Dias
+            FROM Ahorros A
+            JOIN Personas P ON A.ID_Persona = P.ID_Persona
+        `);
+
+        const ahorros = ahorrosRes.recordset;
+        let puntajeGlobal = 0;
+        const puntosPorSocio = {};
+
+        // 3. Lógica de Pesos-Día
+        ahorros.forEach(ahorro => {
+            const diasEfectivos = ahorro.Dias > 0 ? ahorro.Dias : 1;
+            const puntos = ahorro.Monto * diasEfectivos;
+            
+            if (!puntosPorSocio[ahorro.ID_Persona]) {
+                puntosPorSocio[ahorro.ID_Persona] = { 
+                    id: ahorro.ID_Persona, 
+                    nombre: ahorro.Nombre, 
+                    puntos: 0 
+                };
+            }
+            puntosPorSocio[ahorro.ID_Persona].puntos += puntos;
+            puntajeGlobal += puntos;
+        });
+
+        // 4. Convertimos puntos en dinero real
+        const sociosAptos = Object.values(puntosPorSocio).map(s => {
+            const participacion = s.puntos / puntajeGlobal;
+            const utilidadAsignada = Math.floor(utilidadTotal * participacion);
+
+            return {
+                id: s.id,
+                nombre: s.nombre,
+                interes: utilidadAsignada, // Este es el campo que espera tu POST
+                detalle: `REPARTO EQUITATIVO: ${s.puntos.toLocaleString()} PTS-DÍA`
+            };
+        });
+
+        res.json({
+            utilidadTotal,
+            sociosAptos: sociosAptos.filter(s => s.interes > 0)
+        });
+
+    } catch (err) {
+        console.error("Error al calcular reparto:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
