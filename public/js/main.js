@@ -854,7 +854,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: [31, 41, 55] } }
     });
 
-    // 3. SECCIÓN: AHORROS (CON RETROACTIVIDAD)
+    // 3. SECCIÓN: AHORROS (CON RETROACTIVIDAD POR DÍAS)
     doc.setFontSize(11);
     doc.setTextColor(5, 150, 105); // Emerald 600
     doc.text("1. DETALLE DE AHORROS Y PUNTOS DE UTILIDAD", 14, doc.lastAutoTable.finalY + 12);
@@ -863,11 +863,18 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         startY: doc.lastAutoTable.finalY + 15,
         head: [['ID', 'Fecha Registro', 'Periodo Aplicado', 'Días Esfuerzo', 'Monto']],
         body: ahorros.map(a => {
-            // Calculamos días de esfuerzo aproximados para el PDF
-            // Esto le da claridad al socio de por qué gana más o menos
-            const fechaRef = a.Detalle.includes("Diciembre") ? '2025-12-02' : 
-                             a.Detalle.includes("Enero") ? '2026-01-02' : a.FechaAporte;
-            const dias = Math.max(0, Math.floor((new Date() - new Date(fechaRef)) / (1000 * 60 * 60 * 24)));
+            // Lógica de fechas espejo al servidor para el PDF
+            let fechaRef = a.FechaAporte || a.Fecha;
+            const det = (a.Detalle || "").toLowerCase();
+            
+            if (det.includes("diciembre") && det.includes("quincena 1")) fechaRef = '2025-12-02';
+            else if (det.includes("diciembre") && det.includes("quincena 2")) fechaRef = '2025-12-17';
+            else if (det.includes("enero") && det.includes("quincena 1")) fechaRef = '2026-01-02';
+            else if (det.includes("enero") && det.includes("quincena 2")) fechaRef = '2026-01-17';
+            else if (det.includes("febrero") && det.includes("quincena 1")) fechaRef = '2026-02-02';
+            else if (det.includes("febrero") && det.includes("quincena 2")) fechaRef = '2026-02-17';
+
+            const dias = Math.max(0, Math.floor((new Date() - new Date(fechaRef)) / (1000 * 60 * 60 * 24)) + 1);
 
             return [
                 `#${a.ID_Ahorro || '---'}`,
@@ -886,23 +893,26 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         }
     });
 
-    // 4. SECCIÓN: PRÉSTAMOS (DIAGNÓSTICO)
+    // 4. SECCIÓN: PRÉSTAMOS (CORREGIDO: NETO DE INTERESES)
     doc.setFontSize(11);
     doc.setTextColor(37, 99, 235); // Blue 600
-    doc.text("2. ESTADO DE CRÉDITOS Y FINANCIACIÓN", 14, doc.lastAutoTable.finalY + 12);
+    doc.text("2. ESTADO DE CRÉDITOS (INTERÉS DIARIO)", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['REF', 'Fecha Inicio', 'Tasa', 'Capital', 'Int. Acum.', 'Saldo Hoy']],
+        head: [['REF', 'Fecha Inicio', 'Tasa', 'Capital Inicial', 'Int. Pend.', 'Saldo Hoy']],
         body: prestamos.map(p => {
-            const intAcum = Number(p.InteresGenerado || p.MontoInteres || 0);
-            const saldoH = (Number(p.MontoPrestado) + intAcum) - Number(p.MontoPagado || 0);
+            // Usamos InteresGenerado que ya viene restado (InteresAcumulado - InteresesPagados)
+            const intPendiente = Number(p.InteresGenerado || 0);
+            const capitalPendiente = Number(p.MontoPrestado) - Number(p.MontoPagado || 0);
+            const saldoH = capitalPendiente + intPendiente;
+            
             return [
                 `PR-${p.ID_Prestamo}`,
                 p.FechaInicioFormateada || 'S/F',
                 `${p.TasaInteres}%`,
                 `$ ${Number(p.MontoPrestado).toLocaleString('es-CO')}`,
-                `$ ${intAcum.toLocaleString('es-CO')}`,
+                `$ ${intPendiente.toLocaleString('es-CO')}`,
                 `$ ${Math.max(0, saldoH).toLocaleString('es-CO')}`
             ];
         }),
@@ -911,14 +921,14 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] } }
     });
 
-    // 5. SECCIÓN: ABONOS (TRAZABILIDAD)
+    // 5. SECCIÓN: ABONOS (DETALLE DE DESTINO)
     doc.setFontSize(11);
     doc.setTextColor(225, 29, 72); // Rose 600
     doc.text("3. RELACIÓN DE PAGOS Y ABONOS", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['Fecha Abono', 'Referencia', 'Aplicación', 'Monto']],
+        head: [['Fecha Abono', 'Referencia', 'Aplicación / Concepto', 'Monto']],
         body: abonos.map(ab => [
             ab.FechaFormateada || 'S/F',
             `PR-${ab.ID_Prestamo}`,
@@ -930,17 +940,14 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // PIE DE PÁGINA NOTARIAL
+    // PIE DE PÁGINA
     const totalPages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(7);
         doc.setTextColor(100);
-        doc.text(`Documento generado para fines informativos. La "Fecha de Aplicación" determina el cálculo de utilidades.`, 14, 282);
+        doc.text(`Este extracto refleja días de esfuerzo acumulados para el próximo reparto de utilidades.`, 14, 282);
         doc.text(`Página ${i} de ${totalPages}`, 180, 282);
-        
-        // Línea decorativa final
-        doc.setDrawColor(200);
         doc.line(14, 285, 196, 285);
     }
 
