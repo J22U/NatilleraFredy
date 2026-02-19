@@ -464,10 +464,24 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
         const result = await pool.request()
             .input('id', sql.Int, req.params.idPersona)
             .query(`
-                SELECT ID_Prestamo, 
-                       SaldoActual, 
-                       MontoPrestado,
-                       FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada
+                SELECT 
+                    ID_Prestamo, 
+                    SaldoActual, -- Capital puro
+                    MontoPrestado,
+                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada,
+                    -- Calculamos el interés acumulado a la fecha actual
+                    ROUND(
+                        (MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
+                             ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) END) 
+                        - ISNULL(InteresesPagados, 0), 0
+                    ) AS InteresPendiente,
+                    -- Calculamos el Total (Capital + Interés Pendiente)
+                    ROUND(
+                        SaldoActual + 
+                        ((MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
+                             ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) END) 
+                        - ISNULL(InteresesPagados, 0)), 0
+                    ) AS TotalHoy
                 FROM Prestamos 
                 WHERE ID_Persona = @id AND Estado = 'Activo'
             `);
