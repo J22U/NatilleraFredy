@@ -151,21 +151,19 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
                 -- Saldo Total Real
                 ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
                 
-                -- LÓGICA DE PUNTOS POR DÍAS EXACTOS CON RETROACTIVIDAD
+                -- LÓGICA DE PUNTOS POR DÍAS EXACTOS
                 ISNULL((
-                    SELECT SUM(Monto * (
+                    SELECT SUM(CAST(Monto AS FLOAT) * (
                         DATEDIFF(DAY, 
                             CASE 
-                                -- DICIEMBRE
-                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Diciembre%Quincena 1%' THEN '2025-12-02'
-                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Diciembre%Quincena 2%' THEN '2025-12-17'
-                                -- ENERO
-                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Enero%Quincena 1%'     THEN '2026-01-02'
-                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Enero%Quincena 2%'     THEN '2026-01-17'
-                                -- FEBRERO
-                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Febrero%Quincena 1%'   THEN '2026-02-02'
-                                WHEN ISNULL(MesesCorrespondientes, '') LIKE '%Febrero%Quincena 2%'   THEN '2026-02-17'
-                                -- Por defecto usa FechaAporte, y si es nula, usa Fecha (la del sistema)
+                                -- Ajuste de LIKE para ser más flexible con espacios o formatos
+                                WHEN MesesCorrespondientes LIKE '%Diciembre%1%' THEN '2025-12-02'
+                                WHEN MesesCorrespondientes LIKE '%Diciembre%2%' THEN '2025-12-17'
+                                WHEN MesesCorrespondientes LIKE '%Enero%1%'     THEN '2026-01-02'
+                                WHEN MesesCorrespondientes LIKE '%Enero%2%'     THEN '2026-01-17'
+                                WHEN MesesCorrespondientes LIKE '%Febrero%1%'   THEN '2026-02-02'
+                                WHEN MesesCorrespondientes LIKE '%Febrero%2%'   THEN '2026-02-17'
+                                -- Prioridad absoluta a la fecha manual de aporte
                                 ELSE ISNULL(FechaAporte, Fecha) 
                             END, 
                             GETDATE()) + 1
