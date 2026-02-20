@@ -1060,7 +1060,7 @@ app.get('/api/backup-database', async (req, res) => {
     }
 });
 
-// --- SISTEMA DE RESTAURACIÓN (CUIDADO) ---
+// --- SISTEMA DE RESTAURACIÓN COMPLETO ---
 app.post('/api/restore-database', async (req, res) => {
     const { data } = req.body;
     const pool = await poolPromise;
@@ -1068,30 +1068,8 @@ app.post('/api/restore-database', async (req, res) => {
 
     try {
         await transaction.begin();
-        // 1. Limpiar tablas (Orden de dependencia)
-        await transaction.request().query("DELETE FROM HistorialPagos; DELETE FROM Ahorros; DELETE FROM Prestamos; DELETE FROM Personas;");
 
-        // 2. Insertar Personas (Ejemplo simplificado, se debe iterar cada tabla)
-        // Nota: Restaurar requiere un mapeo cuidadoso de IDs si son Identity.
-        // Por seguridad, este endpoint requiere lógica detallada por cada tabla.
-        
-        await transaction.commit();
-        res.json({ success: true, message: "Base de datos restaurada" });
-    } catch (err) {
-        await transaction.rollback();
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/restore-database', async (req, res) => {
-    const { data } = req.body; // El contenido del archivo JSON
-    const pool = await poolPromise;
-    const transaction = new sql.Transaction(pool);
-
-    try {
-        await transaction.begin();
-
-        // 1. Limpiar todo en orden (de lo más específico a lo más general)
+        // 1. LIMPIEZA TOTAL (En orden para respetar llaves foráneas)
         await transaction.request().query(`
             DELETE FROM HistorialPagos;
             DELETE FROM Ahorros;
@@ -1100,29 +1078,85 @@ app.post('/api/restore-database', async (req, res) => {
             DELETE FROM ConfiguracionRifas;
         `);
 
-        // 2. Restaurar Personas
-        if (data.personas.length > 0) {
+        // 2. RESTAURAR PERSONAS
+        if (data.personas && data.personas.length > 0) {
             await transaction.request().query("SET IDENTITY_INSERT Personas ON");
             for (const p of data.personas) {
                 await transaction.request()
                     .input('id', sql.Int, p.ID_Persona)
-                    .input('n', sql.VarChar, p.Nombre)
-                    .input('d', sql.VarChar, p.Documento)
-                    .input('s', sql.Bit, p.EsSocio)
-                    .input('e', sql.VarChar, p.Estado)
-                    .query("INSERT INTO Personas (ID_Persona, Nombre, Documento, EsSocio, Estado) VALUES (@id, @n, @d, @s, @e)");
+                    .input('nom', sql.VarChar, p.Nombre)
+                    .input('doc', sql.VarChar, p.Documento)
+                    .input('tel', sql.VarChar, p.Telefono || null) // Evita error si no hay teléfono
+                    .input('soc', sql.Bit, p.EsSocio)
+                    .input('fec', sql.DateTime, p.FechaIngreso)
+                    .input('est', sql.VarChar, p.Estado)
+                    .query(`INSERT INTO Personas (ID_Persona, Nombre, Documento, Telefono, EsSocio, FechaIngreso, Estado) 
+                            VALUES (@id, @nom, @doc, @tel, @soc, @fec, @est)`);
             }
             await transaction.request().query("SET IDENTITY_INSERT Personas OFF");
         }
 
-        // 3. Restaurar Préstamos (y así sucesivamente con las demás tablas...)
-        // Nota: Por brevedad, aquí seguirían los bucles para ahorros, préstamos, etc.
-        
+        // 3. RESTAURAR PRÉSTAMOS
+        if (data.prestamos && data.prestamos.length > 0) {
+            await transaction.request().query("SET IDENTITY_INSERT Prestamos ON");
+            for (const pr of data.prestamos) {
+                await transaction.request()
+                    .input('idp', sql.Int, pr.ID_Prestamo)
+                    .input('idper', sql.Int, pr.ID_Persona)
+                    .input('monto', sql.Decimal(18,2), pr.MontoPrestado)
+                    .input('tasa', sql.Decimal(5,2), pr.TasaInteres)
+                    .input('fini', sql.DateTime, pr.FechaInicio)
+                    .input('est', sql.VarChar, pr.Estado)
+                    .input('fec', sql.DateTime, pr.Fecha)
+                    .input('pagado', sql.Decimal(18,2), pr.MontoPagado)
+                    .input('interes', sql.Decimal(18,2), pr.MontoInteres)
+                    .input('saldo', sql.Decimal(18,2), pr.SaldoActual)
+                    .input('cuotas', sql.Int, pr.Cuotas)
+                    .input('intPag', sql.Decimal(18,2), pr.InteresesPagados || 0)
+                    .query(`INSERT INTO Prestamos (ID_Prestamo, ID_Persona, MontoPrestado, TasaInteres, FechaInicio, Estado, Fecha, MontoPagado, MontoInteres, SaldoActual, Cuotas, InteresesPagados) 
+                            VALUES (@idp, @idper, @monto, @tasa, @fini, @est, @fec, @pagado, @interes, @saldo, @cuotas, @intPag)`);
+            }
+            await transaction.request().query("SET IDENTITY_INSERT Prestamos OFF");
+        }
+
+        // 4. RESTAURAR AHORROS
+        if (data.ahorros && data.ahorros.length > 0) {
+            await transaction.request().query("SET IDENTITY_INSERT Ahorros ON");
+            for (const a of data.ahorros) {
+                await transaction.request()
+                    .input('ida', sql.Int, a.ID_Ahorro)
+                    .input('idp', sql.Int, a.ID_Persona)
+                    .input('mon', sql.Decimal(18,2), a.Monto)
+                    .input('fap', sql.DateTime, a.FechaAporte)
+                    .input('fec', sql.DateTime, a.Fecha)
+                    .input('mes', sql.VarChar, a.MesesCorrespondientes)
+                    .query(`INSERT INTO Ahorros (ID_Ahorro, ID_Persona, Monto, FechaAporte, Fecha, MesesCorrespondientes) 
+                            VALUES (@ida, @idp, @mon, @fap, @fec, @mes)`);
+            }
+            await transaction.request().query("SET IDENTITY_INSERT Ahorros OFF");
+        }
+
+        // 5. RESTAURAR HISTORIAL
+        if (data.historial && data.historial.length > 0) {
+            for (const h of data.historial) {
+                await transaction.request()
+                    .input('idper', sql.Int, h.ID_Persona)
+                    .input('monto', sql.Decimal(18,2), h.Monto)
+                    .input('fec', sql.DateTime, h.Fecha)
+                    .input('tipo', sql.VarChar, h.TipoMovimiento)
+                    .input('idpre', sql.Int, h.ID_Prestamo || null)
+                    .input('det', sql.VarChar, h.Detalle)
+                    .query(`INSERT INTO HistorialPagos (ID_Persona, Monto, Fecha, TipoMovimiento, ID_Prestamo, Detalle) 
+                            VALUES (@idper, @monto, @fec, @tipo, @idpre, @det)`);
+            }
+        }
+
         await transaction.commit();
-        res.json({ success: true, message: "¡Base de datos restaurada con éxito!" });
+        res.json({ success: true, message: "¡Base de datos restaurada correctamente!" });
+
     } catch (err) {
-        await transaction.rollback();
-        console.error(err);
+        if (transaction) await transaction.rollback();
+        console.error("❌ Error en Restauración:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 });
