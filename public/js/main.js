@@ -827,12 +827,8 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const fechaDoc = new Date().toLocaleString('es-CO');
-    
-    // Normalizamos "Hoy" al último segundo del día para que el conteo sea justo
-    const hoy = new Date();
-    hoy.setHours(23, 59, 59, 999);
 
-    // 1. ENCABEZADO
+    // 1. ENCABEZADO (Slate 800)
     doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, 210, 40, 'F');
     doc.setTextColor(255, 255, 255);
@@ -844,7 +840,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.text(`TITULAR: ${nombre.toUpperCase()}`, 14, 30);
     doc.text(`FECHA DE EMISIÓN: ${fechaDoc}`, 140, 30);
 
-    // 2. RESUMEN DE SALDOS
+    // 2. RESUMEN DE SALDOS (TARJETAS)
     doc.autoTable({
         startY: 45,
         head: [['RESUMEN DE CUENTAS', 'VALOR TOTAL']],
@@ -853,108 +849,91 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
             ['DEUDA PENDIENTE (CAPITAL + INT)', `$ ${Number(totales.deudaTotal || 0).toLocaleString('es-CO')}`]
         ],
         theme: 'striped',
-        headStyles: { fillStyle: [79, 70, 229] },
-        styles: { fontSize: 10 },
-        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+        headStyles: { fillStyle: [79, 70, 229], halign: 'center' },
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: [31, 41, 55] } }
     });
 
-    // 3. SECCIÓN: AHORROS (CON CORRECCIÓN DEFINITIVA DE DÍAS)
+    // 3. SECCIÓN: AHORROS (SIN DÍAS DE ESFUERZO)
     doc.setFontSize(11);
-    doc.setTextColor(5, 150, 105);
-    doc.text("1. DETALLE DE AHORROS Y DÍAS DE ESFUERZO", 14, doc.lastAutoTable.finalY + 12);
+    doc.setTextColor(5, 150, 105); // Emerald 600
+    doc.text("1. DETALLE DE AHORROS Y APORTES", 14, doc.lastAutoTable.finalY + 12);
     
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['ID', 'Fecha Registro', 'Periodo Aplicado', 'Días Esfuerzo', 'Monto']],
-        body: ahorros.map(a => {
-            let fechaRefStr = "";
-            const det = (a.Detalle || "").toLowerCase();
-            
-            // Lógica de Quincenas
-            if (det.includes("diciembre") && det.includes("quincena 1")) fechaRefStr = '2025-12-02';
-            else if (det.includes("diciembre") && det.includes("quincena 2")) fechaRefStr = '2025-12-17';
-            else if (det.includes("enero") && det.includes("quincena 1")) fechaRefStr = '2026-01-02';
-            else if (det.includes("enero") && det.includes("quincena 2")) fechaRefStr = '2026-01-17';
-            else if (det.includes("febrero") && det.includes("quincena 1")) fechaRefStr = '2026-02-02';
-            else if (det.includes("febrero") && det.includes("quincena 2")) fechaRefStr = '2026-02-17';
-            else {
-                fechaRefStr = a.FechaAporte || a.Fecha || new Date().toISOString();
-            }
-
-            // PROCESAMIENTO DINÁMICO DE FECHA (Evita el 0 y el NaN)
-            let partes = fechaRefStr.split('T')[0].replace(/\//g, '-').split('-');
-            let fFinal;
-            
-            if (partes[0].length === 4) {
-                // Formato YYYY-MM-DD
-                fFinal = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]), 0, 0, 0);
-            } else {
-                // Formato DD-MM-YYYY
-                fFinal = new Date(parseInt(partes[2]), parseInt(partes[1]) - 1, parseInt(partes[0]), 0, 0, 0);
-            }
-
-            // Diferencia absoluta en días
-            const diffMs = hoy.getTime() - fFinal.getTime();
-            const diasEsfuerzo = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-
-            return [
-                `#${a.ID_Ahorro || '---'}`,
-                a.FechaFormateada || 'S/F',
-                (a.Detalle || "Ahorro").toUpperCase(),
-                `${diasEsfuerzo} d`,
-                `$ ${Number(a.Monto).toLocaleString('es-CO')}`
-            ];
-        }),
+        head: [['ID', 'Fecha Registro', 'Concepto / Periodo', 'Monto']],
+        body: ahorros.map(a => [
+            `#${a.ID_Ahorro || '---'}`,
+            a.FechaFormateada || 'S/F',
+            (a.Detalle || "Ahorro").toUpperCase(),
+            `$ ${Number(a.Monto).toLocaleString('es-CO')}`
+        ]),
         headStyles: { fillStyle: [16, 185, 129] },
-        columnStyles: { 3: { halign: 'center', fontStyle: 'bold' }, 4: { halign: 'right' } }
+        styles: { fontSize: 8 },
+        columnStyles: { 
+            0: { cellWidth: 20 }, 
+            3: { halign: 'right', fontStyle: 'bold' } 
+        }
     });
 
     // 4. SECCIÓN: PRÉSTAMOS
     doc.setFontSize(11);
-    doc.setTextColor(37, 99, 235);
-    doc.text("2. ESTADO DE CRÉDITOS", 14, doc.lastAutoTable.finalY + 12);
+    doc.setTextColor(37, 99, 235); // Blue 600
+    doc.text("2. ESTADO DE CRÉDITOS ACTIVOS", 14, doc.lastAutoTable.finalY + 12);
+
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
         head: [['REF', 'Fecha Inicio', 'Tasa', 'Capital Inicial', 'Int. Pend.', 'Saldo Hoy']],
         body: prestamos.map(p => {
-            const intGen = Number(p.InteresGenerado || 0);
-            const capPen = Number(p.MontoPrestado) - Number(p.MontoPagado || 0);
+            const intPendiente = Number(p.InteresGenerado || 0);
+            const capitalRestante = Number(p.MontoPrestado) - Number(p.MontoPagado || 0);
+            const saldoTotal = capitalRestante + intPendiente;
+            
             return [
                 `PR-${p.ID_Prestamo}`,
                 p.FechaInicioFormateada || 'S/F',
                 `${p.TasaInteres}%`,
                 `$ ${Number(p.MontoPrestado).toLocaleString('es-CO')}`,
-                `$ ${intGen.toLocaleString('es-CO')}`,
-                `$ ${Math.max(0, capPen + intGen).toLocaleString('es-CO')}`
+                `$ ${intPendiente.toLocaleString('es-CO')}`,
+                `$ ${Math.max(0, saldoTotal).toLocaleString('es-CO')}`
             ];
         }),
         headStyles: { fillStyle: [59, 130, 246] },
-        columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' } }
+        styles: { fontSize: 8 },
+        columnStyles: { 
+            3: { halign: 'right' }, 
+            4: { halign: 'right' }, 
+            5: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] } 
+        }
     });
 
     // 5. SECCIÓN: ABONOS
     doc.setFontSize(11);
-    doc.setTextColor(225, 29, 72);
-    doc.text("3. RELACIÓN DE PAGOS", 14, doc.lastAutoTable.finalY + 12);
+    doc.setTextColor(225, 29, 72); // Rose 600
+    doc.text("3. RELACIÓN DE PAGOS REALIZADOS", 14, doc.lastAutoTable.finalY + 12);
+
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['Fecha Abono', 'Referencia', 'Concepto', 'Monto']],
+        head: [['Fecha Pago', 'Referencia', 'Detalle de Aplicación', 'Monto Pagado']],
         body: abonos.map(ab => [
             ab.FechaFormateada || 'S/F',
             `PR-${ab.ID_Prestamo}`,
-            (ab.MesesCorrespondientes || 'Abono').toUpperCase(),
+            (ab.MesesCorrespondientes || 'Abono a capital/interés').toUpperCase(),
             `$ ${Number(ab.Monto_Abonado || ab.Monto || 0).toLocaleString('es-CO')}`
         ]),
         headStyles: { fillStyle: [225, 29, 72] },
+        styles: { fontSize: 8 },
         columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // Pie de página con numeración
-    const pageCount = doc.internal.getNumberOfPages();
-    for(let i = 1; i <= pageCount; i++) {
+    // PIE DE PÁGINA
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
-        doc.text(`Página ${i} de ${pageCount}`, 190, 285, { align: 'right' });
+        doc.setFontSize(7);
+        doc.setTextColor(100);
+        doc.text(`Este documento es un extracto informativo del estado de cuenta actual.`, 14, 285);
+        doc.text(`Página ${i} de ${totalPages}`, 185, 285, { align: 'right' });
     }
 
     doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}.pdf`);
