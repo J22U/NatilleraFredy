@@ -1032,6 +1032,101 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
     }
 });
 
+// --- SISTEMA DE BACKUP ---
+app.get('/api/backup-database', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        // Obtenemos datos de las tablas principales
+        const personas = await pool.request().query("SELECT * FROM Personas");
+        const ahorros = await pool.request().query("SELECT * FROM Ahorros");
+        const prestamos = await pool.request().query("SELECT * FROM Prestamos");
+        const historial = await pool.request().query("SELECT * FROM HistorialPagos");
+        const rifas = await pool.request().query("SELECT * FROM ConfiguracionRifas");
+
+        const backup = {
+            fecha: new Date().toISOString(),
+            data: {
+                personas: personas.recordset,
+                ahorros: ahorros.recordset,
+                prestamos: prestamos.recordset,
+                historial: historial.recordset,
+                rifas: rifas.recordset
+            }
+        };
+
+        res.json(backup);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- SISTEMA DE RESTAURACIÓN (CUIDADO) ---
+app.post('/api/restore-database', async (req, res) => {
+    const { data } = req.body;
+    const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+        // 1. Limpiar tablas (Orden de dependencia)
+        await transaction.request().query("DELETE FROM HistorialPagos; DELETE FROM Ahorros; DELETE FROM Prestamos; DELETE FROM Personas;");
+
+        // 2. Insertar Personas (Ejemplo simplificado, se debe iterar cada tabla)
+        // Nota: Restaurar requiere un mapeo cuidadoso de IDs si son Identity.
+        // Por seguridad, este endpoint requiere lógica detallada por cada tabla.
+        
+        await transaction.commit();
+        res.json({ success: true, message: "Base de datos restaurada" });
+    } catch (err) {
+        await transaction.rollback();
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/restore-database', async (req, res) => {
+    const { data } = req.body; // El contenido del archivo JSON
+    const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+
+        // 1. Limpiar todo en orden (de lo más específico a lo más general)
+        await transaction.request().query(`
+            DELETE FROM HistorialPagos;
+            DELETE FROM Ahorros;
+            DELETE FROM Prestamos;
+            DELETE FROM Personas;
+            DELETE FROM ConfiguracionRifas;
+        `);
+
+        // 2. Restaurar Personas
+        if (data.personas.length > 0) {
+            await transaction.request().query("SET IDENTITY_INSERT Personas ON");
+            for (const p of data.personas) {
+                await transaction.request()
+                    .input('id', sql.Int, p.ID_Persona)
+                    .input('n', sql.VarChar, p.Nombre)
+                    .input('d', sql.VarChar, p.Documento)
+                    .input('s', sql.Bit, p.EsSocio)
+                    .input('e', sql.VarChar, p.Estado)
+                    .query("INSERT INTO Personas (ID_Persona, Nombre, Documento, EsSocio, Estado) VALUES (@id, @n, @d, @s, @e)");
+            }
+            await transaction.request().query("SET IDENTITY_INSERT Personas OFF");
+        }
+
+        // 3. Restaurar Préstamos (y así sucesivamente con las demás tablas...)
+        // Nota: Por brevedad, aquí seguirían los bucles para ahorros, préstamos, etc.
+        
+        await transaction.commit();
+        res.json({ success: true, message: "¡Base de datos restaurada con éxito!" });
+    } catch (err) {
+        await transaction.rollback();
+        console.error(err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

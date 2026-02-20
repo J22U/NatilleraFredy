@@ -1918,3 +1918,63 @@ window.ejecutarCruceCuentas = async function() {
         Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
     }
 };
+
+// 1. DESCARGAR
+async function descargarBackup() {
+    const res = await fetch('/api/backup-database');
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `respaldo_natillera_${new Date().toLocaleDateString()}.json`;
+    a.click();
+}
+
+// 2. DISPARAR EL SELECTOR DE ARCHIVOS
+function confirmarRestauracion() {
+    Swal.fire({
+        title: '¿Estás ABSOLUTAMENTE seguro?',
+        text: "Se borrarán todos los datos actuales y se reemplazarán por los del archivo.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, restaurar todo',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('fileInput').click(); // Abre el selector de archivos
+        }
+    });
+}
+
+// 3. LEER EL ARCHIVO Y ENVIAR AL SERVIDOR
+function procesarArchivoRestaurar(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const contenido = JSON.parse(e.target.result);
+            
+            const response = await fetch('/api/restore-database', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: contenido.data })
+            });
+
+            const res = await response.json();
+            if (res.success) {
+                Swal.fire('Restaurado', 'La base de datos ha vuelto al pasado con éxito.', 'success')
+                .then(() => location.reload()); // Recargar para ver cambios
+            } else {
+                throw new Error(res.error);
+            }
+        } catch (error) {
+            Swal.fire('Error', 'El archivo no es válido o hubo un fallo: ' + error.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+}
