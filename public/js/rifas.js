@@ -1171,8 +1171,10 @@ function obtenerProximaFechaSorteo(fechaReferencia = new Date()) {
 }
 
 async function verificarCambioCiclo() {
-    // 1. Cargar los datos actuales del servidor/local
-    const datos = await cargarDatosDesdeNube(); 
+    // 1. Cargar los datos actuales del servidor
+    const fechaActual = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
+    const response = await fetch(`/api/cargar-rifas?fecha=${fechaActual}`);
+    const datos = await response.json();
     const hoy = new Date().toISOString().split('T')[0];
     
     // 2. Si la rifa guardada ya "venció" (la fecha del sorteo es menor a hoy)
