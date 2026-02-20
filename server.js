@@ -365,7 +365,8 @@ app.get('/historial-ahorros/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query(`SELECT Monto, 
+            .query(`SELECT ID_Ahorro,
+                           Monto, 
                            FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
                            -- Forzamos el nombre a 'Detalle' para el frontend
                            ISNULL(MesesCorrespondientes, 'Abono General') as Detalle 
@@ -383,6 +384,7 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
             .input('id', sql.Int, req.params.id)
             .query(`
                 SELECT 
+                    ID_Pago,
                     Monto as Monto_Abonado, 
                     FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada,
                     ID_Prestamo -- Para saber a qué préstamo se le aplicó
@@ -1029,6 +1031,180 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
     } catch (err) {
         console.error("Error en api/prestamos-activos:", err.message);
         res.status(500).json({ error: "Error interno del servidor" });
+    }
+});
+
+// --- RUTAS PARA EDITAR MOVIMIENTOS ---
+
+// 1. Editar Ahorro
+app.put('/api/editar-ahorro', async (req, res) => {
+    try {
+        const { idAhorro, monto, fecha, MesesCorrespondientes } = req.body;
+        
+        if (!idAhorro || !monto) {
+            return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
+        }
+
+        const pool = await poolPromise;
+        
+        // Obtener el ahorro actual para calcular la diferencia
+        const ahorroActual = await pool.request()
+            .input('id', sql.Int, idAhorro)
+            .query("SELECT Monto FROM Ahorros WHERE ID_Ahorro = @id");
+        
+        if (ahorroActual.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: "Ahorro no encontrado" });
+        }
+
+        const montoAnterior = parseFloat(ahorroActual.recordset[0].Monto);
+        const montoNuevo = parseFloat(monto);
+        const diferencia = montoNuevo - montoAnterior;
+
+        // Actualizar el ahorro
+        await pool.request()
+            .input('id', sql.Int, idAhorro)
+            .input('monto', sql.Decimal(18, 2), montoNuevo)
+            .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
+            .input('meses', sql.VarChar(sql.MAX), MesesCorrespondientes || 'Abono General')
+            .query(`
+                UPDATE Ahorros 
+                SET Monto = @monto, 
+                    Fecha = @fecha, 
+                    FechaAporte = @fecha,
+                    MesesCorrespondientes = @meses
+                WHERE ID_Ahorro = @id
+            `);
+
+        res.json({ success: true, message: "Ahorro actualizado correctamente", diferencia });
+    } catch (err) {
+        console.error("Error al editar ahorro:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// 2. Editar Pago de Deuda
+app.put('/api/editar-pago-deuda', async (req, res) => {
+    try {
+        const { idPago, monto, fecha, detalle, idPrestamo, montoAnterior } = req.body;
+        
+        if (!idPago || !monto || !idPrestamo) {
+            return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
+        }
+
+        const pool = await poolPromise;
+        const montoNuevo = parseFloat(monto);
+        const montoAnt = montoAnterior ? parseFloat(montoAnterior) : 0;
+        const diferencia = montoNuevo - montoAnt;
+
+        // Actualizar el pago en historial
+        await pool.request()
+            .input('id', sql.Int, idPago)
+            .input('monto', sql.Decimal(18, 2), montoNuevo)
+            .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
+            .input('detalle', sql.VarChar, detalle || 'Abono a deuda')
+            .query(`
+                UPDATE HistorialPagos 
+                SET Monto = @monto, 
+                    Fecha = @fecha, 
+                    Detalle = @detalle
+                WHERE ID_Pago = @id
+            `);
+
+        // Determinar si es abono a interés o capital basado en el detalle
+        const esCapital = String(detalle || '').toLowerCase().includes('capital');
+        
+        if (diferencia !== 0) {
+            // Actualizar el préstamo según corresponda
+            if (esCapital) {
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('dif', sql.Decimal(18, 2), diferencia)
+                    .query(`
+                        UPDATE Prestamos 
+                        SET MontoPagado = ISNULL(MontoPagado, 0) + @dif,
+                            SaldoActual = CASE 
+                                WHEN (SaldoActual - @dif) < 0 THEN 0 
+                                ELSE SaldoActual - @dif END,
+                            Estado = CASE 
+                                WHEN (SaldoActual - @dif) <= 0 THEN 'Pagado' 
+                                ELSE 'Activo' END
+                        WHERE ID_Prestamo = @idP
+                    `);
+            } else {
+                // Es abono a interés
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('dif', sql.Decimal(18, 2), diferencia)
+                    .query(`
+                        UPDATE Prestamos 
+                        SET InteresesPagados = ISNULL(InteresesPagados, 0) + @dif
+                        WHERE ID_Prestamo = @idP
+                    `);
+            }
+        }
+
+        res.json({ success: true, message: "Pago actualizado correctamente" });
+    } catch (err) {
+        console.error("Error al editar pago:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// 3. Obtener detalle de un ahorro específico
+app.get('/api/detalle-ahorro/:id', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
+                SELECT 
+                    ID_Ahorro, 
+                    ID_Persona, 
+                    Monto, 
+                    FORMAT(Fecha, 'yyyy-MM-dd') as Fecha,
+                    ISNULL(MesesCorrespondientes, 'Abono General') as MesesCorrespondientes
+                FROM Ahorros 
+                WHERE ID_Ahorro = @id
+            `);
+        
+        if (result.recordset.length > 0) {
+            res.json(result.recordset[0]);
+        } else {
+            res.status(404).json({ error: "Ahorro no encontrado" });
+        }
+    } catch (err) {
+        console.error("Error al obtener detalle de ahorro:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Obtener detalle de un pago específico
+app.get('/api/detalle-pago/:id', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
+                SELECT 
+                    ID_Pago, 
+                    ID_Persona, 
+                    ID_Prestamo,
+                    Monto, 
+                    FORMAT(Fecha, 'yyyy-MM-dd') as Fecha,
+                    ISNULL(Detalle, 'Abono a deuda') as Detalle,
+                    TipoMovimiento
+                FROM HistorialPagos 
+                WHERE ID_Pago = @id
+            `);
+        
+        if (result.recordset.length > 0) {
+            res.json(result.recordset[0]);
+        } else {
+            res.status(404).json({ error: "Pago no encontrado" });
+        }
+    } catch (err) {
+        console.error("Error al obtener detalle de pago:", err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 

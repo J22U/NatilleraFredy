@@ -228,14 +228,16 @@ async function verHistorialFechas(id, nombre) {
             return data.map(m => {
                 const esRetiro = Number(m[key]) < 0;
                 const colorFinal = esRetiro ? 'rose' : color;
+                const idAhorro = m.ID_Ahorro || 0;
                 return `
                 <div class="flex justify-between items-center p-3 border-b border-slate-100 text-[11px]">
                     <div class="flex flex-col">
                         <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
                         <span class="text-[9px] font-black uppercase ${esRetiro ? 'text-rose-400' : 'text-indigo-400'} mt-0.5">${m.Detalle || 'Ahorro'}</span>
                     </div>
-                    <div class="text-right">
+                    <div class="flex items-center gap-2">
                         <span class="font-bold text-${colorFinal}-600">${esRetiro ? '' : '+'}$${Math.abs(Number(m[key])).toLocaleString()}</span>
+                        ${!esRetiro && idAhorro > 0 ? `<button onclick="abrirEditarAhorro(${idAhorro}, ${Number(m[key])}, '${m.FechaFormateada || ''}', '${m.Detalle || ''}')" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -309,6 +311,10 @@ async function verHistorialFechas(id, nombre) {
         const colorBadge = esCapital ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
         const textoDestino = esCapital ? 'CAPITAL' : 'INTERÉS';
 
+        const idPago = m.ID_Pago || 0;
+        const idPrestamo = m.ID_Prestamo || 0;
+        const montoAbono = Number(m.Monto_Abonado || m.Monto || 0);
+
         return `
             <div class="p-2 border-b border-slate-100 text-[11px]">
                 <div class="flex justify-between items-start">
@@ -316,11 +322,14 @@ async function verHistorialFechas(id, nombre) {
                         <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
                         <p class="text-[9px] text-indigo-500 font-bold uppercase mt-0.5">Aplicado a: Préstamo #${numeroAmigable}</p>
                     </div>
-                    <div class="text-right">
-                        <span class="font-bold text-rose-600 block">-$${Number(m.Monto_Abonado || m.Monto || 0).toLocaleString()}</span>
-                        <span class="inline-block px-1.5 py-0.5 rounded text-[7px] font-black uppercase mt-1 ${colorBadge}">
-                            ${textoDestino}
-                        </span>
+                    <div class="flex items-center gap-2">
+                        <div class="text-right">
+                            <span class="font-bold text-rose-600 block">-$${montoAbono.toLocaleString()}</span>
+                            <span class="inline-block px-1.5 py-0.5 rounded text-[7px] font-black uppercase mt-1 ${colorBadge}">
+                                ${textoDestino}
+                            </span>
+                        </div>
+                        ${idPago > 0 ? `<button onclick="abrirEditarPago(${idPago}, ${montoAbono}, '${m.FechaFormateada || ''}', '${m.Detalle || ''}', ${idPrestamo}, ${montoAbono})" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
                     </div>
                 </div>
             </div>`;
@@ -1978,3 +1987,170 @@ function procesarArchivoRestaurar(event) {
     };
     reader.readAsText(file);
 }
+
+// --- FUNCIONES PARA EDITAR MOVIMIENTOS ---
+
+// 1. Función para abrir el modal de edición de ahorro
+window.abrirEditarAhorro = async function(idAhorro, montoActual, fechaActual, detalleActual) {
+    // Convertir fecha dd/MM/yyyy a yyyy-MM-dd para el input date
+    let fechaFormateada = '';
+    if (fechaActual) {
+        const parts = fechaActual.split('/');
+        if (parts.length === 3) {
+            fechaFormateada = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+    }
+
+    const { value: formValues } = await Swal.fire({
+        title: '✏️ Editar Ahorro',
+        html: `
+            <div class="text-left space-y-4">
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Monto ($)</label>
+                    <input id="edit-monto" type="number" class="swal2-input" value="${montoActual}" placeholder="Monto">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Fecha</label>
+                    <input id="edit-fecha" type="date" class="swal2-input" value="${fechaFormateada}">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Periodo / Detalle</label>
+                    <input id="edit-detalle" type="text" class="swal2-input" value="${detalleActual}" placeholder="Ej: Enero (Q1)">
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar Cambios',
+        confirmButtonColor: '#4f46e5',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const monto = document.getElementById('edit-monto').value;
+            const fecha = document.getElementById('edit-fecha').value;
+            const detalle = document.getElementById('edit-detalle').value;
+            
+            if (!monto || monto <= 0) {
+                Swal.showValidationMessage('El monto debe ser mayor a 0');
+                return false;
+            }
+            return { monto, fecha, detalle };
+        }
+    });
+
+    if (formValues) {
+        try {
+            const response = await fetch('/api/editar-ahorro', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    idAhorro: idAhorro,
+                    monto: formValues.monto,
+                    fecha: formValues.fecha,
+                    MesesCorrespondientes: formValues.detalle || 'Abono General'
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                Swal.fire('¡Éxito!', 'Ahorro actualizado correctamente', 'success');
+                // Recargar el historial
+                if (typeof cargarTodo === 'function') cargarTodo();
+            } else {
+                Swal.fire('Error', result.error || 'No se pudo actualizar', 'error');
+            }
+        } catch (error) {
+            console.error("Error al editar ahorro:", error);
+            Swal.fire('Error', 'Error de conexión', 'error');
+        }
+    }
+};
+
+// 2. Función para abrir el modal de edición de pago de deuda
+window.abrirEditarPago = async function(idPago, montoActual, fechaActual, detalleActual, idPrestamo, montoAnterior) {
+    // Convertir fecha dd/MM/yyyy a yyyy-MM-dd para el input date
+    let fechaFormateada = '';
+    if (fechaActual) {
+        const parts = fechaActual.split('/');
+        if (parts.length === 3) {
+            fechaFormateada = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+    }
+
+    // Determinar si es capital o interés
+    const esCapital = String(detalleActual || '').toLowerCase().includes('capital');
+
+    const { value: formValues } = await Swal.fire({
+        title: '✏️ Editar Pago de Deuda',
+        html: `
+            <div class="text-left space-y-4">
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Monto ($)</label>
+                    <input id="edit-pago-monto" type="number" class="swal2-input" value="${montoActual}" placeholder="Monto">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Fecha</label>
+                    <input id="edit-pago-fecha" type="date" class="swal2-input" value="${fechaFormateada}">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Tipo de Abono</label>
+                    <select id="edit-pago-tipo" class="swal2-input">
+                        <option value="interes" ${!esCapital ? 'selected' : ''}>Abono a INTERÉS</option>
+                        <option value="capital" ${esCapital ? 'selected' : ''}>Abono a CAPITAL</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Detalle</label>
+                    <input id="edit-pago-detalle" type="text" class="swal2-input" value="${detalleActual}" placeholder="Detalle del pago">
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar Cambios',
+        confirmButtonColor: '#4f46e5',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const monto = document.getElementById('edit-pago-monto').value;
+            const fecha = document.getElementById('edit-pago-fecha').value;
+            const tipo = document.getElementById('edit-pago-tipo').value;
+            const detalle = document.getElementById('edit-pago-detalle').value;
+            
+            if (!monto || monto <= 0) {
+                Swal.showValidationMessage('El monto debe ser mayor a 0');
+                return false;
+            }
+            return { monto, fecha, tipo, detalle };
+        }
+    });
+
+    if (formValues) {
+        try {
+            const detalleFinal = `Abono a ${formValues.tipo.toUpperCase()}`;
+            
+            const response = await fetch('/api/editar-pago-deuda', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    idPago: idPago,
+                    monto: formValues.monto,
+                    fecha: formValues.fecha,
+                    detalle: detalleFinal,
+                    idPrestamo: idPrestamo,
+                    montoAnterior: montoAnterior
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                Swal.fire('¡Éxito!', 'Pago actualizado correctamente', 'success');
+                // Recargar
+                if (typeof cargarTodo === 'function') cargarTodo();
+            } else {
+                Swal.fire('Error', result.error || 'No se pudo actualizar', 'error');
+            }
+        } catch (error) {
+            console.error("Error al editar pago:", error);
+            Swal.fire('Error', 'Error de conexión', 'error');
+        }
+    }
+};
