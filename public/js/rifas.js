@@ -1217,7 +1217,10 @@ async function verificarCambioCiclo() {
             }
         });
 
-        // 4. Guardar automáticamente y Notificar
+        // 4. Acumular la ganancia de la rifa actual antes de cambiar
+        await acumularGananciaRifa();
+        
+        // 5. Guardar automáticamente y Notificar
         try {
             // Guardamos el nuevo objeto
             await guardarTodo(nuevaRifa);
@@ -1225,12 +1228,11 @@ async function verificarCambioCiclo() {
             // Mostramos el SweetAlert antes de recargar
             await Swal.fire({
                 title: '¡Nueva Quincena Detectada!',
-                text: `Se ha generado automáticamente el sorteo para el viernes ${nuevaFecha}. Se mantuvieron los nombres y se procesaron los pagos adelantados.`,
+                text: `Se ha generado automáticamente el sorteo para el viernes ${nuevaFecha}. Se mantuvieron los nombres, se procesaron los pagos adelantados y la ganancia se acumuló al total.`,
                 icon: 'success',
                 confirmButtonColor: '#0984e3',
                 confirmButtonText: 'Entendido',
-                allowOutsideClick: false
-            });
+                allowOutside            });
 
             // 5. Recargar para mostrar la nueva rifa
             location.reload(); 
