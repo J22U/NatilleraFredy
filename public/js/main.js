@@ -827,6 +827,8 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const fechaDoc = new Date().toLocaleString('es-CO');
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0); // Normalizamos hoy a media noche para cálculo exacto
 
     // 1. ENCABEZADO PREMIUM
     doc.setFillColor(30, 41, 59); // Slate 800
@@ -856,16 +858,16 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         columnStyles: { 1: { halign: 'right', fontStyle: 'bold', textColor: [31, 41, 55] } }
     });
 
-    // 3. SECCIÓN: AHORROS (CON RETROACTIVIDAD POR DÍAS)
+    // 3. SECCIÓN: AHORROS (CON DÍAS DE ESFUERZO)
     doc.setFontSize(11);
     doc.setTextColor(5, 150, 105); // Emerald 600
-    doc.text("1. DETALLE DE AHORROS Y PUNTOS DE UTILIDAD", 14, doc.lastAutoTable.finalY + 12);
+    doc.text("1. DETALLE DE AHORROS Y DÍAS DE ESFUERZO", 14, doc.lastAutoTable.finalY + 12);
     
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
         head: [['ID', 'Fecha Registro', 'Periodo Aplicado', 'Días Esfuerzo', 'Monto']],
         body: ahorros.map(a => {
-            // Lógica de fechas espejo al servidor para el PDF
+            // Lógica de fechas espejo al servidor
             let fechaRef = a.FechaAporte || a.Fecha;
             const det = (a.Detalle || "").toLowerCase();
             
@@ -876,13 +878,17 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
             else if (det.includes("febrero") && det.includes("quincena 1")) fechaRef = '2026-02-02';
             else if (det.includes("febrero") && det.includes("quincena 2")) fechaRef = '2026-02-17';
 
-            const dias = Math.max(0, Math.floor((new Date() - new Date(fechaRef)) / (1000 * 60 * 60 * 24)) + 1);
+            // Cálculo de días de esfuerzo: (Hoy - FechaReferencia)
+            const fRef = new Date(fechaRef);
+            fRef.setHours(0, 0, 0, 0);
+            const diffTime = hoy.getTime() - fRef.getTime();
+            const diasEsfuerzo = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
             return [
                 `#${a.ID_Ahorro || '---'}`,
                 a.FechaFormateada || 'S/F',
                 (a.Detalle || "Ahorro").toUpperCase(),
-                `${dias} d`,
+                `${diasEsfuerzo} días`,
                 `$ ${Number(a.Monto).toLocaleString('es-CO')}`
             ];
         }),
@@ -890,12 +896,12 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         styles: { fontSize: 8 },
         columnStyles: { 
             0: { cellWidth: 12 }, 
-            3: { halign: 'center' },
+            3: { halign: 'center', fontStyle: 'bold', textColor: [5, 150, 105] },
             4: { halign: 'right', fontStyle: 'bold' } 
         }
     });
 
-    // 4. SECCIÓN: PRÉSTAMOS (CORREGIDO: NETO DE INTERESES)
+    // 4. SECCIÓN: PRÉSTAMOS
     doc.setFontSize(11);
     doc.setTextColor(37, 99, 235); // Blue 600
     doc.text("2. ESTADO DE CRÉDITOS (INTERÉS DIARIO)", 14, doc.lastAutoTable.finalY + 12);
@@ -904,7 +910,6 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         startY: doc.lastAutoTable.finalY + 15,
         head: [['REF', 'Fecha Inicio', 'Tasa', 'Capital Inicial', 'Int. Pend.', 'Saldo Hoy']],
         body: prestamos.map(p => {
-            // Usamos InteresGenerado que ya viene restado (InteresAcumulado - InteresesPagados)
             const intPendiente = Number(p.InteresGenerado || 0);
             const capitalPendiente = Number(p.MontoPrestado) - Number(p.MontoPagado || 0);
             const saldoH = capitalPendiente + intPendiente;
@@ -923,7 +928,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] } }
     });
 
-    // 5. SECCIÓN: ABONOS (DETALLE DE DESTINO)
+    // 5. SECCIÓN: ABONOS
     doc.setFontSize(11);
     doc.setTextColor(225, 29, 72); // Rose 600
     doc.text("3. RELACIÓN DE PAGOS Y ABONOS", 14, doc.lastAutoTable.finalY + 12);
