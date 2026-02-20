@@ -1513,7 +1513,7 @@ async function prepararNuevaQuincena() {
                     participantesNuevos[num] = {
                         nombre: p.nombre,
                         pago: esPagado,  // true solo si era adelantado o ya estaba pagado
-                        adelantar: false // Se consume el adelantar
+                        adelantado: false // Se consume el adelantar
                     };
                 });
 
