@@ -1289,3 +1289,102 @@ function cargarPremios(datos) {
     }
     renderizarPanelPremios();
 }
+
+// ==================== COMPRA MÚLTIPLE DE NÚMEROS ====================
+
+function asignarNumerosMultiples() {
+    const nombre = document.getElementById('nombreClienteMultiple').value.trim();
+    const numerosInput = document.getElementById('numerosClienteMultiple').value.trim();
+    const pagado = document.getElementById('pagadoClienteMultiple').checked;
+    const resultadoDiv = document.getElementById('resultadoAsignacion');
+    
+    if (!nombre) {
+        Swal.fire('Error', 'Por favor ingresa el nombre del cliente', 'warning');
+        return;
+    }
+    
+    if (!numerosInput) {
+        Swal.fire('Error', 'Por favor ingresa los números a comprar', 'warning');
+        return;
+    }
+    
+    // Parsear los números (separados por coma, espacio o ambos)
+    const numeros = numerosInput.split(/[,\s]+/)
+        .map(n => n.trim())
+        .filter(n => n !== '')
+        .map(n => {
+            let num = n.replace(/[^0-9]/g, '');
+            if (num.length === 1) num = '0' + num;
+            return num;
+        })
+        .filter(n => n.length === 2 && parseInt(n) >= 0 && parseInt(n) <= 99);
+    
+    if (numeros.length === 0) {
+        Swal.fire('Error', 'No se encontraron números válidos (00-99)', 'warning');
+        return;
+    }
+    
+    let asignados = 0;
+    let errores = [];
+    
+    numeros.forEach(numero => {
+        let ocupado = false;
+        
+        for (let t = 1; t <= 4; t++) {
+            const slotCheck = document.getElementById(`t${t}-${numero}`);
+            if (slotCheck) {
+                const nombreExistente = slotCheck.querySelector('.n-name');
+                if (nombreExistente && nombreExistente.textContent.trim() !== '') {
+                    ocupado = true;
+                    errores.push(`${numero} (ya tiene: ${nombreExistente.textContent})`);
+                    break;
+                }
+            }
+        }
+        
+        if (ocupado) return;
+        
+        for (let t = 1; t <= 4; t++) {
+            const slotTemp = document.getElementById(`t${t}-${numero}`);
+            if (slotTemp) {
+                const nombreElement = slotTemp.querySelector('.n-name');
+                if (nombreElement && nombreElement.textContent.trim() === '') {
+                    nombreElement.textContent = nombre;
+                    slotTemp.classList.remove('paid', 'reserved');
+                    if (pagado) {
+                        slotTemp.classList.add('paid');
+                    } else {
+                        slotTemp.classList.add('reserved');
+                    }
+                    slotTemp.setAttribute('data-pago', pagado);
+                    asignados++;
+                    break;
+                }
+            }
+        }
+    });
+    
+    resultadoDiv.style.display = 'block';
+    if (asignados > 0) {
+        resultadoDiv.innerHTML = `<div style="padding: 10px; background: #d4edda; color: #155724; border-radius: 8px; border: 1px solid #c3e6cb;">
+            <i class="fas fa-check-circle"></i> Se asignaron <b>${asignados}</b> número(s) a <b>${nombre}</b>
+        </div>`;
+        
+        document.getElementById('nombreClienteMultiple').value = '';
+        document.getElementById('numerosClienteMultiple').value = '';
+        document.getElementById('pagadoClienteMultiple').checked = false;
+        
+        actualizarContadoresRifa();
+        guardarTodo();
+        
+        if (errores.length > 0) {
+            resultadoDiv.innerHTML += `<div style="margin-top: 10px; padding: 10px; background: #fff3cd; color: #856404; border-radius: 8px; border: 1px solid #ffeeba;">
+                <i class="fas fa-exclamation-triangle"></i> Los siguientes números no se asignaron: ${errores.join(', ')}
+            </div>`;
+        }
+    } else {
+        resultadoDiv.innerHTML = `<div style="padding: 10px; background: #f8d7da; color: #721c24; border-radius: 8px; border: 1px solid #f5c6cb;">
+            <i class="fas fa-times-circle"></i> No se asignaron números. Verifica que los números estén disponibles.
+        </div>`;
+    }
+}

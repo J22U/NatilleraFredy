@@ -128,6 +128,47 @@
             </div>
         </div>
 
+<!-- Panel de Compra Múltiple -->
+        <div id="panelCompraMultiple" style="background: white; margin: 20px auto; max-width: 1200px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f2f6; padding-bottom: 15px;">
+                <h3 style="margin: 0; color: #2d3436; font-size: 1.2rem;">
+                    <i class="fas fa-users" style="color: #0984e3; margin-right: 10px;"></i>Compra Múltiple de Números
+                </h3>
+            </div>
+            
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
+                        Nombre del Cliente
+                    </label>
+                    <input type="text" id="nombreClienteMultiple" placeholder="Ej: JUAN PÉREZ" 
+                        style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem;">
+                </div>
+                
+                <div style="flex: 2; min-width: 300px;">
+                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
+                        Números a comprar (separados por coma o espacio)
+                    </label>
+                    <input type="text" id="numerosClienteMultiple" placeholder="Ej: 05, 12, 25, 30, 45, 50" 
+                        style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem;">
+                </div>
+                
+                <div>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="pagadoClienteMultiple" style="width: 18px; height: 18px;">
+                        <span style="font-size: 0.9rem; font-weight: 600;">¿Pagado?</span>
+                    </label>
+                </div>
+                
+                <button onclick="asignarNumerosMultiples()" 
+                    style="padding: 10px 20px; background: #0984e3; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-check"></i> Asignar Números
+                </button>
+            </div>
+            
+            <div id="resultadoAsignacion" style="margin-top: 15px; display: none;"></div>
+        </div>
+
         <!-- Panel de Control de Premios -->
         <div id="panelPremios" style="background: white; margin: 20px auto; max-width: 1200px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f2f6; padding-bottom: 15px;">
