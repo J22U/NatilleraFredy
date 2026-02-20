@@ -1069,7 +1069,7 @@ app.post('/api/restore-database', async (req, res) => {
     try {
         await transaction.begin();
 
-        // 1. LIMPIEZA TOTAL (En orden para respetar llaves foráneas)
+        // 1. LIMPIEZA TOTAL
         await transaction.request().query(`
             DELETE FROM HistorialPagos;
             DELETE FROM Ahorros;
@@ -1078,30 +1078,28 @@ app.post('/api/restore-database', async (req, res) => {
             DELETE FROM ConfiguracionRifas;
         `);
 
-        // 2. RESTAURAR PERSONAS
-if (data.personas && data.personas.length > 0) {
-    for (const p of data.personas) {
-        await transaction.request()
-            .input('id', sql.Int, p.ID_Persona)
-            .input('nom', sql.VarChar, p.Nombre)
-            .input('doc', sql.VarChar, p.Documento)
-            .input('tel', sql.VarChar, p.Telefono || null)
-            .input('soc', sql.Bit, p.EsSocio)
-            .input('fec', sql.DateTime, p.FechaIngreso)
-            .input('est', sql.VarChar, p.Estado)
-            // Ejecutamos el ON y el INSERT en la misma consulta
-            .query(`
-                SET IDENTITY_INSERT Personas ON;
-                INSERT INTO Personas (ID_Persona, Nombre, Documento, Telefono, EsSocio, FechaIngreso, Estado) 
-                VALUES (@id, @nom, @doc, @tel, @soc, @fec, @est);
-                SET IDENTITY_INSERT Personas OFF;
-            `);
-    }
-}
+        // 2. RESTAURAR PERSONAS (Con Identity Fix)
+        if (data.personas && data.personas.length > 0) {
+            for (const p of data.personas) {
+                await transaction.request()
+                    .input('id', sql.Int, p.ID_Persona)
+                    .input('nom', sql.VarChar, p.Nombre)
+                    .input('doc', sql.VarChar, p.Documento)
+                    .input('tel', sql.VarChar, p.Telefono || null)
+                    .input('soc', sql.Bit, p.EsSocio)
+                    .input('fec', sql.DateTime, p.FechaIngreso)
+                    .input('est', sql.VarChar, p.Estado)
+                    .query(`
+                        SET IDENTITY_INSERT Personas ON;
+                        INSERT INTO Personas (ID_Persona, Nombre, Documento, Telefono, EsSocio, FechaIngreso, Estado) 
+                        VALUES (@id, @nom, @doc, @tel, @soc, @fec, @est);
+                        SET IDENTITY_INSERT Personas OFF;
+                    `);
+            }
+        }
 
-        // 3. RESTAURAR PRÉSTAMOS
+        // 3. RESTAURAR PRÉSTAMOS (Con Identity Fix)
         if (data.prestamos && data.prestamos.length > 0) {
-            await transaction.request().query("SET IDENTITY_INSERT Prestamos ON");
             for (const pr of data.prestamos) {
                 await transaction.request()
                     .input('idp', sql.Int, pr.ID_Prestamo)
@@ -1116,15 +1114,17 @@ if (data.personas && data.personas.length > 0) {
                     .input('saldo', sql.Decimal(18,2), pr.SaldoActual)
                     .input('cuotas', sql.Int, pr.Cuotas)
                     .input('intPag', sql.Decimal(18,2), pr.InteresesPagados || 0)
-                    .query(`INSERT INTO Prestamos (ID_Prestamo, ID_Persona, MontoPrestado, TasaInteres, FechaInicio, Estado, Fecha, MontoPagado, MontoInteres, SaldoActual, Cuotas, InteresesPagados) 
-                            VALUES (@idp, @idper, @monto, @tasa, @fini, @est, @fec, @pagado, @interes, @saldo, @cuotas, @intPag)`);
+                    .query(`
+                        SET IDENTITY_INSERT Prestamos ON;
+                        INSERT INTO Prestamos (ID_Prestamo, ID_Persona, MontoPrestado, TasaInteres, FechaInicio, Estado, Fecha, MontoPagado, MontoInteres, SaldoActual, Cuotas, InteresesPagados) 
+                        VALUES (@idp, @idper, @monto, @tasa, @fini, @est, @fec, @pagado, @interes, @saldo, @cuotas, @intPag);
+                        SET IDENTITY_INSERT Prestamos OFF;
+                    `);
             }
-            await transaction.request().query("SET IDENTITY_INSERT Prestamos OFF");
         }
 
-        // 4. RESTAURAR AHORROS
+        // 4. RESTAURAR AHORROS (Con Identity Fix)
         if (data.ahorros && data.ahorros.length > 0) {
-            await transaction.request().query("SET IDENTITY_INSERT Ahorros ON");
             for (const a of data.ahorros) {
                 await transaction.request()
                     .input('ida', sql.Int, a.ID_Ahorro)
@@ -1133,13 +1133,16 @@ if (data.personas && data.personas.length > 0) {
                     .input('fap', sql.DateTime, a.FechaAporte)
                     .input('fec', sql.DateTime, a.Fecha)
                     .input('mes', sql.VarChar, a.MesesCorrespondientes)
-                    .query(`INSERT INTO Ahorros (ID_Ahorro, ID_Persona, Monto, FechaAporte, Fecha, MesesCorrespondientes) 
-                            VALUES (@ida, @idp, @mon, @fap, @fec, @mes)`);
+                    .query(`
+                        SET IDENTITY_INSERT Ahorros ON;
+                        INSERT INTO Ahorros (ID_Ahorro, ID_Persona, Monto, FechaAporte, Fecha, MesesCorrespondientes) 
+                        VALUES (@ida, @idp, @mon, @fap, @fec, @mes);
+                        SET IDENTITY_INSERT Ahorros OFF;
+                    `);
             }
-            await transaction.request().query("SET IDENTITY_INSERT Ahorros OFF");
         }
 
-        // 5. RESTAURAR HISTORIAL
+        // 5. RESTAURAR HISTORIAL (Suele no tener Identity, pero lo dejamos simple)
         if (data.historial && data.historial.length > 0) {
             for (const h of data.historial) {
                 await transaction.request()
