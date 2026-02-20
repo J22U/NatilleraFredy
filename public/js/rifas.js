@@ -700,6 +700,9 @@ document.addEventListener('DOMContentLoaded', () => {
     cargarRifas();
     cargarGananciasAcumuladas(); // Cargar ganancias acumuladas
     
+    // Renderizar el panel de premios aunque no haya datos cargados
+    renderizarPanelPremios();
+    
     ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.addEventListener('change', guardarTodo);
