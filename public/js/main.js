@@ -828,11 +828,11 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     const doc = new jsPDF();
     const fechaDoc = new Date().toLocaleString('es-CO');
     
-    // Normalizamos "Hoy" para el cálculo
+    // Normalizamos "Hoy" a media noche exacta en hora local
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
 
-    // 1. ENCABEZADO (Mantenemos tu estilo)
+    // 1. ENCABEZADO (Slate 800)
     doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, 210, 40, 'F');
     doc.setTextColor(255, 255, 255);
@@ -840,10 +840,11 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
     doc.setFont("helvetica", "bold");
     doc.text("EXTRACTO FINANCIERO DETALLADO", 14, 20);
     doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
     doc.text(`TITULAR: ${nombre.toUpperCase()}`, 14, 30);
-    doc.text(`FECHA: ${fechaDoc}`, 140, 30);
+    doc.text(`FECHA DE EMISIÓN: ${fechaDoc}`, 140, 30);
 
-    // 2. RESUMEN
+    // 2. RESUMEN DE SALDOS
     doc.autoTable({
         startY: 45,
         head: [['RESUMEN DE CUENTAS', 'VALOR TOTAL']],
@@ -852,45 +853,43 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
             ['DEUDA PENDIENTE (CAPITAL + INT)', `$ ${Number(totales.deudaTotal || 0).toLocaleString('es-CO')}`]
         ],
         theme: 'striped',
-        headStyles: { fillStyle: [79, 70, 229] }
+        headStyles: { fillStyle: [79, 70, 229], halign: 'center' },
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    // 3. SECCIÓN: AHORROS (Aquí está el arreglo del NaN)
+    // 3. SECCIÓN: AHORROS (Cálculo de Días de Esfuerzo Corregido)
     doc.setFontSize(11);
-    doc.setTextColor(5, 150, 105);
+    doc.setTextColor(5, 150, 105); // Emerald 600
     doc.text("1. DETALLE DE AHORROS Y DÍAS DE ESFUERZO", 14, doc.lastAutoTable.finalY + 12);
     
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
         head: [['ID', 'Fecha Registro', 'Periodo Aplicado', 'Días Esfuerzo', 'Monto']],
         body: ahorros.map(a => {
-            // Lógica de fechas corregida para evitar NaN
-            let fechaRefStr = "";
+            // Obtener string de fecha puro YYYY-MM-DD
+            let fechaRaw = a.FechaAporte || a.Fecha || new Date().toISOString();
+            let fechaRefStr = typeof fechaRaw === 'string' ? fechaRaw.split('T')[0] : new Date(fechaRaw).toISOString().split('T')[0];
+
             const det = (a.Detalle || "").toLowerCase();
             
+            // Aplicar retroactividad de quincenas
             if (det.includes("diciembre") && det.includes("quincena 1")) fechaRefStr = '2025-12-02';
             else if (det.includes("diciembre") && det.includes("quincena 2")) fechaRefStr = '2025-12-17';
             else if (det.includes("enero") && det.includes("quincena 1")) fechaRefStr = '2026-01-02';
             else if (det.includes("enero") && det.includes("quincena 2")) fechaRefStr = '2026-01-17';
             else if (det.includes("febrero") && det.includes("quincena 1")) fechaRefStr = '2026-02-02';
             else if (det.includes("febrero") && det.includes("quincena 2")) fechaRefStr = '2026-02-17';
-            else {
-                // Si no es quincena, limpiamos la fecha que viene de la BD
-                // Intentamos sacar solo YYYY-MM-DD
-                fechaRefStr = a.FechaAporte || a.Fecha || new Date().toISOString();
-            }
 
-            // CREACIÓN DE FECHA SEGURA
-            // Reemplazamos "/" por "-" por si viene en formato latino
-            const fechaLimpia = typeof fechaRefStr === 'string' ? fechaRefStr.split('T')[0].replace(/\//g, '-') : fechaRefStr;
-            const dateRef = new Date(fechaLimpia);
-            
-            let diasEsfuerzo = 0;
-            if (!isNaN(dateRef.getTime())) {
-                dateRef.setHours(12, 0, 0, 0); // Usamos mediodía para evitar saltos de zona horaria
-                const diffTime = hoy.getTime() - dateRef.getTime();
-                diasEsfuerzo = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-            }
+            // TRUCO FINAL: Crear fecha usando partes individuales para forzar HORA LOCAL
+            const partes = fechaRefStr.replace(/\//g, '-').split('-');
+            // new Date(año, mes-1, día)
+            const fechaFinal = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
+            fechaFinal.setHours(0, 0, 0, 0);
+
+            // Calcular diferencia real
+            const diffMS = hoy.getTime() - fechaFinal.getTime();
+            const diasEsfuerzo = Math.max(0, Math.floor(diffMS / (1000 * 60 * 60 * 24)));
 
             return [
                 `#${a.ID_Ahorro || '---'}`,
@@ -901,44 +900,71 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
             ];
         }),
         headStyles: { fillStyle: [16, 185, 129] },
-        columnStyles: { 3: { halign: 'center', fontStyle: 'bold' }, 4: { halign: 'right' } }
+        styles: { fontSize: 8 },
+        columnStyles: { 
+            3: { halign: 'center', fontStyle: 'bold', textColor: [5, 150, 105] },
+            4: { halign: 'right', fontStyle: 'bold' } 
+        }
     });
 
-    // 4. SECCIÓN: PRÉSTAMOS (Sin tocar tu lógica)
+    // 4. SECCIÓN: PRÉSTAMOS
     doc.setFontSize(11);
-    doc.setTextColor(37, 99, 235);
-    doc.text("2. ESTADO DE CRÉDITOS", 14, doc.lastAutoTable.finalY + 12);
+    doc.setTextColor(37, 99, 235); // Blue 600
+    doc.text("2. ESTADO DE CRÉDITOS (INTERÉS DIARIO)", 14, doc.lastAutoTable.finalY + 12);
+    
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
         head: [['REF', 'Fecha Inicio', 'Tasa', 'Capital Inicial', 'Int. Pend.', 'Saldo Hoy']],
-        body: prestamos.map(p => [
-            `PR-${p.ID_Prestamo}`,
-            p.FechaInicioFormateada || 'S/F',
-            `${p.TasaInteres}%`,
-            `$ ${Number(p.MontoPrestado).toLocaleString('es-CO')}`,
-            `$ ${Number(p.InteresGenerado || 0).toLocaleString('es-CO')}`,
-            `$ ${Math.max(0, (Number(p.MontoPrestado) - Number(p.MontoPagado || 0)) + Number(p.InteresGenerado || 0)).toLocaleString('es-CO')}`
-        ]),
-        headStyles: { fillStyle: [59, 130, 246] }
+        body: prestamos.map(p => {
+            const intPendiente = Number(p.InteresGenerado || 0);
+            const capInicial = Number(p.MontoPrestado);
+            const capPagado = Number(p.MontoPagado || 0);
+            const saldoHoy = (capInicial - capPagado) + intPendiente;
+
+            return [
+                `PR-${p.ID_Prestamo}`,
+                p.FechaInicioFormateada || 'S/F',
+                `${p.TasaInteres}%`,
+                `$ ${capInicial.toLocaleString('es-CO')}`,
+                `$ ${intPendiente.toLocaleString('es-CO')}`,
+                `$ ${Math.max(0, saldoHoy).toLocaleString('es-CO')}`
+            ];
+        }),
+        headStyles: { fillStyle: [59, 130, 246] },
+        styles: { fontSize: 8 },
+        columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] } }
     });
 
     // 5. SECCIÓN: ABONOS
     doc.setFontSize(11);
-    doc.setTextColor(225, 29, 72);
-    doc.text("3. RELACIÓN DE PAGOS", 14, doc.lastAutoTable.finalY + 12);
+    doc.setTextColor(225, 29, 72); // Rose 600
+    doc.text("3. RELACIÓN DE PAGOS Y ABONOS", 14, doc.lastAutoTable.finalY + 12);
+
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['Fecha Abono', 'Referencia', 'Concepto', 'Monto']],
+        head: [['Fecha Abono', 'Referencia', 'Aplicación', 'Monto']],
         body: abonos.map(ab => [
             ab.FechaFormateada || 'S/F',
             `PR-${ab.ID_Prestamo}`,
-            (ab.MesesCorrespondientes || 'Abono').toUpperCase(),
+            (ab.MesesCorrespondientes || 'Abono General').toUpperCase(),
             `$ ${Number(ab.Monto_Abonado || ab.Monto || 0).toLocaleString('es-CO')}`
         ]),
-        headStyles: { fillStyle: [225, 29, 72] }
+        headStyles: { fillStyle: [225, 29, 72] },
+        styles: { fontSize: 8 },
+        columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
     });
 
-    doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}.pdf`);
+    // PIE DE PÁGINA
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(100);
+        doc.text(`Extracto generado automáticamente - Sistema de Gestión de Cartera`, 14, 285);
+        doc.text(`Página ${i} de ${totalPages}`, 180, 285);
+    }
+
+    doc.save(`Extracto_${nombre.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
 }
 
 async function verListaRapidaDeudores() {
