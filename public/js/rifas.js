@@ -710,29 +710,174 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function generarPDF() {
-    const elemento = document.querySelector('.app-container') || document.body; // Si no encuentra el container, usa el body
+    // Recolectar datos actuales
+    const datos = recolectarDatosPantalla();
+    const fecha = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
+    const nombreRifa = document.getElementById('rifaName')?.value || 'Rifa';
+    const valorPuesto = parseFloat(document.getElementById('rifaCost')?.value) || 0;
+    const costoPremio = parseFloat(document.getElementById('costoPremio')?.value) || 0;
+    const premio = document.getElementById('rifaPrize')?.value || 'No definido';
     
-    if (!elemento) return;
-
-    elemento.classList.add('pdf-mode');
-
+    // Calcular estadísticas
+    let totalPagados = 0;
+    let totalPendientes = 0;
+    let listaPagados = [];
+    let listaPendientes = [];
+    
+    Object.keys(datos).forEach(key => {
+        if (key.startsWith('tabla')) {
+            const participantes = datos[key].participantes || {};
+            Object.keys(participantes).forEach(num => {
+                const p = participantes[num];
+                if (p.nombre && p.nombre.trim() !== '') {
+                    const info = { numero: num, tabla: key.replace('tabla', ''), nombre: p.nombre };
+                    if (p.pago) {
+                        totalPagados += valorPuesto;
+                        listaPagados.push(info);
+                    } else {
+                        totalPendientes += valorPuesto;
+                        listaPendientes.push(info);
+                    }
+                }
+            });
+        }
+    });
+    
+    const cantidadTablas = document.querySelectorAll('.rifa-card').length;
+    const inversionTotal = costoPremio * cantidadTablas;
+    const gananciaNeta = totalPagados - inversionTotal;
+    
+    const formato = new Intl.NumberFormat('es-CO', {
+        style: 'currency', currency: 'COP', maximumFractionDigits: 0
+    });
+    
+    // Crear contenido del reporte
+    const reporteHTML = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: white;">
+        <!-- Encabezado -->
+        <div style="text-align: center; border-bottom: 3px solid #0984e3; padding-bottom: 15px; margin-bottom: 20px;">
+            <h1 style="color: #2d3436; margin: 0; font-size: 24px;">📋 REPORTE DE RIFA</h1>
+            <p style="color: #636e72; margin: 5px 0; font-size: 14px;">Natillera - Control de Rifas</p>
+        </div>
+        
+        <!-- Información General -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <tr>
+                <td style="padding: 10px; border: 1px solid #dfe6e9; background: #f8f9fa; width: 50%;">
+                    <strong>📅 Fecha Sorteo:</strong> ${fecha}
+                </td>
+                <td style="padding: 10px; border: 1px solid #dfe6e9; background: #f8f9fa; width: 50%;">
+                    <strong>🎯 Premio:</strong> ${premio}
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px; border: 1px solid #dfe6e9;">
+                    <strong>💰 Valor Puesto:</strong> ${formato.format(valorPuesto)}
+                </td>
+                <td style="padding: 10px; border: 1px solid #dfe6e9;">
+                    <strong>🏆 Costo Premio:</strong> ${formato.format(costoPremio)} c/u
+                </td>
+            </tr>
+        </table>
+        
+        <!-- Resumen Financiero -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; color: white;">
+            <h3 style="margin: 0 0 10px 0; text-align: center;">💵 RESUMEN FINANCIERO</h3>
+            <table style="width: 100%; color: white; font-size: 14px;">
+                <tr>
+                    <td style="padding: 8px;">✅ <strong>Total Recaudado:</strong></td>
+                    <td style="text-align: right; font-size: 18px;"><strong>${formato.format(totalPagados)}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px;">⏳ <strong>Total Pendiente:</strong></td>
+                    <td style="text-align: right;">${formato.format(totalPendientes)}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px;">📊 <strong>Inversión Premios:</strong></td>
+                    <td style="text-align: right;">${formato.format(inversionTotal)}</td>
+                </tr>
+                <tr style="border-top: 2px solid white;">
+                    <td style="padding: 10px 8px; font-size: 16px;">💚 <strong>GANANCIA NETA:</strong></td>
+                    <td style="text-align: right; font-size: 20px;"><strong>${formato.format(gananciaNeta)}</strong></td>
+                </tr>
+            </table>
+        </div>
+        
+        <!-- Lista de Pagados -->
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: #00b894; border-bottom: 2px solid #00b894; padding-bottom: 5px;">✅ PARTICIPANTES QUE PAGARON (${listaPagados.length})</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <tr style="background: #00b894; color: white;">
+                    <th style="padding: 8px; text-align: left;">#</th>
+                    <th style="padding: 8px; text-align: left;">Tabla</th>
+                    <th style="padding: 8px; text-align: left;">Número</th>
+                    <th style="padding: 8px; text-align: left;">Nombre</th>
+                </tr>
+                ${listaPagados.map((p, i) => `
+                <tr style="${i % 2 === 0 ? 'background: #f8fff8;' : 'background: white;'}">
+                    <td style="padding: 6px; border: 1px solid #dfe6e9;">${i + 1}</td>
+                    <td style="padding: 6px; border: 1px solid #dfe6e9;">Tabla ${p.tabla}</td>
+                    <td style="padding: 6px; border: 1px solid #dfe6e9; font-weight: bold;">${p.numero}</td>
+                    <td style="padding: 6px; border: 1px solid #dfe6e9;">${p.nombre}</td>
+                </tr>
+                `).join('')}
+            </table>
+        </div>
+        
+        <!-- Lista de Pendientes -->
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: #e74c3c; border-bottom: 2px solid #e74c3c; padding-bottom: 5px;">⏳ PARTICIPANTES PENDIENTES (${listaPendientes.length})</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <tr style="background: #e74c3c; color: white;">
+                    <th style="padding: 8px; text-align: left;">#</th>
+                    <th style="padding: 8px; text-align: left;">Tabla</th>
+                    <th style="padding: 8px; text-align: left;">Número</th>
+                    <th style="padding: 8px; text-align: left;">Nombre</th>
+                </tr>
+                ${listaPendientes.length > 0 ? listaPendientes.map((p, i) => `
+                <tr style="${i % 2 === 0 ? 'background: #fff8f8;' : 'background: white;'}">
+                    <td style="padding: 6px; border: 1px solid #dfe6e9;">${i + 1}</td>
+                    <td style="padding: 6px; border: 1px solid #dfe6e9;">Tabla ${p.tabla}</td>
+                    <td style="padding: 6px; border: 1px solid #dfe6e9; font-weight: bold;">${p.numero}</td>
+                    <td style="padding: 6px; border: 1px solid #dfe6e9;">${p.nombre}</td>
+                </tr>
+                `).join('') : '<tr><td colspan="4" style="padding: 15px; text-align: center; color: #636e72;">Sin participantes pendientes</td></tr>'}
+            </table>
+        </div>
+        
+        <!-- Pie de página -->
+        <div style="text-align: center; padding-top: 15px; border-top: 1px solid #dfe6e9; color: #636e72; font-size: 11px;">
+            <p>Reporte generado el ${new Date().toLocaleString('es-CO')}</p>
+            <p>📊 Sistema de Control de Natillera</p>
+        </div>
+    </div>
+    `;
+    
+    // Crear elemento temporal para el PDF
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = reporteHTML;
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.width = '800px';
+    document.body.appendChild(tempDiv);
+    
     const opciones = {
         margin: [10, 10],
-        filename: 'Rifas.pdf',
+        filename: `Rifa_${fecha}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true }, // Añadido useCORS para imágenes externas
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'after'], before: '.rifa-card' }
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // Usar try/catch para evitar que el error bloquee el resto del código
     try {
-        html2pdf().set(opciones).from(elemento).save().then(() => {
-            elemento.classList.remove('pdf-mode');
+        html2pdf().set(opciones).from(tempDiv).save().then(() => {
+            document.body.removeChild(tempDiv);
         });
     } catch (err) {
         console.error("Error al generar PDF:", err);
-        elemento.classList.remove('pdf-mode');
+        if (tempDiv.parentNode) {
+            document.body.removeChild(tempDiv);
+        }
     }
 }
 
@@ -1375,17 +1520,20 @@ async function prepararNuevaQuincena() {
             }
         }
 
-        // 6. Guardar la nueva rifa
+        // 6. Acumular la ganancia de la rifa actual antes de cambiar
+        await acumularGananciaRifa();
+        
+        // 7. Guardar la nueva rifa
         await fetch('/api/guardar-rifa', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(nuevaRifa)
         });
 
-        // 7. Notificar y recargar
+        // 8. Notificar y recargar
         await Swal.fire({
             title: '¡Nueva Quincena Creada!',
-            text: `Se ha creado la rifa para el ${nuevaFecha} con los nombres de la rifa anterior.`,
+            text: `Se ha creado la rifa para el ${nuevaFecha} con los nombres de la rifa anterior. La ganancia se ha acumulado al total.`,
             icon: 'success',
             confirmButtonColor: '#0984e3',
             confirmButtonText: 'Aceptar'
