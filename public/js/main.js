@@ -225,21 +225,24 @@ async function verHistorialFechas(id, nombre) {
 
         const renderSimple = (data, key, color) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin movimientos</p>';
-            return data.map(m => {
+            return data.map((m, index) => {
                 const esRetiro = Number(m[key]) < 0;
                 const colorFinal = esRetiro ? 'rose' : color;
-                // Buscar el ID en diferentes formatos posibles
-                const idAhorro = m.ID_Ahorro || m.id_ahorro || m.Id_Ahorro || 0;
+                // Usar el ID real o el índice+1 como fallback
+                const idAhorro = (m.ID_Ahorro && m.ID_Ahorro > 0) ? m.ID_Ahorro : (index + 1);
+                const monto = Number(m[key]);
+                const fecha = m.FechaFormateada || '';
+                const detalle = (m.Detalle || '').replace(/'/g, "\\'");
                 console.log("DEBUG - Datos del ahorro:", m, "ID_Ahorro:", idAhorro);
                 return `
                 <div class="flex justify-between items-center p-3 border-b border-slate-100 text-[11px]">
                     <div class="flex flex-col">
-                        <span class="text-slate-500 font-medium">${m.FechaFormateada || 'S/F'}</span>
+                        <span class="text-slate-500 font-medium">${fecha}</span>
                         <span class="text-[9px] font-black uppercase ${esRetiro ? 'text-rose-400' : 'text-indigo-400'} mt-0.5">${m.Detalle || 'Ahorro'}</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="font-bold text-${colorFinal}-600">${esRetiro ? '' : '+'}$${Math.abs(Number(m[key])).toLocaleString()}</span>
-                        ${!esRetiro ? `<button onclick="window.abrirEditarAhorro(${idAhorro}, ${Number(m[key])}, '${m.FechaFormateada || ''}', '${m.Detalle || ''}')" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
+                        <span class="font-bold text-${colorFinal}-600">${esRetiro ? '' : '+'}$${Math.abs(monto).toLocaleString()}</span>
+                        ${!esRetiro ? `<button onclick="window.abrirEditarAhorro(${idAhorro}, ${monto}, '${fecha}', '${detalle}', ${id})" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -1993,7 +1996,7 @@ function procesarArchivoRestaurar(event) {
 // --- FUNCIONES PARA EDITAR MOVIMIENTOS ---
 
 // 1. Función para abrir el modal de edición de ahorro
-window.abrirEditarAhorro = async function(idAhorro, montoActual, fechaActual, detalleActual) {
+window.abrirEditarAhorro = async function(idAhorro, montoActual, fechaActual, detalleActual, idPersona) {
     // Convertir fecha dd/MM/yyyy a yyyy-MM-dd para el input date
     let fechaFormateada = '';
     if (fechaActual) {
@@ -2047,7 +2050,8 @@ window.abrirEditarAhorro = async function(idAhorro, montoActual, fechaActual, de
                     idAhorro: idAhorro,
                     monto: formValues.monto,
                     fecha: formValues.fecha,
-                    MesesCorrespondientes: formValues.detalle || 'Abono General'
+                    MesesCorrespondientes: formValues.detalle || 'Abono General',
+                    idPersona: idPersona
                 })
             });
 

@@ -184,7 +184,17 @@ app.get('/historial-ahorros/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request().input('id', sql.Int, req.params.id)
-            .query("SELECT ID_Ahorro, Monto, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, ISNULL(MesesCorrespondientes, 'Abono General') as Detalle FROM Ahorros WHERE ID_Persona = @id ORDER BY Fecha DESC");
+            .query(`
+                SELECT 
+                    ID_Ahorro, 
+                    Monto, 
+                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
+                    ISNULL(MesesCorrespondientes, 'Abono General') as Detalle,
+                    ROW_NUMBER() OVER (ORDER BY Fecha DESC) as RowNum
+                FROM Ahorros 
+                WHERE ID_Persona = @id 
+                ORDER BY Fecha DESC
+            `);
         res.json(result.recordset);
     } catch (err) { res.status(500).json([]); }
 });
@@ -396,21 +406,22 @@ app.post('/procesar-cruce', async (req, res) => {
 // 1. Editar Ahorro
 app.put('/api/editar-ahorro', async (req, res) => {
     try {
-        const { idAhorro, monto, fecha, MesesCorrespondientes } = req.body;
-        
-        if (!idAhorro || !monto) {
+        const { idAhorro, monto, fecha, MesesCorrespondientes, idPersona } = req.body;
+
+        if (!idAhorro || !monto || !idPersona) {
             return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
         }
 
         const pool = await poolPromise;
-        
+
+        // Use the ID_Ahorro directly since it's now passed correctly from frontend
         await pool.request()
             .input('id', sql.Int, idAhorro)
             .input('monto', sql.Decimal(18, 2), monto)
             .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
             .input('meses', sql.VarChar(sql.MAX), MesesCorrespondientes || 'Abono General')
             .query(`
-                UPDATE Ahorros 
+                UPDATE Ahorros
                 SET Monto = @monto, Fecha = @fecha, FechaAporte = @fecha, MesesCorrespondientes = @meses
                 WHERE ID_Ahorro = @id
             `);
