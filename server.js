@@ -758,6 +758,62 @@ app.get('/api/total-prestamos', async (req, res) => {
     }
 });
 
+// Nueva ruta para calcular ganancias acumuladas de TODAS las rifas
+app.get('/api/ganancias-rifas-acumuladas', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Obtenemos TODAS las rifas guardadas
+        const result = await pool.request().query("SELECT DatosJSON, FechaSorteo FROM ConfiguracionRifas ORDER BY FechaSorteo DESC");
+        
+        let gananciasAcumuladas = 0;
+        let totalRifas = 0;
+        
+        if (result.recordset.length > 0) {
+            result.recordset.forEach(rifa => {
+                if (rifa.DatosJSON) {
+                    try {
+                        const datos = JSON.parse(rifa.DatosJSON);
+                        const valorPuesto = parseFloat(datos.info?.valor) || 0;
+                        const costoPremio = parseFloat(datos.info?.inversion) || 0;
+                        
+                        // Contar tablas (puede ser tabla1, tabla2, etc.)
+                        const tablas = ['tabla1', 'tabla2', 'tabla3', 'tabla4'];
+                        let puestosPagados = 0;
+                        
+                        tablas.forEach(tablaKey => {
+                            if (datos[tablaKey] && datos[tablaKey].participantes) {
+                                Object.values(datos[tablaKey].participantes).forEach(p => {
+                                    if (p.pago) {
+                                        puestosPagados++;
+                                    }
+                                });
+                            }
+                        });
+                        
+                        // Ganancia de esta rifa = (puestos pagados * valor puesto) - (costo premio * número de tablas)
+                        const tablasConDatos = tablas.filter(t => datos[t] && datos[t].participantes && Object.keys(datos[t].participantes).length > 0).length;
+                        const gananciaRifa = (puestosPagados * valorPuesto) - (costoPremio * Math.max(1, tablasConDatos));
+                        
+                        gananciasAcumuladas += gananciaRifa;
+                        totalRifas++;
+                    } catch (e) {
+                        console.error("Error parseando rifa:", e);
+                    }
+                }
+            });
+        }
+
+        res.json({ 
+            gananciaTotal: gananciasAcumuladas,
+            totalRifas: totalRifas
+        });
+    } catch (err) {
+        console.error("Error en ganancias-rifas-acumuladas:", err.message);
+        res.status(500).json({ error: err.message, gananciaTotal: 0, totalRifas: 0 });
+    }
+});
+
 app.get('/api/estadisticas-rifas', async (req, res) => {
     try {
         const pool = await poolPromise;

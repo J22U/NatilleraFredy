@@ -609,9 +609,37 @@ function actualizarSoloNombres(idTabla, participantes) {
     }
 }
 
+// Función para cargar las ganancias acumuladas de todas las rifas
+async function cargarGananciasAcumuladas() {
+    try {
+        const response = await fetch('/api/ganancias-rifas-acumuladas');
+        const data = await response.json();
+        
+        const elemento = document.getElementById('stats-ganancia-total');
+        if (elemento) {
+            const formato = new Intl.NumberFormat('es-CO', {
+                style: 'currency', currency: 'COP', maximumFractionDigits: 0
+            });
+            elemento.textContent = formato.format(data.gananciaTotal || 0);
+            
+            // Color según ganancia positiva o negativa
+            if (data.gananciaTotal > 0) {
+                elemento.style.color = '#00b894'; // Verde
+            } else if (data.gananciaTotal < 0) {
+                elemento.style.color = '#e74c3c'; // Rojo
+            } else {
+                elemento.style.color = 'white';
+            }
+        }
+    } catch (error) {
+        console.error("Error al cargar ganancias acumuladas:", error);
+    }
+}
+
 // Llamar al inicio al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
     cargarRifas();
+    cargarGananciasAcumuladas(); // Cargar ganancias acumuladas
     
     ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'].forEach(id => {
         const el = document.getElementById(id);
