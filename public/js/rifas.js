@@ -327,10 +327,13 @@ async function cargarRifas() {
         }
     }
 
-    // 7. Actualizamos los cálculos monetarios finales
+// 7. Actualizamos los cálculos monetarios finales
     if (typeof actualizarContadoresRifa === "function") {
         actualizarContadoresRifa();
     }
+    
+    // 8. Cargamos los datos de premios
+    cargarPremios(datos);
 }
 
 function toggleTabla(id) {
@@ -1154,4 +1157,135 @@ window.onclick = function(event) {
     if (event.target == modal) {
         cerrarModal();
     }
+}
+
+// ==================== SISTEMA DE PREMIOS POR TABLA ====================
+
+// Variable para almacenar los datos de premios
+let datosPremios = {
+    tabla1: { numeroGanador: '', nombreGanador: '', entregado: false },
+    tabla2: { numeroGanador: '', nombreGanador: '', entregado: false },
+    tabla3: { numeroGanador: '', nombreGanador: '', entregado: false },
+    tabla4: { numeroGanador: '', nombreGanador: '', entregado: false }
+};
+
+// Función para renderizar el panel de premios
+function renderizarPanelPremios() {
+    const container = document.getElementById('listaPremios');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    for (let i = 1; i <= 4; i++) {
+        const key = `tabla${i}`;
+        const premio = datosPremios[key] || { numeroGanador: '', nombreGanador: '', entregado: false };
+        
+        const card = document.createElement('div');
+        card.style.cssText = `
+            border: 2px solid ${premio.entregado ? '#00b894' : '#dfe6e9'};
+            border-radius: 12px;
+            padding: 15px;
+            background: ${premio.entregado ? '#f0fff4' : '#fafafa'};
+        `;
+        
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="font-weight: 800; font-size: 1rem; color: #2d3436;">Tabla ${i}</span>
+                <span style="font-size: 0.8rem; color: ${premio.entregado ? '#00b894' : '#e74c3c'}; font-weight: 700;">
+                    ${premio.entregado ? '✓ ENTREGADO' : '⏳ PENDIENTE'}
+                </span>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 4px;">
+                    Número Ganador (00-99)
+                </label>
+                <input type="text" 
+                    id="premio-numero-${i}" 
+                    value="${premio.numeroGanador}"
+                    maxlength="2"
+                    placeholder="00"
+                    onchange="actualizarPremio(${i}, 'numero', this.value)"
+                    style="width: 100%; padding: 8px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem; font-weight: 700; text-align: center;">
+            </div>
+            
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 4px;">
+                    Nombre del Ganador
+                </label>
+                <input type="text" 
+                    id="premio-nombre-${i}"
+                    value="${premio.nombreGanador}"
+                    placeholder="Nombre del ganador..."
+                    onchange="actualizarPremio(${i}, 'nombre', this.value)"
+                    style="width: 100%; padding: 8px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 0.9rem;">
+            </div>
+            
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; background: ${premio.entregado ? '#d4edda' : '#fff3cd'}; border-radius: 8px;">
+                <input type="checkbox" 
+                    id="premio-entregado-${i}"
+                    ${premio.entregado ? 'checked' : ''}
+                    onchange="actualizarPremio(${i}, 'entregado', this.checked)"
+                    style="width: 18px; height: 18px;">
+                <span style="font-size: 0.85rem; font-weight: 700; color: ${premio.entregado ? '#155724' : '#856404'};">
+                    Premio entregado
+                </span>
+            </label>
+        `;
+        
+        container.appendChild(card);
+    }
+}
+
+// Función para actualizar un premio
+function actualizarPremio(numeroTabla, campo, valor) {
+    const key = `tabla${numeroTabla}`;
+    
+    if (campo === 'numero') {
+        // Validar que sea un número de 2 dígitos
+        valor = valor.replace(/[^0-9]/g, '').substring(0, 2);
+        document.getElementById(`premio-numero-${numeroTabla}`).value = valor;
+    }
+    
+    datosPremios[key][campo] = valor;
+    
+    // Actualizar estilos visuales
+    renderizarPanelPremios();
+    
+    // Guardar en el servidor
+    guardarPremiosEnRifa();
+}
+
+// Función para guardar los premios en la rifa actual
+function guardarPremiosEnRifa() {
+    const datos = recolectarDatosPantalla();
+    datos.info.premios = datosPremios;
+    
+    fetch('/api/guardar-rifa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datos)
+    }).then(res => {
+        if (res.ok) {
+            console.log('Premios guardados correctamente');
+        }
+    }).catch(err => {
+        console.error('Error guardando premios:', err);
+    });
+}
+
+// Función para cargar los premios al cargar la rifa
+function cargarPremios(datos) {
+    if (datos && datos.info && datos.info.premios) {
+        datosPremios = datos.info.premios;
+    } else {
+        // Reiniciar si no hay datos de premios
+        datosPremios = {
+            tabla1: { numeroGanador: '', nombreGanador: '', entregado: false },
+            tabla2: { numeroGanador: '', nombreGanador: '', entregado: false },
+            tabla3: { numeroGanador: '', nombreGanador: '', entregado: false },
+            tabla4: { numeroGanador: '', nombreGanador: '', entregado: false }
+        };
+    }
+    renderizarPanelPremios();
 }
