@@ -228,12 +228,12 @@ async function verHistorialFechas(id, nombre) {
             return data.map((m, index) => {
                 const esRetiro = Number(m[key]) < 0;
                 const colorFinal = esRetiro ? 'rose' : color;
-                // Usar el ID real o el índice+1 como fallback
-                const idAhorro = (m.ID_Ahorro && m.ID_Ahorro > 0) ? m.ID_Ahorro : (index + 1);
+                // Usar RowNum del servidor (número secuencial basado en fecha)
+                const rowNum = m.RowNum || (index + 1);
                 const monto = Number(m[key]);
                 const fecha = m.FechaFormateada || '';
                 const detalle = (m.Detalle || '').replace(/'/g, "\\'");
-                console.log("DEBUG - Datos del ahorro:", m, "ID_Ahorro:", idAhorro);
+                console.log("DEBUG - Datos del ahorro:", m, "RowNum:", rowNum);
                 return `
                 <div class="flex justify-between items-center p-3 border-b border-slate-100 text-[11px]">
                     <div class="flex flex-col">
@@ -242,7 +242,7 @@ async function verHistorialFechas(id, nombre) {
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="font-bold text-${colorFinal}-600">${esRetiro ? '' : '+'}$${Math.abs(monto).toLocaleString()}</span>
-                        ${!esRetiro ? `<button onclick="window.abrirEditarAhorro(${idAhorro}, ${monto}, '${fecha}', '${detalle}', ${id})" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
+                        ${!esRetiro ? `<button onclick="window.abrirEditarAhorro(${rowNum}, ${monto}, '${fecha}', '${detalle}', ${id})" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
                     </div>
                 </div>`;
             }).join('');

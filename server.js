@@ -365,15 +365,19 @@ app.get('/historial-ahorros/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query(`SELECT ID_Ahorro,
-                           Monto, 
-                           FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
-                           -- Forzamos el nombre a 'Detalle' para el frontend
-                           ISNULL(MesesCorrespondientes, 'Abono General') as Detalle 
+            .query(`SELECT 
+                        ROW_NUMBER() OVER (ORDER BY Fecha DESC) as RowNum,
+                        ID_Ahorro,
+                        Monto, 
+                        FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, 
+                        ISNULL(MesesCorrespondientes, 'Abono General') as Detalle 
                     FROM Ahorros 
                     WHERE ID_Persona = @id ORDER BY Fecha DESC`);
         res.json(result.recordset);
-    } catch (err) { res.status(500).json([]); }
+    } catch (err) { 
+        console.error("Error en historial-ahorros:", err.message);
+        res.status(500).json([]); 
+    }
 });
 
 // 3. Historial de Abonos a Deuda
@@ -1036,46 +1040,54 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
 
 // --- RUTAS PARA EDITAR MOVIMIENTOS ---
 
-// 1. Editar Ahorro
+// 1. Editar Ahorro - Ahora acepta RowNum y lo convierte a ID_Ahorro real
 app.put('/api/editar-ahorro', async (req, res) => {
     try {
-        const { idAhorro, monto, fecha, MesesCorrespondientes } = req.body;
-        
-        if (!idAhorro || !monto) {
+        const { idAhorro, monto, fecha, MesesCorrespondientes, idPersona } = req.body;
+
+        if (!idAhorro || !monto || !idPersona) {
             return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
         }
 
         const pool = await poolPromise;
-        
-        // Obtener el ahorro actual para calcular la diferencia
-        const ahorroActual = await pool.request()
-            .input('id', sql.Int, idAhorro)
-            .query("SELECT Monto FROM Ahorros WHERE ID_Ahorro = @id");
-        
-        if (ahorroActual.recordset.length === 0) {
+
+        // Convertir RowNum a ID_Ahorro real
+        const rowNum = parseInt(idAhorro);
+        const ahorroReal = await pool.request()
+            .input('idPersona', sql.Int, idPersona)
+            .input('rowNum', sql.Int, rowNum)
+            .query(`
+                SELECT ID_Ahorro, Monto FROM (
+                    SELECT ID_Ahorro, Monto, ROW_NUMBER() OVER (ORDER BY Fecha DESC) as RowNum
+                    FROM Ahorros
+                    WHERE ID_Persona = @idPersona
+                ) t WHERE RowNum = @rowNum
+            `);
+
+        if (ahorroReal.recordset.length === 0) {
             return res.status(404).json({ success: false, error: "Ahorro no encontrado" });
         }
 
-        const montoAnterior = parseFloat(ahorroActual.recordset[0].Monto);
+        const realIdAhorro = ahorroReal.recordset[0].ID_Ahorro;
+        const montoAnterior = parseFloat(ahorroReal.recordset[0].Monto);
         const montoNuevo = parseFloat(monto);
-        const diferencia = montoNuevo - montoAnterior;
 
         // Actualizar el ahorro
         await pool.request()
-            .input('id', sql.Int, idAhorro)
+            .input('id', sql.Int, realIdAhorro)
             .input('monto', sql.Decimal(18, 2), montoNuevo)
             .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
             .input('meses', sql.VarChar(sql.MAX), MesesCorrespondientes || 'Abono General')
             .query(`
-                UPDATE Ahorros 
-                SET Monto = @monto, 
-                    Fecha = @fecha, 
+                UPDATE Ahorros
+                SET Monto = @monto,
+                    Fecha = @fecha,
                     FechaAporte = @fecha,
                     MesesCorrespondientes = @meses
                 WHERE ID_Ahorro = @id
             `);
 
-        res.json({ success: true, message: "Ahorro actualizado correctamente", diferencia });
+        res.json({ success: true, message: "Ahorro actualizado correctamente" });
     } catch (err) {
         console.error("Error al editar ahorro:", err.message);
         res.status(500).json({ success: false, error: err.message });
