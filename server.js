@@ -1079,22 +1079,25 @@ app.post('/api/restore-database', async (req, res) => {
         `);
 
         // 2. RESTAURAR PERSONAS
-        if (data.personas && data.personas.length > 0) {
-            await transaction.request().query("SET IDENTITY_INSERT Personas ON");
-            for (const p of data.personas) {
-                await transaction.request()
-                    .input('id', sql.Int, p.ID_Persona)
-                    .input('nom', sql.VarChar, p.Nombre)
-                    .input('doc', sql.VarChar, p.Documento)
-                    .input('tel', sql.VarChar, p.Telefono || null) // Evita error si no hay teléfono
-                    .input('soc', sql.Bit, p.EsSocio)
-                    .input('fec', sql.DateTime, p.FechaIngreso)
-                    .input('est', sql.VarChar, p.Estado)
-                    .query(`INSERT INTO Personas (ID_Persona, Nombre, Documento, Telefono, EsSocio, FechaIngreso, Estado) 
-                            VALUES (@id, @nom, @doc, @tel, @soc, @fec, @est)`);
-            }
-            await transaction.request().query("SET IDENTITY_INSERT Personas OFF");
-        }
+if (data.personas && data.personas.length > 0) {
+    for (const p of data.personas) {
+        await transaction.request()
+            .input('id', sql.Int, p.ID_Persona)
+            .input('nom', sql.VarChar, p.Nombre)
+            .input('doc', sql.VarChar, p.Documento)
+            .input('tel', sql.VarChar, p.Telefono || null)
+            .input('soc', sql.Bit, p.EsSocio)
+            .input('fec', sql.DateTime, p.FechaIngreso)
+            .input('est', sql.VarChar, p.Estado)
+            // Ejecutamos el ON y el INSERT en la misma consulta
+            .query(`
+                SET IDENTITY_INSERT Personas ON;
+                INSERT INTO Personas (ID_Persona, Nombre, Documento, Telefono, EsSocio, FechaIngreso, Estado) 
+                VALUES (@id, @nom, @doc, @tel, @soc, @fec, @est);
+                SET IDENTITY_INSERT Personas OFF;
+            `);
+    }
+}
 
         // 3. RESTAURAR PRÉSTAMOS
         if (data.prestamos && data.prestamos.length > 0) {
