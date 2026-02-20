@@ -1009,6 +1009,29 @@ app.post('/procesar-cruce', async (req, res) => {
     }
 });
 
+// --- RUTA PARA EL SELECTOR DE DEUDAS (SOLUCIONA EL ERROR 404) ---
+app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('id', sql.Int, req.params.idPersona)
+            .query(`
+                SELECT 
+                    ID_Prestamo, 
+                    SaldoActual, 
+                    FechaInicio as Fecha 
+                FROM Prestamos 
+                WHERE ID_Persona = @id AND Estado = 'Activo'
+            `);
+        
+        // Enviamos el recordset (será [] si no hay deudas, lo cual está bien)
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Error en api/prestamos-activos:", err.message);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
