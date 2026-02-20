@@ -1408,6 +1408,7 @@ function asignarNumerosMultiples() {
     const nombre = document.getElementById('nombreClienteMultiple').value.trim();
     const numerosInput = document.getElementById('numerosClienteMultiple').value.trim();
     const pagado = document.getElementById('pagadoClienteMultiple').checked;
+    const adelantado = document.getElementById('adelantadoClienteMultiple').checked;
     const tablaSeleccionada = document.getElementById('tablaClienteMultiple').value;
     const resultadoDiv = document.getElementById('resultadoAsignacion');
     
@@ -1455,12 +1456,19 @@ function asignarNumerosMultiples() {
                 // Asignar el número a la tabla seleccionada
                 nombreElement.textContent = nombre;
                 slot.classList.remove('paid', 'reserved');
-                if (pagado) {
+                
+                if (pagado || adelantar) {
+                    // Si está pagado o es adelantar, se marca como pagado (verde)
                     slot.classList.add('paid');
+                    slot.setAttribute('data-pago', 'true');
                 } else {
+                    // Si no está pagado ni adelantar, queda pendiente (naranja)
                     slot.classList.add('reserved');
+                    slot.setAttribute('data-pago', 'false');
                 }
-                slot.setAttribute('data-pago', pagado);
+                
+                // Guardar el estado de adelantado
+                slot.setAttribute('data-adelantado', adelantado ? 'true' : 'false');
                 asignados++;
             }
         }
@@ -1468,13 +1476,20 @@ function asignarNumerosMultiples() {
     
     resultadoDiv.style.display = 'block';
     if (asignados > 0) {
-        resultadoDiv.innerHTML = `<div style="padding: 10px; background: #d4edda; color: #155724; border-radius: 8px; border: 1px solid #c3e6cb;">
-            <i class="fas fa-check-circle"></i> Se asignaron <b>${asignados}</b> número(s) a <b>${nombre}</b> en Tabla ${tablaSeleccionada}
-        </div>`;
+        let mensaje = `<div style="padding: 10px; background: #d4edda; color: #155724; border-radius: 8px; border: 1px solid #c3e6cb;">
+            <i class="fas fa-check-circle"></i> Se asignaron <b>${asignados}</b> número(s) a <b>${nombre}</b> en Tabla ${tablaSeleccionada}`;
+        
+        if (adelantado) {
+            mensaje += `<br><small style="color: #856404;"><i class="fas fa-clock"></i> Pago adelantado activado</small>`;
+        }
+        
+        mensaje += `</div>`;
+        resultadoDiv.innerHTML = mensaje;
         
         document.getElementById('nombreClienteMultiple').value = '';
         document.getElementById('numerosClienteMultiple').value = '';
         document.getElementById('pagadoClienteMultiple').checked = false;
+        document.getElementById('adelantadoClienteMultiple').checked = false;
         
         actualizarContadoresRifa();
         guardarTodo();
