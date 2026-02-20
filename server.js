@@ -758,59 +758,53 @@ app.get('/api/total-prestamos', async (req, res) => {
     }
 });
 
-// Nueva ruta para calcular ganancias acumuladas de TODAS las rifas
+// Ruta para obtener las ganancias acumuladas de rifas
 app.get('/api/ganancias-rifas-acumuladas', async (req, res) => {
     try {
         const pool = await poolPromise;
         
-        // Obtenemos TODAS las rifas guardadas
-        const result = await pool.request().query("SELECT DatosJSON, FechaSorteo FROM ConfiguracionRifas ORDER BY FechaSorteo DESC");
+        // Buscar si existe un registro de ganancias acumuladas
+        const result = await pool.request()
+            .query("SELECT TOP 1 DatosJSON FROM ConfiguracionRifas WHERE FechaSorteo = '2099-12-31'");
         
-        let gananciasAcumuladas = 0;
-        let totalRifas = 0;
-        
-        if (result.recordset.length > 0) {
-            result.recordset.forEach(rifa => {
-                if (rifa.DatosJSON) {
-                    try {
-                        const datos = JSON.parse(rifa.DatosJSON);
-                        const valorPuesto = parseFloat(datos.info?.valor) || 0;
-                        const costoPremio = parseFloat(datos.info?.inversion) || 0;
-                        
-                        // Contar tablas (puede ser tabla1, tabla2, etc.)
-                        const tablas = ['tabla1', 'tabla2', 'tabla3', 'tabla4'];
-                        let puestosPagados = 0;
-                        
-                        tablas.forEach(tablaKey => {
-                            if (datos[tablaKey] && datos[tablaKey].participantes) {
-                                Object.values(datos[tablaKey].participantes).forEach(p => {
-                                    if (p.pago) {
-                                        puestosPagados++;
-                                    }
-                                });
-                            }
-                        });
-                        
-                        // Ganancia de esta rifa = (puestos pagados * valor puesto) - (costo premio * número de tablas)
-                        const tablasConDatos = tablas.filter(t => datos[t] && datos[t].participantes && Object.keys(datos[t].participantes).length > 0).length;
-                        const gananciaRifa = (puestosPagados * valorPuesto) - (costoPremio * Math.max(1, tablasConDatos));
-                        
-                        gananciasAcumuladas += gananciaRifa;
-                        totalRifas++;
-                    } catch (e) {
-                        console.error("Error parseando rifa:", e);
-                    }
-                }
-            });
+        if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
+            const datos = JSON.parse(result.recordset[0].DatosJSON);
+            res.json({ gananciaTotal: datos.gananciaAcumulada || 0 });
+        } else {
+            res.json({ gananciaTotal: 0 });
         }
-
-        res.json({ 
-            gananciaTotal: gananciasAcumuladas,
-            totalRifas: totalRifas
-        });
     } catch (err) {
         console.error("Error en ganancias-rifas-acumuladas:", err.message);
-        res.status(500).json({ error: err.message, gananciaTotal: 0, totalRifas: 0 });
+        res.status(500).json({ error: err.message, gananciaTotal: 0 });
+    }
+});
+
+// Ruta para guardar las ganancias acumuladas de rifas
+app.post('/api/ganancias-rifas-acumuladas', async (req, res) => {
+    try {
+        const { gananciaAcumulada } = req.body;
+        const pool = await poolPromise;
+        
+        // Verificar si ya existe el registro
+        const check = await pool.request()
+            .query("SELECT Id FROM ConfiguracionRifas WHERE FechaSorteo = '2099-12-31'");
+        
+        if (check.recordset.length > 0) {
+            // Actualizar
+            await pool.request()
+                .input('ganancia', sql.NVarChar, JSON.stringify({ gananciaAcumulada }))
+                .query("UPDATE ConfiguracionRifas SET DatosJSON = @ganancia, UltimaActualizacion = GETDATE() WHERE FechaSorteo = '2099-12-31'");
+        } else {
+            // Crear nuevo registro
+            await pool.request()
+                .input('ganancia', sql.NVarChar, JSON.stringify({ gananciaAcumulada }))
+                .query("INSERT INTO ConfiguracionRifas (FechaSorteo, DatosJSON, UltimaActualizacion) VALUES ('2099-12-31', @ganancia, GETDATE())");
+        }
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Error al guardar ganancias acumuladas:", err.message);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 

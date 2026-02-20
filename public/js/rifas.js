@@ -609,31 +609,87 @@ function actualizarSoloNombres(idTabla, participantes) {
     }
 }
 
-// Función para cargar las ganancias acumuladas de todas las rifas
+// Función para cargar las ganancias acumuladas de rifas
+let gananciasAcumuladasRifas = 0;
+
 async function cargarGananciasAcumuladas() {
     try {
         const response = await fetch('/api/ganancias-rifas-acumuladas');
         const data = await response.json();
-        
-        const elemento = document.getElementById('stats-ganancia-total');
-        if (elemento) {
-            const formato = new Intl.NumberFormat('es-CO', {
-                style: 'currency', currency: 'COP', maximumFractionDigits: 0
-            });
-            elemento.textContent = formato.format(data.gananciaTotal || 0);
-            
-            // Color según ganancia positiva o negativa
-            if (data.gananciaTotal > 0) {
-                elemento.style.color = '#00b894'; // Verde
-            } else if (data.gananciaTotal < 0) {
-                elemento.style.color = '#e74c3c'; // Rojo
-            } else {
-                elemento.style.color = 'white';
-            }
-        }
+        gananciasAcumuladasRifas = data.gananciaTotal || 0;
+        actualizarDisplayGanancias();
     } catch (error) {
         console.error("Error al cargar ganancias acumuladas:", error);
     }
+}
+
+function actualizarDisplayGanancias() {
+    const elemento = document.getElementById('stats-ganancia');
+    if (elemento) {
+        const formato = new Intl.NumberFormat('es-CO', {
+            style: 'currency', currency: 'COP', maximumFractionDigits: 0
+        });
+        elemento.textContent = formato.format(gananciasAcumuladasRifas);
+        
+        // Color según ganancia positiva o negativa
+        if (gananciasAcumuladasRifas > 0) {
+            elemento.style.color = '#00b894'; // Verde
+        } else if (gananciasAcumuladasRifas < 0) {
+            elemento.style.color = '#e74c3c'; // Rojo
+        } else {
+            elemento.style.color = '';
+        }
+    }
+}
+
+// Función para guardar las ganancias acumuladas
+async function guardarGananciasAcumuladas() {
+    try {
+        await fetch('/api/ganancias-rifas-acumuladas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gananciaAcumulada: gananciasAcumuladasRifas })
+        });
+    } catch (error) {
+        console.error("Error al guardar ganancias acumuladas:", error);
+    }
+}
+
+// Función para acumular la ganancia de la rifa actual al total
+async function acumularGananciaRifa() {
+    // Primero calculamos la ganancia de la rifa actual
+    const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
+    const inversionPorTabla = parseFloat(document.getElementById('costoPremio').value) || 0;
+    const cantidadTablas = document.querySelectorAll('.rifa-card').length;
+    const inversionTotalPremios = inversionPorTabla * cantidadTablas;
+    
+    let totalRecogido = 0;
+    document.querySelectorAll('.n-slot').forEach(slot => {
+        if (slot.classList.contains('paid')) {
+            totalRecogido += costoPuesto;
+        }
+    });
+    
+    // Ganancia de esta rifa específica
+    const gananciaEstaRifa = totalRecogido - inversionTotalPremios;
+    
+    // Solo acumulamos si hay una ganancia positiva
+    if (gananciaEstaRifa > 0) {
+        // Sumamos al total acumulado
+        gananciasAcumuladasRifas += gananciaEstaRifa;
+        
+        // Guardamos en el servidor
+        await guardarGananciasAcumuladas();
+        
+        // Actualizamos el display
+        actualizarDisplayGanancias();
+        
+        console.log(`Ganancia de esta rifa: $${gananciaEstaRifa.toLocaleString()} - Total acumulado: $${gananciasAcumuladasRifas.toLocaleString()}`);
+        
+        return true;
+    }
+    
+    return false;
 }
 
 // Llamar al inicio al cargar la página
@@ -865,8 +921,8 @@ function actualizarContadoresRifa() {
         }
     });
 
-    // NUEVO CÁLCULO: Recogido menos (Inversión unidad * número de tablas)
-    const gananciaReal = totalRecogido - inversionTotalPremios;
+    // Ganancia de la rifa actual
+    const gananciaEstaRifa = totalRecogido - inversionTotalPremios;
 
     const formato = new Intl.NumberFormat('es-CO', {
         style: 'currency', currency: 'COP', maximumFractionDigits: 0
@@ -877,10 +933,11 @@ function actualizarContadoresRifa() {
     document.getElementById('stats-total-pago').innerText = formato.format(totalRecogido);
     
     const txtGanancia = document.getElementById('stats-ganancia');
-    txtGanancia.innerText = formato.format(gananciaReal);
+    // Ahora mostrarmos la GANANCIA ACUMULADA en lugar de solo la de esta rifa
+    txtGanancia.innerText = formato.format(gananciasAcumuladasRifas);
     
     // Feedback visual
-    txtGanancia.style.color = gananciaReal < 0 ? "#e74c3c" : (gananciaReal > 0 ? "#00b894" : "#2d3436");
+    txtGanancia.style.color = gananciasAcumuladasRifas < 0 ? "#e74c3c" : (gananciasAcumuladasRifas > 0 ? "#00b894" : "#2d3436");
 }
 
 async function actualizarManual() {
