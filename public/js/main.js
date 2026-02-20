@@ -31,15 +31,14 @@ async function cargarDashboard() {
 }
 // Función para alternar la visibilidad de los detalles de un miembro
 window.toggleExpandirMiembro = async function(id) {
-    const rowDetails = document.getElementById(`detalles-${id}`);
+    const details = document.getElementById(`detalles-${id}`);
     const icon = document.getElementById(`icon-expand-${id}`);
+    const card = document.getElementById(`card-${id}`);
     
-    if (rowDetails.classList.contains('hidden')) {
-        // Ocultar otros rows expandidos primero
-        document.querySelectorAll('[id^="detalles-"]').forEach(el => {
-            if (!el.classList.contains('hidden')) {
-                el.classList.add('hidden');
-            }
+    if (details.classList.contains('hidden')) {
+        // Ocultar otros detalles primero
+        document.querySelectorAll('[id^="detalles-"]:not(.hidden)').forEach(el => {
+            el.classList.add('hidden');
         });
         document.querySelectorAll('[id^="icon-expand-"]').forEach(el => {
             el.classList.remove('fa-chevron-up');
@@ -47,16 +46,24 @@ window.toggleExpandirMiembro = async function(id) {
         });
         
         // Cargar datos si no existen
-        if (rowDetails.innerHTML.trim() === '') {
-            rowDetails.innerHTML = '<td colspan="4" class="px-4 py-4 text-center"><div class="flex items-center justify-center"><i class="fas fa-spinner fa-spin text-indigo-500 text-xl"></i><span class="ml-2 text-slate-500">Cargando...</span></div></td>';
+        if (details.innerHTML.trim() === '') {
+            details.innerHTML = '<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-indigo-500 text-xl"></i><span class="ml-2 text-slate-500">Cargando...</span></div>';
             await cargarDetallesMiembro(id);
         }
         
-        rowDetails.classList.remove('hidden');
+        details.classList.remove('hidden');
+        if(card) {
+            card.classList.remove('bg-white');
+            card.classList.add('bg-indigo-50');
+        }
         icon.classList.remove('fa-chevron-down');
         icon.classList.add('fa-chevron-up');
     } else {
-        rowDetails.classList.add('hidden');
+        details.classList.add('hidden');
+        if(card) {
+            card.classList.remove('bg-indigo-50');
+            card.classList.add('bg-white');
+        }
         icon.classList.remove('fa-chevron-up');
         icon.classList.add('fa-chevron-down');
     }
@@ -104,60 +111,126 @@ async function cargarDetallesMiembro(id) {
             prestamosHTML = '<p class="text-[10px] text-emerald-500 italic">Sin deudas activas ✓</p>';
         }
 
-        rowDetails.innerHTML = `
-            <td colspan="4" class="px-4 py-4 bg-slate-50">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- Resumen financiero -->
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <i class="fas fa-wallet text-indigo-500"></i> Estado de Cuenta
-                        </h4>
-                        <div class="space-y-2">
-                            <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-xl">
-                                <span class="text-xs font-medium text-slate-600">Ahorros</span>
-                                <span class="text-sm font-black text-emerald-600">$${totalAhorrado.toLocaleString()}</span>
+        // Detect if we're in a card container or a table row
+        const isCardContainer = rowDetails.tagName === 'DIV';
+        
+        let detailsContent = '';
+        
+        if (isCardContainer) {
+            // Render for card container (div)
+            detailsContent = `
+                <div class="p-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Resumen financiero -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="fas fa-wallet text-indigo-500"></i> Estado de Cuenta
+                            </h4>
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-xl">
+                                    <span class="text-xs font-medium text-slate-600">Ahorros</span>
+                                    <span class="text-sm font-black text-emerald-600">$${totalAhorrado.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2 bg-rose-50 rounded-xl">
+                                    <span class="text-xs font-medium text-slate-600">Deuda</span>
+                                    <span class="text-sm font-black text-rose-600">$${deudaTotal.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2 ${deudaTotal > totalAhorrado ? 'bg-amber-50' : 'bg-indigo-50'} rounded-xl">
+                                    <span class="text-xs font-medium text-slate-600">Neto</span>
+                                    <span class="text-sm font-black ${deudaTotal > totalAhorrado ? 'text-amber-600' : 'text-indigo-600'}">$${(totalAhorrado - deudaTotal).toLocaleString()}</span>
+                                </div>
                             </div>
-                            <div class="flex justify-between items-center p-2 bg-rose-50 rounded-xl">
-                                <span class="text-xs font-medium text-slate-600">Deuda</span>
-                                <span class="text-sm font-black text-rose-600">$${deudaTotal.toLocaleString()}</span>
+                        </div>
+                        
+                        <!-- Últimos ahorros -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros
+                            </h4>
+                            <div class="space-y-1 max-h-32 overflow-y-auto">
+                                ${ultimosAhorros}
                             </div>
-                            <div class="flex justify-between items-center p-2 ${deudaTotal > totalAhorrado ? 'bg-amber-50' : 'bg-indigo-50'} rounded-xl">
-                                <span class="text-xs font-medium text-slate-600">Neto</span>
-                                <span class="text-sm font-black ${deudaTotal > totalAhorrado ? 'text-amber-600' : 'text-indigo-600'}">$${(totalAhorrado - deudaTotal).toLocaleString()}</span>
+                        </div>
+                        
+                        <!-- Préstamos activos -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos
+                            </h4>
+                            <div class="space-y-1 max-h-32 overflow-y-auto">
+                                ${prestamosHTML}
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Últimos ahorros -->
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros
-                        </h4>
-                        <div class="space-y-1 max-h-32 overflow-y-auto">
-                            ${ultimosAhorros}
-                        </div>
-                    </div>
-                    
-                    <!-- Préstamos activos -->
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                            <i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos
-                        </h4>
-                        <div class="space-y-1 max-h-32 overflow-y-auto">
-                            ${prestamosHTML}
-                        </div>
+                    <div class="mt-3 flex gap-2 justify-end">
+                        <button onclick="verHistorialFechas(${id}, document.querySelector('#card-${id} .nombre-socio')?.textContent || 'Socio')" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition-all">
+                            <i class="fas fa-history mr-1"></i> Ver Historial Completo
+                        </button>
+                        <button onclick="document.getElementById('mov_id').value = '${id}'; toggleExpandirMiembro(${id});" class="bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-600 hover:text-white transition-all">
+                            <i class="fas fa-plus mr-1"></i> Hacer Movimiento
+                        </button>
                     </div>
                 </div>
-                <div class="mt-3 flex gap-2 justify-end">
-                    <button onclick="verHistorialFechas(${id}, this.closest('tr').previousElementSibling.querySelector('.nombre-socio').textContent)" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition-all">
-                        <i class="fas fa-history mr-1"></i> Ver Historial Completo
-                    </button>
-                    <button onclick="document.getElementById('mov_id').value = '${id}'; this.closest('[id^=\'detalles-\']').classList.add('hidden'); document.getElementById('icon-expand-${id}').classList.replace('fa-chevron-up', 'fa-chevron-down');" class="bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-600 hover:text-white transition-all">
-                        <i class="fas fa-plus mr-1"></i> Hacer Movimiento
-                    </button>
-                </div>
-            </td>
-        `;
+            `;
+        } else {
+            // Render for table row (td)
+            detailsContent = `
+                <td colspan="4" class="px-4 py-4 bg-slate-50">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Resumen financiero -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="fas fa-wallet text-indigo-500"></i> Estado de Cuenta
+                            </h4>
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-xl">
+                                    <span class="text-xs font-medium text-slate-600">Ahorros</span>
+                                    <span class="text-sm font-black text-emerald-600">$${totalAhorrado.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2 bg-rose-50 rounded-xl">
+                                    <span class="text-xs font-medium text-slate-600">Deuda</span>
+                                    <span class="text-sm font-black text-rose-600">$${deudaTotal.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between items-center p-2 ${deudaTotal > totalAhorrado ? 'bg-amber-50' : 'bg-indigo-50'} rounded-xl">
+                                    <span class="text-xs font-medium text-slate-600">Neto</span>
+                                    <span class="text-sm font-black ${deudaTotal > totalAhorrado ? 'text-amber-600' : 'text-indigo-600'}">$${(totalAhorrado - deudaTotal).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Últimos ahorros -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros
+                            </h4>
+                            <div class="space-y-1 max-h-32 overflow-y-auto">
+                                ${ultimosAhorros}
+                            </div>
+                        </div>
+                        
+                        <!-- Préstamos activos -->
+                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos
+                            </h4>
+                            <div class="space-y-1 max-h-32 overflow-y-auto">
+                                ${prestamosHTML}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex gap-2 justify-end">
+                        <button onclick="verHistorialFechas(${id}, this.closest('tr').previousElementSibling.querySelector('.nombre-socio').textContent)" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition-all">
+                            <i class="fas fa-history mr-1"></i> Ver Historial Completo
+                        </button>
+                        <button onclick="document.getElementById('mov_id').value = '${id}'; this.closest('[id^=\'detalles-\']').classList.add('hidden'); document.getElementById('icon-expand-${id}').classList.replace('fa-chevron-up', 'fa-chevron-down');" class="bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-600 hover:text-white transition-all">
+                            <i class="fas fa-plus mr-1"></i> Hacer Movimiento
+                        </button>
+                    </div>
+                </td>
+            `;
+        }
+        
+        rowDetails.innerHTML = detailsContent;
     } catch (err) {
         console.error("Error cargando detalles:", err);
         const rowDetails = document.getElementById(`detalles-${id}`);
@@ -174,57 +247,110 @@ async function listarMiembros() {
         
         miembrosGlobal = await res.json(); 
         
-        const tbody = document.getElementById('tabla-recientes');
-        tbody.innerHTML = '';
+        const contenedor = document.getElementById('contenedor-miembros');
+        if (!contenedor) {
+            // Fallback: buscar tabla
+            const tbody = document.getElementById('tabla-recientes');
+            if (tbody) {
+                tbody.innerHTML = '';
+                return; // Mantener modo tabla
+            }
+        }
+        if (contenedor) contenedor.innerHTML = '';
         window.mapeoIdentificadores = {}; 
 
         let cAhorro = 0, cExtra = 0;
         const totalMiembros = miembrosGlobal.length;
 
+        const container = contenedor || tbody;
+        
         [...miembrosGlobal].reverse().forEach((m, index) => {
             const numPantalla = totalMiembros - index;
             window.mapeoIdentificadores[numPantalla] = m.id; 
 
-            // m.tipo ahora viene calculado desde el servidor como 'SOCIO' o 'EXTERNO'
             const esSocioReal = (m.tipo === 'SOCIO'); 
             esSocioReal ? cAhorro++ : cExtra++;
 
-            tbody.innerHTML += `
-                <tr class="hover:bg-slate-50 transition-colors item-socio cursor-pointer" onclick="toggleExpandirMiembro(${m.id})">
-                    <td class="px-4 py-5 text-center">
-                        <button class="text-slate-400 hover:text-indigo-500 transition-colors">
-                            <i id="icon-expand-${m.id}" class="fas fa-chevron-down text-sm"></i>
-                        </button>
-                    </td>
-                    <td class="px-4 py-5 font-black text-indigo-500 text-xl">#${m.id}</td>
-                    <td class="px-4 py-5">
-                        <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
-                        <div class="text-[10px] text-slate-400 uppercase tracking-tighter">
-                            DOC: ${m.documento} | 
-                            <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
-                                ${m.tipo}
-                            </span>
+            if (contenedor) {
+                // Render as expandable cards
+                contenedor.innerHTML += `
+                    <div id="card-${m.id}" class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-3" onclick="toggleExpandirMiembro(${m.id})">
+                        <div class="p-4 flex items-center justify-between">
+                            <div class="flex items-center gap-4 flex-1">
+                                <div class="w-12 h-12 rounded-2xl ${esSocioReal ? 'bg-emerald-100' : 'bg-blue-100'} flex items-center justify-center">
+                                    <span class="font-black text-lg ${esSocioReal ? 'text-emerald-600' : 'text-blue-600'}">#${m.id}</span>
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="font-bold text-slate-700 text-lg">${m.nombre}</h3>
+                                    <p class="text-[10px] text-slate-400 uppercase tracking-tighter">
+                                        DOC: ${m.documento} | 
+                                        <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
+                                            ${m.tipo}
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2" onclick="event.stopPropagation()">
+                                <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
+                                <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-1">
+                                    <i class="fas fa-hand-holding-usd"></i> Retirar
+                                </button>
+                                <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.documento}', '${m.tipo}')" class="text-amber-500 p-2 hover:scale-110 transition-transform" title="Editar">
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                                <button onclick="cambiarEstadoSocio(${m.id}, '${m.nombre}', 'Activo')" class="text-slate-400 p-2 hover:text-orange-500 hover:scale-110 transition-all" title="Inhabilitar Socio">
+                                    <i class="fas fa-user-slash"></i>
+                                </button>
+                                <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2 hover:scale-110 transition-transform" title="Eliminar">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                <button class="text-slate-400 hover:text-indigo-500 transition-colors ml-2">
+                                    <i id="icon-expand-${m.id}" class="fas fa-chevron-down text-sm"></i>
+                                </button>
+                            </div>
                         </div>
-                    </td>
-                    <td class="px-4 py-5 text-center" onclick="event.stopPropagation()">
-                        <div class="flex justify-center gap-2 items-center flex-wrap">
-                            <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
-                            <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-1">
-                                <i class="fas fa-hand-holding-usd"></i> Retirar
+                    </div>
+                    <div id="detalles-${m.id}" class="hidden rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden mb-3"></div>
+                `;
+            } else {
+                // Render as table rows (fallback)
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors item-socio cursor-pointer" onclick="toggleExpandirMiembro(${m.id})">
+                        <td class="px-4 py-5 text-center">
+                            <button class="text-slate-400 hover:text-indigo-500 transition-colors">
+                                <i id="icon-expand-${m.id}" class="fas fa-chevron-down text-sm"></i>
                             </button>
-                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.documento}', '${m.tipo}')" class="text-amber-500 p-2 hover:scale-110 transition-transform" title="Editar">
-                                <i class="fas fa-pen"></i>
-                            </button>
-                            <button onclick="cambiarEstadoSocio(${m.id}, '${m.nombre}', 'Activo')" class="text-slate-400 p-2 hover:text-orange-500 hover:scale-110 transition-all" title="Inhabilitar Socio">
-                                <i class="fas fa-user-slash"></i>
-                            </button>
-                            <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2 hover:scale-110 transition-transform" title="Eliminar">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-                <tr id="detalles-${m.id}" class="hidden bg-slate-50"></tr>`;
+                        </td>
+                        <td class="px-4 py-5 font-black text-indigo-500 text-xl">#${m.id}</td>
+                        <td class="px-4 py-5">
+                            <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
+                            <div class="text-[10px] text-slate-400 uppercase tracking-tighter">
+                                DOC: ${m.documento} | 
+                                <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
+                                    ${m.tipo}
+                                </span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-5 text-center" onclick="event.stopPropagation()">
+                            <div class="flex justify-center gap-2 items-center flex-wrap">
+                                <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
+                                <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-1">
+                                    <i class="fas fa-hand-holding-usd"></i> Retirar
+                                </button>
+                                <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.documento}', '${m.tipo}')" class="text-amber-500 p-2 hover:scale-110 transition-transform" title="Editar">
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                                <button onclick="cambiarEstadoSocio(${m.id}, '${m.nombre}', 'Activo')" class="text-slate-400 p-2 hover:text-orange-500 hover:scale-110 transition-all" title="Inhabilitar Socio">
+                                    <i class="fas fa-user-slash"></i>
+                                </button>
+                                <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2 hover:scale-110 transition-transform" title="Eliminar">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr id="detalles-${m.id}" class="hidden bg-slate-50"></tr>`;
+            }
         });
         document.getElementById('count-ahorradores').innerText = `${cAhorro} Ahorradores`;
         document.getElementById('count-prestamos').innerText = `${cExtra} Externos`;
