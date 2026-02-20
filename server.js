@@ -1008,6 +1008,111 @@ app.post('/procesar-cruce', async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
+
+// Endpoint para generar el respaldo
+app.get('/api/backup', async (req, res) => {
+    try {
+        // Consultamos todas las tablas principales
+        const personas = await db.query('SELECT * FROM Personas');
+        const ahorros = await db.query('SELECT * FROM Ahorros');
+        const prestamos = await db.query('SELECT * FROM Prestamos');
+        const pagos = await db.query('SELECT * FROM Pagos');
+        const historialPagos = await db.query('SELECT * FROM HistorialPagos');
+
+        // Empaquetamos todo en un objeto JSON
+        const backupData = {
+            fecha: new Date(),
+            tablas: {
+                personas: personas.recordset,
+                ahorros: ahorros.recordset,
+                prestamos: prestamos.recordset,
+                pagos: pagos.recordset,
+                historialPagos: historialPagos.recordset
+            }
+        };
+
+        res.json(backupData);
+    } catch (error) {
+        res.status(500).send("Error generando backup: " + error.message);
+    }
+});
+
+app.post('/api/restore', async (req, res) => {
+    const { tablas } = req.body; // El JSON que subes desde el frontend
+    const pool = await sql.connect(config); // Tu conexión a la base de datos
+    const transaction = new sql.Transaction(pool);
+
+    try {
+        await transaction.begin();
+        const request = new sql.Request(transaction);
+
+        // --- PASO 1: LIMPIEZA TOTAL (En orden de dependencia) ---
+        await request.query(`
+            DELETE FROM HistorialGanancias;
+            DELETE FROM HistorialPagos;
+            DELETE FROM Pagos_Prestamos;
+            DELETE FROM Ahorros;
+            DELETE FROM Prestamos;
+            DELETE FROM Personas;
+        `);
+
+        // --- PASO 2: RESTAURAR PERSONAS ---
+        if (tablas.personas.length > 0) {
+            await request.query("SET IDENTITY_INSERT Personas ON");
+            for (let p of tablas.personas) {
+                await request.query(`
+                    INSERT INTO Personas (ID_Persona, Nombre, Cedula, Telefono, Direccion) 
+                    VALUES (${p.ID_Persona}, '${p.Nombre}', '${p.Cedula}', '${p.Telefono || ''}', '${p.Direccion || ''}')
+                `);
+            }
+            await request.query("SET IDENTITY_INSERT Personas OFF");
+        }
+
+        // --- PASO 3: RESTAURAR PRÉSTAMOS ---
+        if (tablas.prestamos.length > 0) {
+            await request.query("SET IDENTITY_INSERT Prestamos ON");
+            for (let pr of tablas.prestamos) {
+                await request.query(`
+                    INSERT INTO Prestamos (ID_Prestamo, ID_Persona, MontoPrestado, TasaInteres, FechaInicio, Estado) 
+                    VALUES (${pr.ID_Prestamo}, ${pr.ID_Persona}, ${pr.MontoPrestado}, ${pr.TasaInteres}, '${pr.FechaInicio}', '${pr.Estado}')
+                `);
+            }
+            await request.query("SET IDENTITY_INSERT Prestamos OFF");
+        }
+
+        // --- PASO 4: RESTAURAR AHORROS ---
+        if (tablas.ahorros.length > 0) {
+            await request.query("SET IDENTITY_INSERT Ahorros ON");
+            for (let a of tablas.ahorros) {
+                await request.query(`
+                    INSERT INTO Ahorros (ID_Ahorro, ID_Persona, Monto, Fecha, Detalle) 
+                    VALUES (${a.ID_Ahorro}, ${a.ID_Persona}, ${a.Monto}, '${a.Fecha}', '${a.Detalle}')
+                `);
+            }
+            await request.query("SET IDENTITY_INSERT Ahorros OFF");
+        }
+
+        // --- PASO 5: RESTAURAR PAGOS DE PRÉSTAMOS ---
+        if (tablas.pagos_prestamos && tablas.pagos_prestamos.length > 0) {
+            await request.query("SET IDENTITY_INSERT Pagos_Prestamos ON");
+            for (let pg of tablas.pagos_prestamos) {
+                await request.query(`
+                    INSERT INTO Pagos_Prestamos (ID_Pago, ID_Prestamo, Monto_Abonado, Fecha_Pago, MesesCorrespondientes) 
+                    VALUES (${pg.ID_Pago}, ${pg.ID_Prestamo}, ${pg.Monto_Abonado}, '${pg.Fecha_Pago}', '${pg.MesesCorrespondientes}')
+                `);
+            }
+            await request.query("SET IDENTITY_INSERT Pagos_Prestamos OFF");
+        }
+
+        await transaction.commit();
+        res.json({ success: true, message: "¡Restauración completada con éxito!" });
+
+    } catch (err) {
+        await transaction.rollback();
+        console.error("Error en restauración:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

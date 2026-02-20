@@ -1910,3 +1910,109 @@ window.ejecutarCruceCuentas = async function() {
         Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
     }
 };
+
+async function descargarBackup() {
+    const overlay = document.getElementById('loadingOverlay');
+    try {
+        overlay.classList.remove('hidden'); // Encender
+        
+        const res = await fetch('/api/backup');
+        if (!res.ok) throw new Error("Error en el servidor");
+        
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Respaldo_Cartera_${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        
+        window.URL.revokeObjectURL(url);
+    } catch (err) {
+        alert("Error al descargar: " + err.message);
+    } finally {
+        overlay.classList.add('hidden'); // Apagar
+    }
+}
+
+async function importarBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const contenido = JSON.parse(e.target.result);
+            
+            if(!confirm("¡ADVERTENCIA! Esto borrará TODOS los datos actuales y los reemplazará con el backup. ¿Deseas continuar?")) {
+                event.target.value = '';
+                return;
+            }
+
+            const res = await fetch('/api/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(contenido)
+            });
+
+            const result = await res.json();
+            
+            if (result.success) {
+                alert("✅ " + result.message);
+                location.reload();
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            alert("❌ Error: " + err.message);
+        } finally {
+            event.target.value = ''; // Resetear input
+        }
+    };
+    reader.readAsText(file);
+}
+
+async function importarBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const overlay = document.getElementById('loadingOverlay');
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+        try {
+            const contenido = JSON.parse(e.target.result);
+            
+            if(!confirm("¡ADVERTENCIA! Se reemplazarán todos los datos. ¿Deseas continuar?")) {
+                event.target.value = '';
+                return;
+            }
+
+            // --- MOSTRAR CARGANDO ---
+            overlay.classList.remove('hidden');
+
+            const res = await fetch('/api/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(contenido)
+            });
+
+            const result = await res.json();
+            
+            if (result.success) {
+                alert("✅ Restauración exitosa");
+                location.reload();
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (err) {
+            alert("❌ Error: " + err.message);
+            // --- OCULTAR SI HAY ERROR PARA PODER REINTENTAR ---
+            overlay.classList.add('hidden'); 
+        } finally {
+            event.target.value = '';
+        }
+    };
+    reader.readAsText(file);
+}
