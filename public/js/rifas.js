@@ -280,6 +280,9 @@ async function cargarRifas() {
     if (filtroFecha) filtroFecha.value = fechaParaCargar;
     if (rifaDate) rifaDate.value = fechaParaCargar;
 
+    // Declarar datos aquí para que esté disponible en todo el ámbito de la función
+    let datos = { info: {} };
+
     try {
         // 2. Intentamos pedir los datos al servidor
         const response = await fetch(`/api/cargar-rifas?fecha=${fechaParaCargar}`); 
@@ -288,7 +291,7 @@ async function cargarRifas() {
             throw new Error(`Error servidor: ${response.status}`);
         }
 
-        const datos = await response.json();
+        datos = await response.json();
 
         // 3. Limpiamos el contenedor antes de dibujar
         container.innerHTML = ''; 
