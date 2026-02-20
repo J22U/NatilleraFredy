@@ -325,6 +325,9 @@ async function cargarRifas() {
                 participantes: {} 
             });
         }
+        
+        // Datos vacíos para la función cargarPremios
+        datos = { info: {} };
     }
 
 // 7. Actualizamos los cálculos monetarios finales
@@ -1656,4 +1659,59 @@ function asignarNumerosMultiples() {
             <i class="fas fa-times-circle"></i> No se asignaron números. Verifica que los números estén disponibles.
         </div>`;
     }
+}
+
+// Función para exportar a Excel
+function exportarAExcel() {
+    // Crear un libro de trabajo de Excel
+    let contenido = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"></head><body>';
+    
+    // Obtener datos de la rifa actual
+    const datos = recolectarDatosPantalla();
+    const fecha = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
+    const nombreRifa = document.getElementById('rifaName')?.value || 'Rifa';
+    const valorPuesto = parseFloat(document.getElementById('rifaCost')?.value) || 0;
+    
+    // Título
+    contenido += '<h1>Reporte de Rifa - ' + nombreRifa + '</h1>';
+    contenido += '<p>Fecha: ' + fecha + '</p>';
+    contenido += '<p>Valor Puesto: $' + valorPuesto.toLocaleString() + '</p><br>';
+    
+    // Tabla de participantes
+    contenido += '<table border="1" style="border-collapse: collapse; width: 100%;">';
+    contenido += '<tr style="background-color: #0984e3; color: white;"><th>Tabla</th><th>Número</th><th>Nombre</th><th>Estado</th></tr>';
+    
+    Object.keys(datos).forEach(key => {
+        if (key.startsWith('tabla')) {
+            const tablaNum = key.replace('tabla', '');
+            const participantes = datos[key].participantes || {};
+            
+            Object.keys(participantes).forEach(num => {
+                const p = participantes[num];
+                if (p.nombre && p.nombre.trim() !== '') {
+                    const estado = p.pago ? 'Pagado' : 'Pendiente';
+                    const bgColor = p.pago ? '#d4edda' : '#fff3cd';
+                    contenido += '<tr style="background-color: ' + bgColor + ';">';
+                    contenido += '<td>Tabla ' + tablaNum + '</td>';
+                    contenido += '<td>' + num + '</td>';
+                    contenido += '<td>' + p.nombre + '</td>';
+                    contenido += '<td>' + estado + '</td>';
+                    contenido += '</tr>';
+                }
+            });
+        }
+    });
+    
+    contenido += '</table></body></html>';
+    
+    // Crear y descargar el archivo
+    const blob = new Blob([contenido], { type: 'application/vnd.ms-excel' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Rifa_' + fecha + '.xls';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
 }
