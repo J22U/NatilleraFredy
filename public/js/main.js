@@ -1011,35 +1011,40 @@ async function toggleDeudas() {
     const select = document.getElementById('mov_prestamo_id');
     const divSelector = document.getElementById('div_selector_deuda');
 
-    // 1. Limpieza del ID: Aseguramos que idReal sea solo el número antes de los dos puntos
+    // 1. Obtener ID real desde el mapeo
     let idValue = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
     
-    // Si el id viene como "2:1", tomamos solo el "2"
+    // Si el id viene como "2:1", tomamos solo el "2" (ID_Persona)
     const idReal = idValue && String(idValue).includes(':') ? idValue.split(':')[0] : idValue;
+
+    // LOG DE DEPURACIÓN: Mira esto en la consola del navegador
+    console.log(`Intentando buscar deudas para Persona ID: ${idReal} (Num Pantalla: ${numPantalla})`);
 
     if (tipo === 'deuda' && idReal) {
         try {
+            // Ajustamos la petición
             const res = await fetch(`/api/prestamos-activos/${idReal}`);
             
-            // 2. Verificación de respuesta: Si el servidor devuelve 404 o error, no intentar leer JSON
-            if (!res.ok) {
-                throw new Error(`Servidor respondió con estado ${res.status}`);
+            if (res.status === 404) {
+                Swal.fire('Sin deudas', 'No se encontraron préstamos activos para este ID en el servidor.', 'info');
+                document.getElementById('mov_tipo').value = 'ahorro';
+                divSelector.classList.add('hidden');
+                return;
             }
+
+            if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
 
             const deudas = await res.json();
 
             if (deudas && Array.isArray(deudas) && deudas.length > 0) {
+                // Ordenar por fecha y mapear a los nombres exactos de tu DB (SaldoActual)
                 const deudasOrdenadas = deudas.sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
-                const totalDeudas = deudasOrdenadas.length;
-
-                select.innerHTML = [...deudasOrdenadas].reverse().map((d, index) => {
-                    const numeroConsecutivo = totalDeudas - index;
-                    return `
-                        <option value="${d.ID_Prestamo}">
-                            Préstamo #${numeroConsecutivo} - Saldo: $${Number(d.SaldoActual).toLocaleString()}
-                        </option>
-                    `;
-                }).join('');
+                
+                select.innerHTML = deudasOrdenadas.map((d, index) => `
+                    <option value="${d.ID_Prestamo}">
+                        Préstamo #${index + 1} - Saldo: $${Number(d.SaldoActual).toLocaleString()}
+                    </option>
+                `).join('');
                 
                 divSelector.classList.remove('hidden');
             } else {
@@ -1048,10 +1053,9 @@ async function toggleDeudas() {
                 divSelector.classList.add('hidden');
             }
         } catch (error) {
-            console.error("Error cargando deudas:", error);
-            // 3. Feedback visual: Si hay error 404, informar al usuario
+            console.error("Error en la petición:", error);
             divSelector.classList.add('hidden');
-            Swal.fire('Error', 'No se pudieron obtener las deudas. Verifique que el ID sea correcto.', 'error');
+            Swal.fire('Error de conexión', 'No se pudo contactar con el servidor de préstamos.', 'error');
         }
     } else {
         divSelector.classList.add('hidden');
