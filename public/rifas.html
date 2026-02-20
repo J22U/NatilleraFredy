@@ -136,8 +136,20 @@
                 </h3>
             </div>
             
-            <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
-                <div style="flex: 1; min-width: 200px;">
+<div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                <div style="flex: 0 0 auto; min-width: 120px;">
+                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
+                        Tabla
+                    </label>
+                    <select id="tablaClienteMultiple" style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem; background: white;">
+                        <option value="1">Tabla 1</option>
+                        <option value="2">Tabla 2</option>
+                        <option value="3">Tabla 3</option>
+                        <option value="4">Tabla 4</option>
+                    </select>
+                </div>
+                
+                <div style="flex: 1; min-width: 150px;">
                     <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
                         Nombre del Cliente
                     </label>
@@ -145,7 +157,7 @@
                         style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem;">
                 </div>
                 
-                <div style="flex: 2; min-width: 300px;">
+                <div style="flex: 2; min-width: 200px;">
                     <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
                         Números a comprar (separados por coma o espacio)
                     </label>

@@ -1296,6 +1296,7 @@ function asignarNumerosMultiples() {
     const nombre = document.getElementById('nombreClienteMultiple').value.trim();
     const numerosInput = document.getElementById('numerosClienteMultiple').value.trim();
     const pagado = document.getElementById('pagadoClienteMultiple').checked;
+    const tablaSeleccionada = document.getElementById('tablaClienteMultiple').value;
     const resultadoDiv = document.getElementById('resultadoAsignacion');
     
     if (!nombre) {
@@ -1327,39 +1328,28 @@ function asignarNumerosMultiples() {
     let asignados = 0;
     let errores = [];
     
+    // Usar solo la tabla seleccionada
     numeros.forEach(numero => {
-        let ocupado = false;
+        const slot = document.getElementById(`t${tablaSeleccionada}-${numero}`);
         
-        for (let t = 1; t <= 4; t++) {
-            const slotCheck = document.getElementById(`t${t}-${numero}`);
-            if (slotCheck) {
-                const nombreExistente = slotCheck.querySelector('.n-name');
-                if (nombreExistente && nombreExistente.textContent.trim() !== '') {
-                    ocupado = true;
-                    errores.push(`${numero} (ya tiene: ${nombreExistente.textContent})`);
-                    break;
+        if (slot) {
+            const nombreElement = slot.querySelector('.n-name');
+            const nombreExistente = nombreElement.textContent.trim();
+            
+            if (nombreExistente && nombreExistente !== '') {
+                // El número ya está ocupado
+                errores.push(`${numero} (ya tiene: ${nombreExistente})`);
+            } else {
+                // Asignar el número a la tabla seleccionada
+                nombreElement.textContent = nombre;
+                slot.classList.remove('paid', 'reserved');
+                if (pagado) {
+                    slot.classList.add('paid');
+                } else {
+                    slot.classList.add('reserved');
                 }
-            }
-        }
-        
-        if (ocupado) return;
-        
-        for (let t = 1; t <= 4; t++) {
-            const slotTemp = document.getElementById(`t${t}-${numero}`);
-            if (slotTemp) {
-                const nombreElement = slotTemp.querySelector('.n-name');
-                if (nombreElement && nombreElement.textContent.trim() === '') {
-                    nombreElement.textContent = nombre;
-                    slotTemp.classList.remove('paid', 'reserved');
-                    if (pagado) {
-                        slotTemp.classList.add('paid');
-                    } else {
-                        slotTemp.classList.add('reserved');
-                    }
-                    slotTemp.setAttribute('data-pago', pagado);
-                    asignados++;
-                    break;
-                }
+                slot.setAttribute('data-pago', pagado);
+                asignados++;
             }
         }
     });
@@ -1367,7 +1357,7 @@ function asignarNumerosMultiples() {
     resultadoDiv.style.display = 'block';
     if (asignados > 0) {
         resultadoDiv.innerHTML = `<div style="padding: 10px; background: #d4edda; color: #155724; border-radius: 8px; border: 1px solid #c3e6cb;">
-            <i class="fas fa-check-circle"></i> Se asignaron <b>${asignados}</b> número(s) a <b>${nombre}</b>
+            <i class="fas fa-check-circle"></i> Se asignaron <b>${asignados}</b> número(s) a <b>${nombre}</b> en Tabla ${tablaSeleccionada}
         </div>`;
         
         document.getElementById('nombreClienteMultiple').value = '';
