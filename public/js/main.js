@@ -228,7 +228,9 @@ async function verHistorialFechas(id, nombre) {
             return data.map(m => {
                 const esRetiro = Number(m[key]) < 0;
                 const colorFinal = esRetiro ? 'rose' : color;
-                const idAhorro = m.ID_Ahorro || 0;
+                // Buscar el ID en diferentes formatos posibles
+                const idAhorro = m.ID_Ahorro || m.id_ahorro || m.Id_Ahorro || 0;
+                console.log("DEBUG - Datos del ahorro:", m, "ID_Ahorro:", idAhorro);
                 return `
                 <div class="flex justify-between items-center p-3 border-b border-slate-100 text-[11px]">
                     <div class="flex flex-col">
@@ -237,7 +239,7 @@ async function verHistorialFechas(id, nombre) {
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="font-bold text-${colorFinal}-600">${esRetiro ? '' : '+'}$${Math.abs(Number(m[key])).toLocaleString()}</span>
-                        ${!esRetiro && idAhorro > 0 ? `<button onclick="abrirEditarAhorro(${idAhorro}, ${Number(m[key])}, '${m.FechaFormateada || ''}', '${m.Detalle || ''}')" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
+                        ${!esRetiro ? `<button onclick="window.abrirEditarAhorro(${idAhorro}, ${Number(m[key])}, '${m.FechaFormateada || ''}', '${m.Detalle || ''}')" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
                     </div>
                 </div>`;
             }).join('');
