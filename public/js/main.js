@@ -840,14 +840,35 @@ async function crearPersona() {
             } catch (e) { Swal.fire({ icon: 'error', title: 'Error', text: e.message }); }
         }
 
-        function filtrarSocios() {
-            let input = document.getElementById("inputBusqueda").value.toLowerCase();
-            let filas = document.getElementsByClassName("item-socio");
-            Array.from(filas).forEach(fila => {
-                let nombre = fila.querySelector(".nombre-socio").innerText.toLowerCase();
-                fila.style.display = nombre.includes(input) ? "" : "none";
-            });
+function filtrarSocios() {
+    let input = document.getElementById("inputBusqueda").value.toLowerCase();
+    let contenedor = document.getElementById("contenedor-miembros");
+    if (!contenedor) return;
+    
+    // Buscar tarjetas de miembros (card-ID)
+    let cards = contenedor.querySelectorAll('[id^="card-"]');
+    Array.from(cards).forEach(card => {
+        let nombre = card.querySelector(".nombre-socio") ? card.querySelector(".nombre-socio").innerText.toLowerCase() : "";
+        // También buscar en el ID para buscar por número
+        let idCard = card.id.replace("card-", "");
+        
+        if (nombre.includes(input) || idCard.includes(input)) {
+            card.style.display = "";
+            // También mostrar/ocultar la fila de detalles asociada
+            let detalles = document.getElementById("detalles-" + idCard);
+            if (detalles) {
+                detalles.style.display = "";
+            }
+        } else {
+            card.style.display = "none";
+            // Ocultar también la fila de detalles
+            let detalles = document.getElementById("detalles-" + idCard);
+            if (detalles) {
+                detalles.style.display = "none";
+            }
         }
+    });
+}
 
         async function modalPrestamoRapido() {
     const { value: formValues } = await Swal.fire({
