@@ -281,7 +281,7 @@ async function listarMiembros() {
                                     <span class="font-black text-lg ${esSocioReal ? 'text-emerald-600' : 'text-blue-600'}">#${m.id}</span>
                                 </div>
                                 <div class="flex-1">
-                                    <h3 class="font-bold text-slate-700 text-lg">${m.nombre}</h3>
+<h3 class="font-bold text-slate-700 text-lg nombre-socio">${m.nombre}</h3>
                                     <p class="text-[10px] text-slate-400 uppercase tracking-tighter">
                                         DOC: ${m.documento} | 
                                         <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
