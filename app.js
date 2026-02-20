@@ -21,7 +21,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// 3. RUTA DE LOGIN (POST) - Déjala aquí arriba
+// 3. RUTA DE LOGIN (POST)
 app.post('/login', (req, res) => {
     const { user, pass } = req.body;
     const USUARIO_MASTER = "admin";
@@ -35,50 +35,29 @@ app.post('/login', (req, res) => {
 });
 
 // 4. RUTAS DE NAVEGACIÓN
-
-// Cuando alguien entre a la URL limpia (ej: natillera.onrender.com),
-// lo mandamos SIEMPRE al login primero.
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Esta ruta la usaremos para redireccionar después de que el login sea exitoso
 app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// Por si alguien escribe /login manualmente
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-
-// ... Aquí siguen todas tus rutas de base de datos (/reporte-general, etc.)
-
+// REPORTE GENERAL
 app.get('/reporte-general', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT 
-                -- 1. TOTAL AHORRADO (Caja Real): 
-                -- Es todo el dinero que ha entrado por ahorros (neto) 
-                -- MENOS el capital que está prestado actualmente ("en la calle").
-                (
-                    (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) - 
-                    (SELECT ISNULL(SUM(MontoPrestado - (MontoPagado - InteresesPagados)), 0) FROM Prestamos WHERE Estado = 'Activo')
-                ) as TotalAhorrado,
-
-                -- 2. CAPITAL PRESTADO (Lo que nos deben):
-                -- Solo el saldo de capital base que falta por cobrar (sin contar intereses).
-                (SELECT ISNULL(SUM(MontoPrestado - (MontoPagado - InteresesPagados)), 0) 
-                 FROM Prestamos 
-                 WHERE Estado = 'Activo') as CapitalPrestado,
-                
-                -- 3. GANANCIAS BRUTAS (Utilidad):
-                -- La suma de todos los intereses que ya han sido pagados efectivamente.
+                (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) - 
+                (SELECT ISNULL(SUM(MontoPrestado - (MontoPagado - InteresesPagados)), 0) FROM Prestamos WHERE Estado = 'Activo') as TotalAhorrado,
+                (SELECT ISNULL(SUM(MontoPrestado - (MontoPagado - InteresesPagados)), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
                 (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas
         `);
-        
         res.json(result.recordset[0]);
     } catch (err) {
         console.error("Error en reporte:", err);
@@ -86,7 +65,7 @@ app.get('/reporte-general', async (req, res) => {
     }
 });
 
-// 2. LISTAR MIEMBROS
+// LISTAR MIEMBROS
 app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -96,12 +75,7 @@ app.get('/listar-miembros', async (req, res) => {
                 p.Nombre as nombre, 
                 p.Documento as cedula, 
                 CASE WHEN p.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
-                -- ESTO ES LO QUE FALTABA: Sumar el saldo de todos sus préstamos
-                ISNULL((
-                    SELECT SUM(SaldoActual) 
-                    FROM Prestamos 
-                    WHERE ID_Persona = p.ID_Persona
-                ), 0) as deudaTotal
+                ISNULL((SELECT SUM(SaldoActual) FROM Prestamos WHERE ID_Persona = p.ID_Persona), 0) as deudaTotal
             FROM Personas p
             ORDER BY p.ID_Persona DESC
         `);
@@ -112,12 +86,11 @@ app.get('/listar-miembros', async (req, res) => {
     }
 });
 
-// 3. REGISTRAR PRÉSTAMO
+// REGISTRAR PRÉSTAMO
 app.post('/registrar-prestamo', async (req, res) => {
     try {
         const { idPersona, monto, tasaInteres, cuotas } = req.body;
         const pool = await poolPromise;
-        
         const capital = parseFloat(monto);
         const tasaNumerica = parseFloat(tasaInteres || 5);
         const nCuotas = parseInt(cuotas || 1);
@@ -136,14 +109,13 @@ app.post('/registrar-prestamo', async (req, res) => {
                 (ID_Persona, MontoPrestado, TasaInteres, MontoInteres, MontoPagado, SaldoActual, Estado, Fecha, Cuotas, InteresesPagados) 
                 VALUES (@id, @m, @t, @i, 0, @s, 'Activo', GETDATE(), @c, 0)
             `);
-        
         res.json({ success: true });
     } catch (err) { 
         res.status(500).json({ success: false, message: err.message }); 
     }
 });
 
-// 4. PROCESAR MOVIMIENTOS (AHORROS Y PAGOS)
+// PROCESAR MOVIMIENTOS (AHORROS Y PAGOS)
 app.post('/procesar-movimiento', async (req, res) => {
     try {
         const { idPersona, monto, tipoMovimiento, idPrestamo } = req.body;
@@ -151,7 +123,6 @@ app.post('/procesar-movimiento', async (req, res) => {
         const m = parseFloat(monto);
 
         if (tipoMovimiento === 'deuda') {
-            // 1. OBTENEMOS EL ESTADO ACTUAL DEL PRÉSTAMO
             const prestamoReq = await pool.request()
                 .input('idP', sql.Int, idPrestamo)
                 .query("SELECT MontoPrestado, MontoPagado FROM Prestamos WHERE ID_Prestamo = @idP");
@@ -159,22 +130,15 @@ app.post('/procesar-movimiento', async (req, res) => {
             const p = prestamoReq.recordset[0];
             const capitalOriginal = parseFloat(p.MontoPrestado);
             const pagadoAntes = parseFloat(p.MontoPagado || 0);
-
-            // 2. LÓGICA DE GANANCIA REAL:
-            // ¿Cuánto le faltaba para cubrir el capital?
             const faltanteCapital = capitalOriginal - pagadoAntes;
             let paraInteres = 0;
 
             if (faltanteCapital <= 0) {
-                // Si ya pagó todo el capital, TODO el abono actual es ganancia (interés)
                 paraInteres = m;
             } else if (m > faltanteCapital) {
-                // Si el abono es mayor a lo que faltaba de capital, el sobrante es interés
                 paraInteres = m - faltanteCapital;
             }
 
-            // 3. ACTUALIZAR EL PRÉSTAMO
-            // Sumamos el abono al MontoPagado y el excedente a InteresesPagados
             await pool.request()
                 .input('idP', sql.Int, idPrestamo)
                 .input('m', sql.Decimal(18,2), m)
@@ -188,7 +152,6 @@ app.post('/procesar-movimiento', async (req, res) => {
                     WHERE ID_Prestamo = @idP
                 `);
 
-            // 4. REGISTRAR EN EL HISTORIAL
             await pool.request()
                 .input('idPers', sql.Int, idPersona)
                 .input('idPre', sql.Int, idPrestamo)
@@ -199,7 +162,6 @@ app.post('/procesar-movimiento', async (req, res) => {
                 `);
             
         } else if (tipoMovimiento === 'ahorro') {
-            // ... (Tu lógica de ahorro se mantiene igual)
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18,2), m)
@@ -217,12 +179,12 @@ app.post('/procesar-movimiento', async (req, res) => {
     }
 });
 
-// 5. HISTORIALES PARA EL RESUMEN
+// HISTORIALES PARA EL RESUMEN
 app.get('/historial-ahorros/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request().input('id', sql.Int, req.params.id)
-            .query("SELECT Monto, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada FROM Ahorros WHERE ID_Persona = @id ORDER BY Fecha DESC");
+            .query("SELECT ID_Ahorro, Monto, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, ISNULL(MesesCorrespondientes, 'Abono General') as Detalle FROM Ahorros WHERE ID_Persona = @id ORDER BY Fecha DESC");
         res.json(result.recordset);
     } catch (err) { res.status(500).json([]); }
 });
@@ -233,20 +195,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
-                SELECT 
-                    ID_Prestamo, 
-                    MontoPrestado, 
-                    TasaInteres, -- <--- ESTA ES LA QUE FALTA
-                    MontoInteres, 
-                    SaldoActual, 
-                    Estado, 
-                    Cuotas,
-                    FORMAT(Fecha, 'dd/MM/yyyy') as FechaPrestamo
-                FROM Prestamos 
-                WHERE ID_Persona = @id
-                ORDER BY Fecha DESC -- Para que el más nuevo salga arriba
+                SELECT ID_Prestamo, MontoPrestado, TasaInteres, MontoInteres, SaldoActual, Estado, Cuotas, FORMAT(Fecha, 'dd/MM/yyyy') as FechaPrestamo
+                FROM Prestamos WHERE ID_Persona = @id ORDER BY Fecha DESC
             `);
-            
         res.json(result.recordset);
     } catch (err) {
         console.error("Error al traer detalles:", err);
@@ -258,14 +209,12 @@ app.get('/estado-cuenta/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request().input('id', sql.Int, req.params.id)
-            .query(`SELECT 
-                    (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros WHERE ID_Persona = @id) as totalAhorrado,
-                    ISNULL((SELECT SUM(SaldoActual) FROM Prestamos WHERE ID_Persona = @id AND Estado = 'Activo'), 0) as deudaTotal`);
+            .query(`SELECT (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros WHERE ID_Persona = @id) as totalAhorrado, ISNULL((SELECT SUM(SaldoActual) FROM Prestamos WHERE ID_Persona = @id AND Estado = 'Activo'), 0) as deudaTotal`);
         res.json(result.recordset[0]);
     } catch (err) { res.status(500).json({ totalAhorrado: 0, deudaTotal: 0 }); }
 });
 
-// 6. GUARDAR NUEVO MIEMBRO
+// GUARDAR NUEVO MIEMBRO
 app.post('/guardar-miembro', async (req, res) => {
     try {
         const { nombre, cedula, esSocio } = req.body;
@@ -277,98 +226,71 @@ app.post('/guardar-miembro', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false }); }
 });
 
-// Agrega esta ruta que es la que pide el botón "Resumen"
+// HISTORIAL DE ABONOS A DEUDA
 app.get('/historial-abonos-deuda/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
-                SELECT 
-        h.Monto as Monto_Abonado, 
-        FORMAT(h.Fecha, 'dd/MM/yyyy') as FechaFormateada,
-        (p.MontoPrestado + p.MontoInteres) as PrestamoRef -- Sumamos ambos para que sea el total
-    FROM HistorialPagos h
-    JOIN Prestamos p ON h.ID_Prestamo = p.ID_Prestamo
-    WHERE h.ID_Persona = @id AND h.TipoMovimiento = 'Abono Deuda'
-`);
+                SELECT h.ID_Pago, h.ID_Prestamo, h.Monto as Monto_Abonado, FORMAT(h.Fecha, 'dd/MM/yyyy') as FechaFormateada, ISNULL(h.Detalle, 'Abono a deuda') as Detalle, (p.MontoPrestado + p.MontoInteres) as PrestamoRef
+                FROM HistorialPagos h JOIN Prestamos p ON h.ID_Prestamo = p.ID_Prestamo
+                WHERE h.ID_Persona = @id AND h.TipoMovimiento = 'Abono Deuda'
+            `);
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json([]);
     }
 });
 
-// Ruta para obtener préstamos activos de un socio (para el selector)
-// --- OBTENER SOLO PRÉSTAMOS ACTIVOS DE UN USUARIO ---
+// PRÉSTAMOS ACTIVOS
 app.get('/prestamos-activos/:idPersona', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.idPersona)
-            .query(`
-                SELECT ID_Prestamo, 
-                       SaldoActual as saldoAMostrar, -- <--- Nombre claro para el frente
-                       SaldoActual, 
-                       MontoPrestado 
-                FROM Prestamos 
-                WHERE ID_Persona = @id AND Estado = 'Activo'
-            `);
+            .query(`SELECT ID_Prestamo, SaldoActual as saldoAMostrar, SaldoActual, MontoPrestado FROM Prestamos WHERE ID_Persona = @id AND Estado = 'Activo'`);
         res.json(result.recordset);
     } catch (err) { res.status(500).json([]); }
 });
 
+// RETIRAR AHORRO
 app.post('/api/retirar-ahorro', async (req, res) => {
     const { id, tipo, monto } = req.body;
-    
     try {
         const pool = await poolPromise;
-
-        // 1. Obtener el saldo actual del socio
         const resultSaldo = await pool.request()
             .input('id', sql.Int, id)
             .query('SELECT ISNULL(SUM(Monto), 0) as SaldoTotal FROM Ahorros WHERE ID_Persona = @id');
         
         const saldoActual = resultSaldo.recordset[0].SaldoTotal;
-
-        // 2. Determinar el monto final a retirar
         let montoARetirar = (tipo === 'total') ? saldoActual : parseFloat(monto);
 
-        // 3. VALIDACIÓN: ¿Tiene suficiente dinero?
         if (montoARetirar > saldoActual) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Saldo insuficiente. Máximo disponible: $${saldoActual.toLocaleString()}` 
-            });
+            return res.status(400).json({ success: false, message: `Saldo insuficiente. Máximo disponible: $${saldoActual.toLocaleString()}` });
         }
 
         if (montoARetirar <= 0) {
             return res.status(400).json({ success: false, message: "El monto debe ser mayor a 0." });
         }
 
-        // 4. Insertar el retiro (Monto en NEGATIVO)
         await pool.request()
             .input('id', sql.Int, id)
             .input('monto', sql.Decimal(18, 2), montoARetirar * -1)
             .input('fecha', sql.DateTime, new Date())
-            .query(`
-                INSERT INTO Ahorros (ID_Persona, Monto, Fecha) 
-                VALUES (@id, @monto, @fecha)
-            `);
+            .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha) VALUES (@id, @monto, @fecha)`);
 
         res.json({ success: true, message: 'Retiro procesado con éxito' });
-
     } catch (err) {
         console.error(err);
         res.status(500).json({ success: false, message: 'Error en el servidor' });
     }
 });
 
-// --- 7. ACTUALIZAR SOCIO ---
-// --- ACTUALIZAR SOCIO ---
-// Nota: Cambié la ruta a 'editar-socio' para que coincida con lo que busca tu frontend
+// EDITAR SOCIO
 app.post('/editar-socio/:id', async (req, res) => {
     try {
-        const { nombre, cedula } = req.body; // Quitamos esSocio de aquí si no lo envías
+        const { nombre, cedula } = req.body;
         const { id } = req.params;
         const pool = await poolPromise;
 
@@ -376,11 +298,7 @@ app.post('/editar-socio/:id', async (req, res) => {
             .input('id', sql.Int, id)
             .input('n', sql.VarChar, nombre)
             .input('d', sql.VarChar, cedula)
-            .query(`
-                UPDATE Personas 
-                SET Nombre = @n, Documento = @d
-                WHERE ID_Persona = @id
-            `);
+            .query(`UPDATE Personas SET Nombre = @n, Documento = @d WHERE ID_Persona = @id`);
         
         res.json({ success: true });
     } catch (err) {
@@ -388,27 +306,22 @@ app.post('/editar-socio/:id', async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
-// --- ELIMINAR SOCIO ---
-// --- ELIMINAR SOCIO (POST) ---
+
+// ELIMINAR SOCIO
 app.post('/eliminar-socio', async (req, res) => {
     try {
-        const { id } = req.body; // El servidor busca la propiedad "id"
+        const { id } = req.body;
         const pool = await poolPromise;
-        
         await pool.request()
             .input('id', sql.Int, id)
             .query("DELETE FROM Personas WHERE ID_Persona = @id");
-            
         res.json({ success: true });
     } catch (err) {
         console.error("Error al eliminar:", err.message);
-        
-        // Si el socio tiene préstamos o ahorros, SQL bloquea el borrado
         let mensaje = "No se puede eliminar: el socio tiene historial de préstamos o ahorros.";
         if (!err.message.includes("REFERENCE constraint")) {
             mensaje = "Error interno al eliminar el socio.";
         }
-        
         res.status(500).json({ success: false, message: mensaje });
     }
 });
@@ -417,18 +330,11 @@ app.get('/obtener-totales', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request().query(`
-            SELECT 
-                -- Capital Real: Lo que la gente ahorró + TODO lo que ha entrado por pagos (Capital + Interés)
-                (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + 
-                (SELECT ISNULL(SUM(MontoPagado), 0) FROM Prestamos) as CapitalTotal,
-                
-                -- Ganancias Reales: Todos los intereses de los préstamos
-                (SELECT ISNULL(SUM(MontoInteres), 0) FROM Prestamos) as Ganancias
+            SELECT (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + (SELECT ISNULL(SUM(MontoPagado), 0) FROM Prestamos) as CapitalTotal, (SELECT ISNULL(SUM(MontoInteres), 0) FROM Prestamos) as Ganancias
         `);
         res.json(result.recordset[0]);
     } catch (err) { res.status(500).send(err.message); }
 });
-
 
 app.post('/procesar-cruce', async (req, res) => {
     try {
@@ -440,7 +346,6 @@ app.post('/procesar-cruce', async (req, res) => {
         await transaction.begin();
 
         try {
-            // 1. Obtener datos del préstamo para saber cuánto es capital
             const pRes = await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
                 .query("SELECT MontoPrestado, MontoPagado FROM Prestamos WHERE ID_Prestamo = @idP");
@@ -448,24 +353,20 @@ app.post('/procesar-cruce', async (req, res) => {
             const p = pRes.recordset[0];
             const capOriginal = parseFloat(p.MontoPrestado);
             const pagadoAntes = parseFloat(p.MontoPagado || 0);
-
-            // 2. LÓGICA DE INTERÉS: ¿Cuánto de este pago es ganancia?
             const faltanteCap = capOriginal - pagadoAntes;
             let paraInteres = 0;
 
             if (faltanteCap <= 0) {
-                paraInteres = m; // Todo es ganancia si ya pagó el capital
+                paraInteres = m;
             } else if (m > faltanteCap) {
-                paraInteres = m - faltanteCap; // El excedente es ganancia
+                paraInteres = m - faltanteCap;
             }
 
-            // 3. Registrar el "retiro" de ahorros (Monto negativo)
             await transaction.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18,2), -m)
                 .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha) VALUES (@id, @m, GETDATE())");
 
-            // 4. Actualizar el préstamo sumando la ganancia
             await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
                 .input('m', sql.Decimal(18,2), m)
@@ -487,6 +388,90 @@ app.post('/procesar-cruce', async (req, res) => {
         }
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// --- RUTAS PARA EDITAR MOVIMIENTOS ---
+
+// 1. Editar Ahorro
+app.put('/api/editar-ahorro', async (req, res) => {
+    try {
+        const { idAhorro, monto, fecha, MesesCorrespondientes } = req.body;
+        
+        if (!idAhorro || !monto) {
+            return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
+        }
+
+        const pool = await poolPromise;
+        
+        await pool.request()
+            .input('id', sql.Int, idAhorro)
+            .input('monto', sql.Decimal(18, 2), monto)
+            .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
+            .input('meses', sql.VarChar(sql.MAX), MesesCorrespondientes || 'Abono General')
+            .query(`
+                UPDATE Ahorros 
+                SET Monto = @monto, Fecha = @fecha, FechaAporte = @fecha, MesesCorrespondientes = @meses
+                WHERE ID_Ahorro = @id
+            `);
+
+        res.json({ success: true, message: "Ahorro actualizado correctamente" });
+    } catch (err) {
+        console.error("Error al editar ahorro:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// 2. Editar Pago de Deuda
+app.put('/api/editar-pago-deuda', async (req, res) => {
+    try {
+        const { idPago, monto, fecha, detalle, idPrestamo, montoAnterior } = req.body;
+        
+        if (!idPago || !monto || !idPrestamo) {
+            return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
+        }
+
+        const pool = await poolPromise;
+        const montoNuevo = parseFloat(monto);
+        const montoAnt = montoAnterior ? parseFloat(montoAnterior) : 0;
+        const diferencia = montoNuevo - montoAnt;
+
+        await pool.request()
+            .input('id', sql.Int, idPago)
+            .input('monto', sql.Decimal(18, 2), montoNuevo)
+            .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
+            .input('detalle', sql.VarChar, detalle || 'Abono a deuda')
+            .query(`
+                UPDATE HistorialPagos SET Monto = @monto, Fecha = @fecha, Detalle = @detalle
+                WHERE ID_Pago = @id
+            `);
+
+        const esCapital = String(detalle || '').toLowerCase().includes('capital');
+        
+        if (diferencia !== 0) {
+            if (esCapital) {
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('dif', sql.Decimal(18, 2), diferencia)
+                    .query(`
+                        UPDATE Prestamos 
+                        SET MontoPagado = ISNULL(MontoPagado, 0) + @dif,
+                            SaldoActual = CASE WHEN (SaldoActual - @dif) < 0 THEN 0 ELSE SaldoActual - @dif END,
+                            Estado = CASE WHEN (SaldoActual - @dif) <= 0 THEN 'Pagado' ELSE 'Activo' END
+                        WHERE ID_Prestamo = @idP
+                    `);
+            } else {
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('dif', sql.Decimal(18, 2), diferencia)
+                    .query(`UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @dif WHERE ID_Prestamo = @idP`);
+            }
+        }
+
+        res.json({ success: true, message: "Pago actualizado correctamente" });
+    } catch (err) {
+        console.error("Error al editar pago:", err.message);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
