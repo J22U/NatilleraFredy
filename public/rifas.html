@@ -50,11 +50,8 @@
                         <i id="sync-icon-manual" class="fas fa-sync-alt"></i> <span>Actualizar</span>
                     </button>
 
-                    <button class="btn-excel" onclick="exportarAExcel()">
-                        <i class="fas fa-file-excel"></i> <span>Reporte</span>
-                    </button>
-                    <button class="btn-add" onclick="generarPDF()" style="background-color: #e74c3c; border: none;">
-                        <i class="fas fa-file-pdf"></i> <span>PDF</span>
+                    <button class="btn-add" onclick="mostrarPanelDeudores()" style="background-color: #e74c3c; border: none;">
+                        <i class="fas fa-user-clock"></i> <span>Ver Deudores</span>
                     </button>
                 </div>
             </div>
@@ -233,6 +230,22 @@
                 <button onclick="cerrarModal()" style="flex: 1; padding: 12px; background: #dfe6e9; border-radius: 10px; font-weight: 700; cursor: pointer; border: none;">Cancelar</button>
                 <button onclick="confirmarCompra()" style="flex: 1; padding: 12px; background: #00b894; color: white; border-radius: 10px; font-weight: 700; cursor: pointer; border: none;">Confirmar</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Panel de Deudores -->
+    <div id="panelDeudores" style="display: none; background: white; margin: 20px auto; max-width: 1200px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f2f6; padding-bottom: 15px;">
+            <h3 style="margin: 0; color: #2d3436; font-size: 1.2rem;">
+                <i class="fas fa-user-clock" style="color: #e74c3c; margin-right: 10px;"></i>Personas con Deudas en Rifas
+            </h3>
+            <button onclick="cerrarPanelDeudores()" style="padding: 8px 15px; background: #dfe6e9; border: none; border-radius: 8px; cursor: pointer; font-weight: 700;">
+                <i class="fas fa-times"></i> Cerrar
+            </button>
+        </div>
+        
+        <div id="listaDeudores" style="display: grid; gap: 15px;">
+            <!-- Aquí se cargarán los deudores -->
         </div>
     </div>
 

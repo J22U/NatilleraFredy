@@ -1718,3 +1718,142 @@ function exportarAExcel() {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
 }
+
+// ==================== PANEL DE DEUDORES ====================
+
+// Función para mostrar el panel de deudores
+async function mostrarPanelDeudores() {
+    const panel = document.getElementById('panelDeudores');
+    const lista = document.getElementById('listaDeudores');
+    
+    // Ocultar otros paneles y mostrar el de deudores
+    document.getElementById('panelCompraMultiple').style.display = 'none';
+    document.getElementById('panelPremios').style.display = 'none';
+    document.getElementById('rifasContainer').style.display = 'none';
+    panel.style.display = 'block';
+    
+    // Mostrar loading
+    lista.innerHTML = '<div style="text-align: center; padding: 30px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #0984e3;"></i><p>Cargando deudores...</p></div>';
+    
+    try {
+        // Obtener datos de la rifa actual
+        const fechaActual = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
+        const valorPuesto = parseFloat(document.getElementById('rifaCost')?.value) || 0;
+        
+        const response = await fetch(`/api/cargar-rifas?fecha=${fechaActual}`);
+        const datos = await response.json();
+        
+        // Agrupar deudores por nombre
+        const deudores = {};
+        
+        // Recorrer todas las tablas
+        for (let i = 1; i <= 4; i++) {
+            const key = `tabla${i}`;
+            const tabla = datos[key];
+            
+            if (tabla && tabla.participantes) {
+                Object.keys(tabla.participantes).forEach(num => {
+                    const p = tabla.participantes[num];
+                    
+                    // Solo mostrar los que deben (no pagados)
+                    if (p.nombre && p.nombre.trim() !== '' && !p.pago) {
+                        const nombreKey = p.nombre.toUpperCase().trim();
+                        
+                        if (!deudores[nombreKey]) {
+                            deudores[nombreKey] = {
+                                nombre: p.nombre,
+                                numeros: [],
+                                totalDeuda: 0,
+                                tabla: i
+                            };
+                        }
+                        
+                        deudores[nombreKey].numeros.push({
+                            numero: num,
+                            tabla: i
+                        });
+                        deudores[nombreKey].totalDeuda += valorPuesto;
+                    }
+                });
+            }
+        }
+        
+        // Generar HTML
+        const nombresDeudores = Object.keys(deudores);
+        
+        if (nombresDeudores.length === 0) {
+            lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #00b894;"><i class="fas fa-check-circle" style="font-size: 3rem;"></i><p style="font-size: 1.2rem; margin-top: 10px;">¡No hay personas con deudas!</p></div>';
+            return;
+        }
+        
+        const formato = new Intl.NumberFormat('es-CO', {
+            style: 'currency', currency: 'COP', maximumFractionDigits: 0
+        });
+        
+        let html = '';
+        
+        // Calcular total general
+        let totalGeneral = 0;
+        nombresDeudores.forEach(nombre => {
+            totalGeneral += deudores[nombre].totalDeuda;
+        });
+        
+        // Card de total
+        html += `
+            <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-size: 0.9rem; opacity: 0.9;">TOTAL DE DEUDAS</span>
+                        <h2 style="margin: 5px 0 0 0; font-size: 2rem;">${formato.format(totalGeneral)}</h2>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 0.9rem; opacity: 0.9;">${nombresDeudores.length} persona(s) deben</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Cards de cada deudor
+        nombresDeudores.forEach(nombre => {
+            const d = deudores[nombre];
+            
+            html += `
+                <div style="border: 2px solid #e74c3c; border-radius: 12px; padding: 15px; background: #fff5f5;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                        <div>
+                            <h4 style="margin: 0; color: #2d3436; font-size: 1.1rem;">${d.nombre}</h4>
+                            <span style="font-size: 0.8rem; color: #636e72;">${d.numeros.length} número(s) sin pagar</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 1.3rem; font-weight: 800; color: #e74c3c;">${formato.format(d.totalDeuda)}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        ${d.numeros.map(n => `
+                            <span style="background: #e74c3c; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">
+                                #${n.numero} (Tabla ${n.tabla})
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        });
+        
+        lista.innerHTML = html;
+        
+    } catch (error) {
+        console.error("Error al cargar deudores:", error);
+        lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #e74c3c;"><i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i><p>Error al cargar los deudores</p></div>';
+    }
+}
+
+// Función para cerrar el panel de deudores
+function cerrarPanelDeudores() {
+    const panel = document.getElementById('panelDeudores');
+    panel.style.display = 'none';
+    
+    // Mostrar los otros paneles de nuevo
+    document.getElementById('panelCompraMultiple').style.display = 'block';
+    document.getElementById('panelPremios').style.display = 'block';
+    document.getElementById('rifasContainer').style.display = 'block';
+}
