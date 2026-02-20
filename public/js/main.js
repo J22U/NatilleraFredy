@@ -2043,6 +2043,14 @@ window.abrirEditarAhorro = async function(idAhorro, montoActual, fechaActual, de
 
     if (formValues) {
         try {
+            console.log("Enviando datos al servidor:", {
+                idAhorro: idAhorro,
+                monto: formValues.monto,
+                fecha: formValues.fecha,
+                MesesCorrespondientes: formValues.detalle || 'Abono General',
+                idPersona: idPersona
+            });
+            
             const response = await fetch('/api/editar-ahorro', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -2055,7 +2063,10 @@ window.abrirEditarAhorro = async function(idAhorro, montoActual, fechaActual, de
                 })
             });
 
+            console.log("Respuesta del servidor:", response.status, response.statusText);
+            
             const result = await response.json();
+            console.log("Datos de respuesta:", result);
 
             if (result.success) {
                 Swal.fire('¡Éxito!', 'Ahorro actualizado correctamente', 'success');
@@ -2066,7 +2077,7 @@ window.abrirEditarAhorro = async function(idAhorro, montoActual, fechaActual, de
             }
         } catch (error) {
             console.error("Error al editar ahorro:", error);
-            Swal.fire('Error', 'Error de conexión', 'error');
+            Swal.fire('Error', 'Error de conexión: ' + error.message, 'error');
         }
     }
 };
