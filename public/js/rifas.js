@@ -1293,6 +1293,115 @@ function cargarPremios(datos) {
     renderizarPanelPremios();
 }
 
+// Función para preparar una nueva quincena manualmente
+async function prepararNuevaQuincena() {
+    try {
+        // 1. Confirmar con el usuario
+        const result = await Swal.fire({
+            title: '¿Crear Nueva Quincena?',
+            html: `Se creará una nueva rifa manteniendo los nombres de los participantes.<br>
+                   Los pagos adelantados de la rifa anterior将成为 pagos en la nueva rifa.<br>
+                   Los demás cuadros quedarán pendientes por pagar.`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0984e3',
+            cancelButtonColor: '#dfe6e9',
+            confirmButtonText: '<i class="fas fa-forward"></i> Crear Nueva Quincena',
+            cancelButtonText: 'Cancelar',
+            reverseButtons: true
+        });
+
+        if (!result.isConfirmed) return;
+
+        // 2. Cargar los datos actuales del servidor
+        const fechaActual = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
+        const response = await fetch(`/api/cargar-rifas?fecha=${fechaActual}`);
+        const datos = await response.json();
+
+        if (!datos || datos.error) {
+            throw new Error('No se pudieron cargar los datos');
+        }
+
+        // 3. Calcular la nueva fecha (siguiente viernes)
+        let manana = new Date();
+        manana.setDate(manana.getDate() + 1);
+        const nuevaFecha = obtenerViernesSorteo(manana);
+
+        // 4. Crear la nueva rifa con los nombres conservados
+        const nuevaRifa = {
+            info: {
+                nombre: datos.info?.nombre ? `${datos.info.nombre} - Continúa` : `Rifa - Ciclo ${nuevaFecha}`,
+                premio: datos.info?.premio || '',
+                valor: datos.info?.valor || '',
+                fecha: nuevaFecha,
+                inversion: datos.info?.inversion || ''
+            }
+        };
+
+        // 5. Copiar las tablas manteniendo nombres, pero:
+        // - Los que tenían "pago adelinado" pasan a estar pagados
+        // - Los demás quedan pendientes (pago = false)
+        for (let i = 1; i <= 4; i++) {
+            const llaveTabla = `tabla${i}`;
+            const tablaOriginal = datos[llaveTabla];
+            
+            if (tablaOriginal && tablaOriginal.participantes) {
+                const participantesNuevos = {};
+                
+                Object.keys(tablaOriginal.participantes).forEach(num => {
+                    const p = tablaOriginal.participantes[num];
+                    
+                    // Si tenía pago adelantado, pasa a estar pagado
+                    // Si ya estaba pagado, sigue pagado
+                    const esPagado = (p.adelantado === true || p.adelantado === "true") || (p.pago === true || p.pago === "true");
+                    
+                    participantesNuevos[num] = {
+                        nombre: p.nombre,
+                        pago: esPagado,  // true solo si era adelantado o ya estaba pagado
+                        adelantar: false // Se consume el adelantar
+                    };
+                });
+
+                nuevaRifa[llaveTabla] = {
+                    titulo: tablaOriginal.titulo || `Tabla ${i}`,
+                    participantes: participantesNuevos
+                };
+            } else {
+                // Crear tabla vacía si no existía
+                nuevaRifa[llaveTabla] = {
+                    titulo: `Tabla ${i}`,
+                    participantes: {}
+                };
+            }
+        }
+
+        // 6. Guardar la nueva rifa
+        await fetch('/api/guardar-rifa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(nuevaRifa)
+        });
+
+        // 7. Notificar y recargar
+        await Swal.fire({
+            title: '¡Nueva Quincena Creada!',
+            text: `Se ha creado la rifa para el ${nuevaFecha} con los nombres de la rifa anterior.`,
+            icon: 'success',
+            confirmButtonColor: '#0984e3',
+            confirmButtonText: 'Aceptar'
+        });
+
+        // Recargar con la nueva fecha
+        document.getElementById('filtroFecha').value = nuevaFecha;
+        document.getElementById('rifaDate').value = nuevaFecha;
+        cargarRifas();
+
+    } catch (error) {
+        console.error("Error al crear nueva quincena:", error);
+        Swal.fire('Error', 'No se pudo crear la nueva quincena. Intenta de nuevo.', 'error');
+    }
+}
+
 // ==================== COMPRA MÚLTIPLE DE NÚMEROS ====================
 
 function asignarNumerosMultiples() {
