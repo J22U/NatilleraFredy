@@ -1011,28 +1011,29 @@ async function toggleDeudas() {
     const select = document.getElementById('mov_prestamo_id');
     const divSelector = document.getElementById('div_selector_deuda');
 
-    const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
+    // 1. Limpieza del ID: Aseguramos que idReal sea solo el número antes de los dos puntos
+    let idValue = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
+    
+    // Si el id viene como "2:1", tomamos solo el "2"
+    const idReal = idValue && String(idValue).includes(':') ? idValue.split(':')[0] : idValue;
 
     if (tipo === 'deuda' && idReal) {
         try {
             const res = await fetch(`/api/prestamos-activos/${idReal}`);
+            
+            // 2. Verificación de respuesta: Si el servidor devuelve 404 o error, no intentar leer JSON
+            if (!res.ok) {
+                throw new Error(`Servidor respondió con estado ${res.status}`);
+            }
+
             const deudas = await res.json();
 
-            if (deudas && deudas.length > 0) {
-                // IMPORTANTE: Ordenamos de más antiguo a más nuevo para que el índice sea correcto
-                // Si tu servidor ya los trae ordenados, no hace falta, pero esto asegura el éxito:
+            if (deudas && Array.isArray(deudas) && deudas.length > 0) {
                 const deudasOrdenadas = deudas.sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
-                
                 const totalDeudas = deudasOrdenadas.length;
 
-                // Generamos las opciones
-                // Usamos reverse() para que el préstamo más reciente (el mayor) salga primero en la lista
                 select.innerHTML = [...deudasOrdenadas].reverse().map((d, index) => {
                     const numeroConsecutivo = totalDeudas - index;
-                    
-                    // Aquí está el truco: 
-                    // value = ID real para el servidor
-                    // texto = Número amigable para ti
                     return `
                         <option value="${d.ID_Prestamo}">
                             Préstamo #${numeroConsecutivo} - Saldo: $${Number(d.SaldoActual).toLocaleString()}
@@ -1048,6 +1049,9 @@ async function toggleDeudas() {
             }
         } catch (error) {
             console.error("Error cargando deudas:", error);
+            // 3. Feedback visual: Si hay error 404, informar al usuario
+            divSelector.classList.add('hidden');
+            Swal.fire('Error', 'No se pudieron obtener las deudas. Verifique que el ID sea correcto.', 'error');
         }
     } else {
         divSelector.classList.add('hidden');
