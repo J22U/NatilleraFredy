@@ -29,7 +29,145 @@ async function cargarDashboard() {
         
     } catch (err) { console.error(err); }
 }
-        async function listarMiembros() {
+// Función para alternar la visibilidad de los detalles de un miembro
+window.toggleExpandirMiembro = async function(id) {
+    const rowDetails = document.getElementById(`detalles-${id}`);
+    const icon = document.getElementById(`icon-expand-${id}`);
+    
+    if (rowDetails.classList.contains('hidden')) {
+        // Ocultar otros rows expandidos primero
+        document.querySelectorAll('[id^="detalles-"]').forEach(el => {
+            if (!el.classList.contains('hidden')) {
+                el.classList.add('hidden');
+            }
+        });
+        document.querySelectorAll('[id^="icon-expand-"]').forEach(el => {
+            el.classList.remove('fa-chevron-up');
+            el.classList.add('fa-chevron-down');
+        });
+        
+        // Cargar datos si no existen
+        if (rowDetails.innerHTML.trim() === '') {
+            rowDetails.innerHTML = '<td colspan="4" class="px-4 py-4 text-center"><div class="flex items-center justify-center"><i class="fas fa-spinner fa-spin text-indigo-500 text-xl"></i><span class="ml-2 text-slate-500">Cargando...</span></div></td>';
+            await cargarDetallesMiembro(id);
+        }
+        
+        rowDetails.classList.remove('hidden');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+    } else {
+        rowDetails.classList.add('hidden');
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+    }
+};
+
+// Función para cargar los detalles de un miembro
+async function cargarDetallesMiembro(id) {
+    try {
+        const rowDetails = document.getElementById(`detalles-${id}`);
+        
+        // Obtener datos del miembro
+        const [a, p, totales] = await Promise.all([
+            fetch(`/historial-ahorros/${id}`).then(r => r.json()).catch(() => []),
+            fetch(`/detalle-prestamo/${id}`).then(r => r.json()).catch(() => []),
+            fetch(`/estado-cuenta/${id}`).then(r => r.json()).catch(() => ({ totalAhorrado: 0, deudaTotal: 0 }))
+        ]);
+
+        const totalAhorrado = Number(totales.totalAhorrado || 0);
+        const deudaTotal = Number(totales.deudaTotal || 0);
+        
+        // Calcular préstamos activos
+        const prestamosActivos = p.filter(pr => Number(pr.saldoHoy || 0) > 0);
+        const tienePrestamos = prestamosActivos.length > 0;
+        
+        // Últimos 3 ahorros
+        const ultimosAhorros = a.slice(-3).reverse().map(ah => `
+            <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-lg">
+                <span class="text-[10px] text-slate-500">${ah.FechaFormateada || ''}</span>
+                <span class="text-xs font-bold text-emerald-600">+$${Number(ah.Monto).toLocaleString()}</span>
+            </div>
+        `).join('') || '<p class="text-[10px] text-slate-400 italic">Sin ahorros registrados</p>';
+        
+        // Préstamos activos resumidos
+        let prestamosHTML = '';
+        if (tienePrestamos) {
+            prestamosHTML = prestamosActivos.slice(0, 2).map(pr => `
+                <div class="p-2 bg-rose-50 rounded-lg">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[9px] font-black text-rose-600">DÍA ${pr.diasActivo || pr.DiasTranscurridos || 0}</span>
+                        <span class="text-xs font-bold text-rose-600">$${Number(pr.saldoHoy || 0).toLocaleString()}</span>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            prestamosHTML = '<p class="text-[10px] text-emerald-500 italic">Sin deudas activas ✓</p>';
+        }
+
+        rowDetails.innerHTML = `
+            <td colspan="4" class="px-4 py-4 bg-slate-50">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Resumen financiero -->
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <i class="fas fa-wallet text-indigo-500"></i> Estado de Cuenta
+                        </h4>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-xl">
+                                <span class="text-xs font-medium text-slate-600">Ahorros</span>
+                                <span class="text-sm font-black text-emerald-600">$${totalAhorrado.toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between items-center p-2 bg-rose-50 rounded-xl">
+                                <span class="text-xs font-medium text-slate-600">Deuda</span>
+                                <span class="text-sm font-black text-rose-600">$${deudaTotal.toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between items-center p-2 ${deudaTotal > totalAhorrado ? 'bg-amber-50' : 'bg-indigo-50'} rounded-xl">
+                                <span class="text-xs font-medium text-slate-600">Neto</span>
+                                <span class="text-sm font-black ${deudaTotal > totalAhorrado ? 'text-amber-600' : 'text-indigo-600'}">$${(totalAhorrado - deudaTotal).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Últimos ahorros -->
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros
+                        </h4>
+                        <div class="space-y-1 max-h-32 overflow-y-auto">
+                            ${ultimosAhorros}
+                        </div>
+                    </div>
+                    
+                    <!-- Préstamos activos -->
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos
+                        </h4>
+                        <div class="space-y-1 max-h-32 overflow-y-auto">
+                            ${prestamosHTML}
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 flex gap-2 justify-end">
+                    <button onclick="verHistorialFechas(${id}, this.closest('tr').previousElementSibling.querySelector('.nombre-socio').textContent)" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition-all">
+                        <i class="fas fa-history mr-1"></i> Ver Historial Completo
+                    </button>
+                    <button onclick="document.getElementById('mov_id').value = '${id}'; this.closest('[id^=\'detalles-\']').classList.add('hidden'); document.getElementById('icon-expand-${id}').classList.replace('fa-chevron-up', 'fa-chevron-down');" class="bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-600 hover:text-white transition-all">
+                        <i class="fas fa-plus mr-1"></i> Hacer Movimiento
+                    </button>
+                </div>
+            </td>
+        `;
+    } catch (err) {
+        console.error("Error cargando detalles:", err);
+        const rowDetails = document.getElementById(`detalles-${id}`);
+        if (rowDetails) {
+            rowDetails.innerHTML = '<td colspan="4" class="px-4 py-4 text-center text-red-500">Error al cargar detalles</td>';
+        }
+    }
+}
+
+async function listarMiembros() {
     try {
         const res = await fetch('/api/socios-esfuerzo');
         if (!res.ok) throw new Error("Error en servidor");
@@ -52,9 +190,14 @@ async function cargarDashboard() {
             esSocioReal ? cAhorro++ : cExtra++;
 
             tbody.innerHTML += `
-                <tr class="hover:bg-slate-50 transition-colors item-socio">
-                    <td class="px-8 py-5 font-black text-indigo-500 text-xl">#${m.id}</td>
-                    <td class="px-8 py-5">
+                <tr class="hover:bg-slate-50 transition-colors item-socio cursor-pointer" onclick="toggleExpandirMiembro(${m.id})">
+                    <td class="px-4 py-5 text-center">
+                        <button class="text-slate-400 hover:text-indigo-500 transition-colors">
+                            <i id="icon-expand-${m.id}" class="fas fa-chevron-down text-sm"></i>
+                        </button>
+                    </td>
+                    <td class="px-4 py-5 font-black text-indigo-500 text-xl">#${m.id}</td>
+                    <td class="px-4 py-5">
                         <div class="font-semibold text-slate-700 nombre-socio text-lg">${m.nombre}</div>
                         <div class="text-[10px] text-slate-400 uppercase tracking-tighter">
                             DOC: ${m.documento} | 
@@ -63,20 +206,25 @@ async function cargarDashboard() {
                             </span>
                         </div>
                     </td>
-                    <td class="px-8 py-5 text-center">
-                        <div class="flex justify-center gap-3 items-center">
-                            <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
-                            <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-2">
+                    <td class="px-4 py-5 text-center" onclick="event.stopPropagation()">
+                        <div class="flex justify-center gap-2 items-center flex-wrap">
+                            <button onclick="verHistorialFechas(${m.id}, '${m.nombre}')" class="bg-indigo-50 text-indigo-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all">Resumen</button>
+                            <button onclick="abrirModalRetiro(${m.id}, '${m.nombre}')" class="bg-amber-50 text-amber-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-1">
                                 <i class="fas fa-hand-holding-usd"></i> Retirar
                             </button>
-                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.documento}', '${m.tipo}')" class="text-amber-500 p-2"><i class="fas fa-pen"></i></button>
+                            <button onclick="editarSocio(${m.id}, '${m.nombre}', '${m.documento}', '${m.tipo}')" class="text-amber-500 p-2 hover:scale-110 transition-transform" title="Editar">
+                                <i class="fas fa-pen"></i>
+                            </button>
                             <button onclick="cambiarEstadoSocio(${m.id}, '${m.nombre}', 'Activo')" class="text-slate-400 p-2 hover:text-orange-500 hover:scale-110 transition-all" title="Inhabilitar Socio">
                                 <i class="fas fa-user-slash"></i>
                             </button>
-                            <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2 hover:scale-110 transition-transform"><i class="fas fa-trash"></i></button>
+                            <button onclick="eliminarSocio(${m.id})" class="text-rose-400 p-2 hover:scale-110 transition-transform" title="Eliminar">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
                     </td>
-                </tr>`;
+                </tr>
+                <tr id="detalles-${m.id}" class="hidden bg-slate-50"></tr>`;
         });
         document.getElementById('count-ahorradores').innerText = `${cAhorro} Ahorradores`;
         document.getElementById('count-prestamos').innerText = `${cExtra} Externos`;

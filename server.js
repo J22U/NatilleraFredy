@@ -184,12 +184,30 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
 app.post('/guardar-miembro', async (req, res) => {
     try {
         const { nombre, cedula, esSocio } = req.body;
+        
+        if (!nombre || !cedula) {
+            return res.status(400).json({ success: false, error: "Nombre y documento son requeridos" });
+        }
+        
         const pool = await poolPromise;
+        
+        // Verificar si el documento ya existe
+        const checkDoc = await pool.request()
+            .input('d', sql.VarChar, cedula)
+            .query("SELECT ID_Persona FROM Personas WHERE Documento = @d");
+        
+        if (checkDoc.recordset.length > 0) {
+            return res.status(400).json({ success: false, error: "Ya existe un miembro con este documento" });
+        }
+        
         await pool.request()
             .input('n', sql.VarChar, nombre).input('d', sql.VarChar, cedula).input('s', sql.Bit, esSocio)
             .query("INSERT INTO Personas (Nombre, Documento, EsSocio) VALUES (@n, @d, @s)");
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Error en guardar-miembro:", err.message);
+        res.status(500).json({ success: false, error: err.message }); 
+    }
 });
 
 app.post('/editar-socio', async (req, res) => {
