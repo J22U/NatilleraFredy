@@ -1399,23 +1399,28 @@ function renderizarPanelPremios() {
 // Función para actualizar un premio
 function actualizarPremio(numeroTabla, campo, valor) {
     console.log('🔄 actualizarPremio llamado:', numeroTabla, campo, valor);
-    
+
     const key = `tabla${numeroTabla}`;
     console.log('🔑 Key:', key);
-    
+
+    // Mapear los nombres de campos del input a los campos de datosPremios
+    let campoPremio = campo;
     if (campo === 'numero') {
         // Validar que sea un número de 2 dígitos
         valor = valor.replace(/[^0-9]/g, '').substring(0, 2);
         const inputEl = document.getElementById(`premio-numero-${numeroTabla}`);
         if (inputEl) inputEl.value = valor;
+        campoPremio = 'numeroGanador'; // Mapear al campo correcto
+    } else if (campo === 'nombre') {
+        campoPremio = 'nombreGanador'; // Mapear al campo correcto
     }
-    
-    datosPremios[key][campo] = valor;
+
+    datosPremios[key][campoPremio] = valor;
     console.log('💾 datosPremios actualizado:', datosPremios);
 
     // Actualizar estilos visuales
     renderizarPanelPremios();
-    
+
     // Guardar en el servidor
     console.log('📤 Llamando a guardarPremiosEnRifa...');
     guardarPremiosEnRifa();
