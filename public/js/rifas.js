@@ -1451,6 +1451,9 @@ function guardarPremiosEnRifa() {
 
 // Función para cargar los premios al cargar la rifa
 function cargarPremios(datos) {
+    console.log('🔍 DEBUG - datos.info:', datos?.info);
+    console.log('🔍 DEBUG - datos.info.premios:', datos?.info?.premios);
+    
     if (datos && datos.info && datos.info.premios) {
         datosPremios = datos.info.premios;
     } else {
