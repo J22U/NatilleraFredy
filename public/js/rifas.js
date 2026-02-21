@@ -1412,6 +1412,16 @@ function actualizarPremio(numeroTabla, campo, valor) {
     
     datosPremios[key][campo] = valor;
     console.log('💾 datosPremios actualizado:', datosPremios);
+
+    javascript
+    if (campo === 'numero') {
+        datosPremios[key].numeroGanador = valor;
+    } else if (campo === 'nombre') {
+        datosPremios[key].nombreGanador = valor;
+    } else {
+        datosPremios[key][campo] = valor;
+    }
+
     
     // Actualizar estilos visuales
     renderizarPanelPremios();
