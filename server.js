@@ -86,6 +86,16 @@ app.post('/api/guardar-rifa', async (req, res) => {
         const pool = await poolPromise;
         const nuevosDatos = req.body;
         
+        // LOG DE DEBUG: Ver qué datos llegan del frontend
+        console.log('📥 Datos recibidos en /api/guardar-rifa:', JSON.stringify(nuevosDatos).substring(0, 500));
+        
+        // Verificar si vienen los premios
+        if (nuevosDatos.info && nuevosDatos.info.premios) {
+            console.log('✅ Premios recibidos:', JSON.stringify(nuevosDatos.info.premios));
+        } else {
+            console.log('⚠️ NO hay premios en los datos recibidos');
+        }
+        
         // Sacamos la fecha del objeto info
         const fechaSorteo = nuevosDatos.info ? nuevosDatos.info.fecha : null;
 
@@ -116,6 +126,8 @@ app.post('/api/guardar-rifa', async (req, res) => {
                 tabla4: nuevosDatos.tabla4
             };
 
+            console.log('💾 Guardando datos con premios:', datosFinales.info.premios ? 'SÍ' : 'NO');
+
             await pool.request()
                 .input('id', sql.Int, check.recordset[0].Id)
                 .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosFinales))
@@ -123,6 +135,9 @@ app.post('/api/guardar-rifa', async (req, res) => {
         } else {
             // Si la fecha no existe, guardamos todo el objeto nuevo
             datosFinales = nuevosDatos;
+            
+            console.log('💾 INSERTANDO datos nuevos con premios:', datosFinales.info.premios ? 'SÍ' : 'NO');
+            
             await pool.request()
                 .input('fecha', sql.Date, fechaSorteo)
                 .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosFinales))
