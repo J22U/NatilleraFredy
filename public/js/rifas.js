@@ -1615,18 +1615,18 @@ function asignarNumerosMultiples() {
                 nombreElement.textContent = nombre;
                 slot.classList.remove('paid', 'reserved');
                 
-                if (pagado || adelantar) {
-                    // Si está pagado o es adelantar, se marca como pagado (verde)
+                if (pagado || adelantado) {
+                    // Si está pagado o es adelantado, se marca como pagado (verde)
                     slot.classList.add('paid');
                     slot.setAttribute('data-pago', 'true');
                 } else {
-                    // Si no está pagado ni adelantar, queda pendiente (naranja)
+                    // Si no está pagado ni adelantado, queda pendiente (naranja)
                     slot.classList.add('reserved');
                     slot.setAttribute('data-pago', 'false');
                 }
                 
                 // Guardar el estado de adelantado
-                slot.setAttribute('data-adelantado', adelantado ? 'true' : 'false');
+                slot.setAttribute('data-adelantado',adelantado ? 'true' : 'false');
                 asignados++;
             }
         }
