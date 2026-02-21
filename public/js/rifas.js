@@ -1453,18 +1453,40 @@ function guardarPremiosEnRifa() {
 function cargarPremios(datos) {
     console.log('🔍 DEBUG - datos.info:', datos?.info);
     console.log('🔍 DEBUG - datos.info.premios:', datos?.info?.premios);
-    
+
+    // Intentar cargar premios desde diferentes ubicaciones posibles
+    let premiosCargados = null;
+
     if (datos && datos.info && datos.info.premios) {
-        datosPremios = datos.info.premios;
+        premiosCargados = datos.info.premios;
+        console.log('✅ Premios cargados desde datos.info.premios');
+    } else if (datos && datos.premios) {
+        premiosCargados = datos.premios;
+        console.log('✅ Premios cargados desde datos.premios');
     } else {
-        // Reiniciar si no hay datos de premios
-        datosPremios = {
-            tabla1: { numeroGanador: '', nombreGanador: '', entregado: false },
-            tabla2: { numeroGanador: '', nombreGanador: '', entregado: false },
-            tabla3: { numeroGanador: '', nombreGanador: '', entregado: false },
-            tabla4: { numeroGanador: '', nombreGanador: '', entregado: false }
-        };
+        console.log('⚠️ No se encontraron premios en la respuesta del servidor');
     }
+
+    // Si encontramos premios, actualizar los datos globales
+    if (premiosCargados) {
+        datosPremios = premiosCargados;
+        console.log('💾 datosPremios actualizados:', datosPremios);
+    } else {
+        // Solo reiniciar si no hay datos actuales (primera carga)
+        if (!datosPremios || Object.keys(datosPremios).length === 0) {
+            datosPremios = {
+                tabla1: { numeroGanador: '', nombreGanador: '', entregado: false },
+                tabla2: { numeroGanador: '', nombreGanador: '', entregado: false },
+                tabla3: { numeroGanador: '', nombreGanador: '', entregado: false },
+                tabla4: { numeroGanador: '', nombreGanador: '', entregado: false }
+            };
+            console.log('🔄 Inicializando datosPremios vacíos');
+        } else {
+            console.log('🔍 Manteniendo datosPremios existentes:', datosPremios);
+        }
+    }
+
+    // Forzar renderizado del panel
     renderizarPanelPremios();
 }
 
