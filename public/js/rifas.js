@@ -931,7 +931,8 @@ function recolectarDatosPantalla() {
             premio: document.getElementById('rifaPrize')?.value || '',
             valor: document.getElementById('rifaCost')?.value || '',
             fecha: fechaSeleccionada,
-            inversion: document.getElementById('costoPremio')?.value || ''
+            inversion: document.getElementById('costoPremio')?.value || '',
+            premios: datosPremios // Incluir los premios por tabla
         }
     };
 
@@ -1416,8 +1417,8 @@ function actualizarPremio(numeroTabla, campo, valor) {
 
 // Función para guardar los premios en la rifa actual
 function guardarPremiosEnRifa() {
+    // Los premios ya están incluidos en recolectarDatosPantalla()
     const datos = recolectarDatosPantalla();
-    datos.info.premios = datosPremios;
     
     fetch('/api/guardar-rifa', {
         method: 'POST',
