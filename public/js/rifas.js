@@ -1426,16 +1426,26 @@ function guardarPremiosEnRifa() {
     // Los premios ya están incluidos en recolectarDatosPantalla()
     const datos = recolectarDatosPantalla();
     
+    console.log('📤 Enviando datos al servidor:', JSON.stringify(datos).substring(0, 300));
+    
     fetch('/api/guardar-rifa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datos)
     }).then(res => {
         if (res.ok) {
-            console.log('Premios guardados correctamente');
+            console.log('✅ Premios guardados correctamente');
+            return res.json();
+        } else {
+            console.error('❌ Error del servidor:', res.status, res.statusText);
+            return res.json().then(err => console.error('❌ Detalle del error:', err));
+        }
+    }).then(data => {
+        if (data) {
+            console.log('📬 Respuesta del servidor:', data);
         }
     }).catch(err => {
-        console.error('Error guardando premios:', err);
+        console.error('❌ Error de red guardando premios:', err);
     });
 }
 
