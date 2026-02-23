@@ -1276,7 +1276,7 @@ app.get('/api/detalle-ahorro/:id', async (req, res) => {
 // --- RUTA PARA EDITAR PRÉSTAMO (MONTO, TASA, FECHA) ---
 app.put('/api/editar-prestamo', async (req, res) => {
     try {
-        const { idPrestamo, monto, tasaInteres, fecha } = req.body;
+        const { idPrestamo, monto, tasaInteres, fecha, fechaInteres } = req.body;
 
         if (!idPrestamo || !monto) {
             return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
@@ -1298,17 +1298,28 @@ app.put('/api/editar-prestamo', async (req, res) => {
 
         // Calcular nuevo interés basado en el nuevo monto y la tasa
         const tasaNueva = tasaInteres ? parseFloat(tasaInteres) : tasaAnterior;
-        
+
         let interesNuevo = 0;
-        
-        if (fechaAnterior) {
-            const diasTranscurridos = Math.floor((new Date() - new Date(fechaAnterior)) / (1000 * 60 * 60 * 24));
-            if (diasTranscurridos > 0) {
-                const interesDiario = (parseFloat(monto) * (tasaNueva / 100)) / 30;
-                interesNuevo = interesDiario * diasTranscurridos;
-            } else {
-                interesNuevo = parseFloat(monto) * (tasaNueva / 100);
-            }
+
+        // Determinar hasta qué fecha calcular el interés
+        let fechaCalculoInteres;
+        if (fechaInteres && fechaInteres !== null && fechaInteres !== '') {
+            fechaCalculoInteres = new Date(fechaInteres);
+        } else {
+            fechaCalculoInteres = new Date();
+        }
+
+        const fechaInicioPrestamo = fecha ? new Date(fecha) : new Date(fechaAnterior);
+
+        let diasTranscurridos = Math.floor((fechaCalculoInteres - fechaInicioPrestamo) / (1000 * 60 * 60 * 24));
+
+        if (diasTranscurridos < 0) diasTranscurridos = 0;
+
+        if (diasTranscurridos > 0) {
+            const interesDiario = (parseFloat(monto) * (tasaNueva / 100)) / 30;
+            interesNuevo = interesDiario * diasTranscurridos;
+        } else {
+            interesNuevo = parseFloat(monto) * (tasaNueva / 100);
         }
 
         const nuevoSaldo = parseFloat(monto) + interesNuevo;

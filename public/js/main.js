@@ -1722,9 +1722,27 @@ async function guardarPrestamoDiario() {
     const idReal = window.mapeoIdentificadores[idSocNum];
     const monto = parseFloat(document.getElementById('pre_monto').value);
     const tasa = parseFloat(document.getElementById('pre_tasa_mensual').value);
+    const fecha = document.getElementById('pre_fecha')?.value || new Date().toISOString().split('T')[0];
 
     if (!idReal || !monto || !tasa) {
         return Swal.fire('Error', 'Completa todos los campos', 'error');
+    }
+
+    // Mostrar modal de confirmación antes de guardar
+    const nombreSocio = miembrosGlobal.find(m => m.id == idReal)?.nombre || 'Socio';
+    const confirmResult = await Swal.fire({
+        title: '¿Confirmar Préstamo?',
+        html: '<p>Socio: ' + nombreSocio + '</p><p>Monto: $' + monto.toLocaleString() + '</p><p>Tasa: ' + tasa + '% mensual</p><p>Fecha: ' + fecha + '</p>',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, Registrar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#64748b'
+    });
+
+    if (!confirmResult.isConfirmed) {
+        return;
     }
 
     try {
