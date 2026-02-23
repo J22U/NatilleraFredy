@@ -450,13 +450,16 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresesPagados, 0) as InteresesPagados, -- Importante para el descuento
                     TasaInteres,         
                     FechaInicio,         
-                    -- Calculamos días desde la FechaInicio grabada hasta hoy
+                    FechaInteres, -- Nueva columna para fecha límite de intereses
+                    -- Calculamos días desde la FechaInicio hasta la FechaInteres (si existe) o hasta HOY
                     CASE 
+                        WHEN FechaInteres IS NOT NULL THEN DATEDIFF(DAY, FechaInicio, FechaInteres)
                         WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
                         ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) 
                     END as DiasTranscurridos,
-                    -- Interés basado en la fecha manual seleccionada
+                    -- Interés basado en la fecha de corte (FechaInteres o GETDATE())
                     (MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE 
+                            WHEN FechaInteres IS NOT NULL THEN DATEDIFF(DAY, FechaInicio, FechaInteres)
                             WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
                             ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) 
                         END) as InteresAcumulado
@@ -482,11 +485,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                 InteresesPagados: pagadoInteres, // Informativo
                 TasaInteres: p.TasaInteres,
                 FechaInicio: p.FechaInicio,
+                FechaInteres: p.FechaInteres, // Enviar al frontend
                 DiasTranscurridos: p.DiasTranscurridos || 0,
                 InteresGenerado: interesPendiente > 0 ? interesPendiente : 0,
                 saldoHoy: saldoActual > 0 ? saldoActual : 0,
                 // Formateo de la fecha manual para el frontend
-                FechaInicioFormateada: p.FechaInicio ? new Date(p.FechaInicio).toLocaleDateString('es-CO') : 'S/F'
+                FechaInicioFormateada: p.FechaInicio ? new Date(p.FechaInicio).toLocaleDateString('es-CO') : 'S/F',
+                FechaInteresFormateada: p.FechaInteres ? new Date(p.FechaInteres).toLocaleDateString('es-CO') : null
             };
         });
 
@@ -1273,7 +1278,7 @@ app.get('/api/detalle-ahorro/:id', async (req, res) => {
     }
 });
 
-// --- RUTA PARA EDITAR PRÉSTAMO (MONTO, TASA, FECHA) ---
+// --- RUTA PARA EDITAR PRÉSTAMO (MONTO, TASA, FECHA, FECHA HASTA) ---
 app.put('/api/editar-prestamo', async (req, res) => {
     try {
         const { idPrestamo, monto, tasaInteres, fecha, fechaInteres } = req.body;
@@ -1300,31 +1305,36 @@ app.put('/api/editar-prestamo', async (req, res) => {
         const tasaNueva = tasaInteres ? parseFloat(tasaInteres) : tasaAnterior;
 
         let interesNuevo = 0;
+        let diasTranscurridos = 0;
 
         // Determinar hasta qué fecha calcular el interés
         let fechaCalculoInteres;
         if (fechaInteres && fechaInteres !== null && fechaInteres !== '') {
             fechaCalculoInteres = new Date(fechaInteres);
         } else {
+            // Si no hay fecha límite, usar fecha actual
             fechaCalculoInteres = new Date();
         }
 
         const fechaInicioPrestamo = fecha ? new Date(fecha) : new Date(fechaAnterior);
 
-        let diasTranscurridos = Math.floor((fechaCalculoInteres - fechaInicioPrestamo) / (1000 * 60 * 60 * 24));
+        // Calcular días transcurridos desde inicio hasta la fecha de cálculo
+        diasTranscurridos = Math.floor((fechaCalculoInteres - fechaInicioPrestamo) / (1000 * 60 * 60 * 24));
 
         if (diasTranscurridos < 0) diasTranscurridos = 0;
 
+        // Calcular interés basado en los días
         if (diasTranscurridos > 0) {
             const interesDiario = (parseFloat(monto) * (tasaNueva / 100)) / 30;
             interesNuevo = interesDiario * diasTranscurridos;
         } else {
+            // Si es el primer día, calcular interés de un mes
             interesNuevo = parseFloat(monto) * (tasaNueva / 100);
         }
 
         const nuevoSaldo = parseFloat(monto) + interesNuevo;
 
-        // Actualizar el préstamo
+        // Actualizar el préstamo con la fecha límite de intereses
         await pool.request()
             .input('id', sql.Int, idPrestamo)
             .input('monto', sql.Decimal(18, 2), parseFloat(monto))
@@ -1332,17 +1342,30 @@ app.put('/api/editar-prestamo', async (req, res) => {
             .input('interes', sql.Decimal(18, 2), interesNuevo)
             .input('saldo', sql.Decimal(18, 2), nuevoSaldo)
             .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
+            .input('fechaInteres', sql.Date, fechaInteres || null)
             .query(`
                 UPDATE Prestamos 
                 SET MontoPrestado = @monto, 
                     TasaInteres = @tasa, 
                     MontoInteres = @interes,
                     SaldoActual = @saldo,
-                    FechaInicio = @fecha
+                    FechaInicio = @fecha,
+                    FechaInteres = @fechaInteres
                 WHERE ID_Prestamo = @id
             `);
 
-        res.json({ success: true, message: "Préstamo actualizado correctamente" });
+        res.json({ 
+            success: true, 
+            message: "Préstamo actualizado correctamente",
+            debug: {
+                monto: monto,
+                tasa: tasaNueva,
+                dias: diasTranscurridos,
+                interes: interesNuevo,
+                fechaInicio: fecha || fechaAnterior,
+                fechaInteres: fechaInteres
+            }
+        });
     } catch (err) {
         console.error("Error al editar préstamo:", err.message);
         res.status(500).json({ success: false, error: err.message });
