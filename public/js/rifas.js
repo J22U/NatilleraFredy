@@ -1320,12 +1320,36 @@ window.onclick = function(event) {
 
 // ==================== SISTEMA DE PREMIOS POR TABLA ====================
 
-// Variable para almacenar los datos de premios
+// Variable para almacenar los datos de premios (3 ganadores por tabla)
 let datosPremios = {
-    tabla1: { numeroGanador: '', nombreGanador: '', entregado: false },
-    tabla2: { numeroGanador: '', nombreGanador: '', entregado: false },
-    tabla3: { numeroGanador: '', nombreGanador: '', entregado: false },
-    tabla4: { numeroGanador: '', nombreGanador: '', entregado: false }
+    tabla1: { 
+        ganadores: [
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false }
+        ]
+    },
+    tabla2: { 
+        ganadores: [
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false }
+        ]
+    },
+    tabla3: { 
+        ganadores: [
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false }
+        ]
+    },
+    tabla4: { 
+        ganadores: [
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false }
+        ]
+    }
 };
 
 // Función para renderizar el panel de premios
