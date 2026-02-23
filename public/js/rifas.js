@@ -1062,12 +1062,12 @@ function actualizarContadoresVisuales() {
 
 function actualizarContadoresRifa() {
     const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
-    const inversionPorTabla = parseFloat(document.getElementById('costoPremio').value) || 0;
+    const costoPremio = parseFloat(document.getElementById('costoPremio').value) || 0;
     
     // Contamos cuántas tablas hay actualmente en el contenedor
     const cantidadTablas = document.querySelectorAll('.rifa-card').length;
-    const inversionTotalPremios = inversionPorTabla * cantidadTablas;
     
+    // Calcular el dinero recogido (total de pagos recibidos)
     let potencialTotal = 0; 
     let totalRecogido = 0;  
 
@@ -1079,23 +1079,57 @@ function actualizarContadoresRifa() {
         }
     });
 
-    // Ganancia de la rifa actual
-    const gananciaEstaRifa = totalRecogido - inversionTotalPremios;
+    // Calcular el COSTO REAL DE PREMIOS basado en los ganadores registrados
+    // Solo cuenta los premios que están marcados como "entregados"
+    let costoPremiosReales = 0;
+    let cantidadGanadores = 0;
+    
+    if (datosPremios) {
+        for (let i = 1; i <= 4; i++) {
+            const key = `tabla${i}`;
+            if (datosPremios[key] && datosPremios[key].ganadores) {
+                datosPremios[key].ganadores.forEach(ganador => {
+                    // Solo cuenta si el premio está marcado como entregado Y tiene número y nombre
+                    if (ganador.entregado && ganador.numero && ganador.nombre) {
+                        costoPremiosReales += costoPremio;
+                        cantidadGanadores++;
+                    }
+                });
+            }
+        }
+    }
+
+    // Ganancia de la rifa actual = Recogido - Costo real de premios
+    const gananciaEstaRifa = totalRecogido - costoPremiosReales;
 
     const formato = new Intl.NumberFormat('es-CO', {
         style: 'currency', currency: 'COP', maximumFractionDigits: 0
     });
 
     // Actualizar la interfaz
+    // Valor Total Rifa = Lo que searía si todos pagaran
     document.getElementById('stats-total-debe').innerText = formato.format(potencialTotal);
+    
+    // Total Recogido = Dinero que ya has recibido
     document.getElementById('stats-total-pago').innerText = formato.format(totalRecogido);
     
     const txtGanancia = document.getElementById('stats-ganancia');
-    // Ahora mostrarmos la GANANCIA ACUMULADA en lugar de solo la de esta rifa
-    txtGanancia.innerText = formato.format(gananciasAcumuladasRifas);
+    // Mostramos la GANANCIA DE ESTA RIFA (no la acumulada)
+    txtGanancia.innerText = formato.format(gananciaEstaRifa);
     
-    // Feedback visual
-    txtGanancia.style.color = gananciasAcumuladasRifas < 0 ? "#e74c3c" : (gananciasAcumuladasRifas > 0 ? "#00b894" : "#2d3436");
+    // Feedback visual - Color según ganancia positiva o negativa
+    if (gananciaEstaRifa > 0) {
+        txtGanancia.style.color = "#00b894"; // Verde - ganacias
+    } else if (gananciaEstaRifa < 0) {
+        txtGanancia.style.color = "#e74c3c"; // Rojo - pérdida
+    } else {
+        txtGanancia.style.color = "#2d3436"; // Neutral
+    }
+    
+    // Guardamos la ganancia de esta rifa también para referencia
+    window.gananciaEstaRifa = gananciaEstaRifa;
+    window.costoPremiosReales = costoPremiosReales;
+    window.cantidadGanadores = cantidadGanadores;
 }
 
 async function actualizarManual() {
