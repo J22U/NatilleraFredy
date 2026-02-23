@@ -701,18 +701,46 @@ async function acumularGananciaRifa() {
     return false;
 }
 
-// Llamar al inicio al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
+// Función para cargar los datos de la rifa al iniciar
+function inicializarRifa() {
     cargarRifas();
-    cargarGananciasAcumuladas(); // Cargar ganancias acumuladas
+    cargarGananciasAcumuladas();
     
     // Renderizar el panel de premios aunque no haya datos cargados
     renderizarPanelPremios();
     
-    ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate'].forEach(id => {
+    // Agregar listeners a los campos de información
+    ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate', 'costoPremio'].forEach(id => {
         const el = document.getElementById(id);
-        if(el) el.addEventListener('change', guardarTodo);
+        if(el) {
+            // Usar 'change' para inputs y selects, 'input' para cambios en tiempo real
+            el.addEventListener('change', () => {
+                guardarTodo();
+                actualizarContadoresRifa();
+            });
+        }
     });
+}
+
+// Llamar al inicio al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar rifa y cargar datos
+    inicializarRifa();
+    
+    // Lógica de fechas (sincronizar los dos calendarios)
+    const f1 = document.getElementById('filtroFecha');
+    const f2 = document.getElementById('rifaDate');
+
+    // Si ambos están vacíos, ponemos la fecha de hoy
+    if (f1 && !f1.value) {
+        const hoy = new Date().toISOString().split('T')[0];
+        f1.value = hoy;
+        if (f2) f2.value = hoy;
+    }
+
+    // Sincronizar: si cambias uno, se cambia el otro
+    f1?.addEventListener('change', () => { if(f2) f2.value = f1.value; cargarRifas(); });
+    f2?.addEventListener('change', () => { if(f1) f1.value = f2.value; cargarRifas(); });
 });
 
 function generarPDF() {
