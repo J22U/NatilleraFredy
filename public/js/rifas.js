@@ -1361,17 +1361,24 @@ function renderizarPanelPremios() {
     
     for (let i = 1; i <= 4; i++) {
         const key = `tabla${i}`;
-        const premioData = datosPremios[key] || { 
-            ganadores: [
-                { numero: '', nombre: '', entregado: false },
-                { numero: '', nombre: '', entregado: false },
-                { numero: '', nombre: '', entregado: false }
-            ]
-        };
+        
+        // Asegurar que datosPremios[key] existe y tiene la estructura correcta
+        let premioData = datosPremios[key];
+        
+        // Si no existe o no tiene ganadores, inicializar
+        if (!premioData || !premioData.ganadores || !Array.isArray(premioData.ganadores)) {
+            premioData = { 
+                ganadores: [
+                    { numero: '', nombre: '', entregado: false },
+                    { numero: '', nombre: '', entregado: false },
+                    { numero: '', nombre: '', entregado: false }
+                ]
+            };
+        }
         
         // Verificar si todos los premios están entregados
-        const todosEntregados = premioData.ganadores.every(g => g.entregado && g.numero && g.nombre);
-        const algunosLlenos = premioData.ganadores.some(g => g.numero || g.nombre);
+        const todosEntregados = premioData.ganadores && premioData.ganadores.every(g => g && g.entregado && g.numero && g.nombre);
+        const algunosLlenos = premioData.ganadores && premioData.ganadores.some(g => g && (g.numero || g.nombre));
         
         const card = document.createElement('div');
         card.style.cssText = `
@@ -1556,10 +1563,34 @@ function cargarPremios(datos) {
         // Solo reiniciar si no hay datos actuales (primera carga)
         if (!datosPremios || Object.keys(datosPremios).length === 0) {
             datosPremios = {
-                tabla1: { numeroGanador: '', nombreGanador: '', entregado: false },
-                tabla2: { numeroGanador: '', nombreGanador: '', entregado: false },
-                tabla3: { numeroGanador: '', nombreGanador: '', entregado: false },
-                tabla4: { numeroGanador: '', nombreGanador: '', entregado: false }
+                tabla1: { 
+                    ganadores: [
+                        { numero: '', nombre: '', entregado: false },
+                        { numero: '', nombre: '', entregado: false },
+                        { numero: '', nombre: '', entregado: false }
+                    ]
+                },
+                tabla2: { 
+                    ganadores: [
+                        { numero: '', nombre: '', entregado: false },
+                        { numero: '', nombre: '', entregado: false },
+                        { numero: '', nombre: '', entregado: false }
+                    ]
+                },
+                tabla3: { 
+                    ganadores: [
+                        { numero: '', nombre: '', entregado: false },
+                        { numero: '', nombre: '', entregado: false },
+                        { numero: '', nombre: '', entregado: false }
+                    ]
+                },
+                tabla4: { 
+                    ganadores: [
+                        { numero: '', nombre: '', entregado: false },
+                        { numero: '', nombre: '', entregado: false },
+                        { numero: '', nombre: '', entregado: false }
+                    ]
+                }
             };
             console.log('🔄 Inicializando datosPremios vacíos');
         } else {
