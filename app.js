@@ -86,16 +86,19 @@ app.get('/listar-miembros', async (req, res) => {
     }
 });
 
-// REGISTRAR PRÉSTAMO
+// REGISTRAR PRÉSTAMO (Ruta principal)
 app.post('/registrar-prestamo', async (req, res) => {
     try {
-        const { idPersona, monto, tasaInteres, cuotas } = req.body;
+        const { idPersona, monto, tasaInteres, cuotas, fechaInicio } = req.body;
         const pool = await poolPromise;
         const capital = parseFloat(monto);
         const tasaNumerica = parseFloat(tasaInteres || 5);
         const nCuotas = parseInt(cuotas || 1);
         const interesTotal = capital * (tasaNumerica / 100) * nCuotas;
         const totalConInteres = capital + interesTotal;
+
+        // Usar la fecha proporcionada o la fecha actual
+        const fechaPrestamo = fechaInicio ? new Date(fechaInicio) : new Date();
 
         await pool.request()
             .input('id', sql.Int, idPersona)
@@ -104,10 +107,46 @@ app.post('/registrar-prestamo', async (req, res) => {
             .input('i', sql.Decimal(18,2), interesTotal)
             .input('s', sql.Decimal(18,2), totalConInteres)
             .input('c', sql.Int, nCuotas)
+            .input('fecha', sql.Date, fechaPrestamo)
             .query(`
                 INSERT INTO Prestamos 
                 (ID_Persona, MontoPrestado, TasaInteres, MontoInteres, MontoPagado, SaldoActual, Estado, Fecha, Cuotas, InteresesPagados) 
-                VALUES (@id, @m, @t, @i, 0, @s, 'Activo', GETDATE(), @c, 0)
+                VALUES (@id, @m, @t, @i, 0, @s, 'Activo', @fecha, @c, 0)
+            `);
+        res.json({ success: true });
+    } catch (err) { 
+        res.status(500).json({ success: false, message: err.message }); 
+    }
+});
+
+// Ruta alternativa para préstamos diarios (usada por el frontend)
+app.post('/registrar-prestamo-diario', async (req, res) => {
+    try {
+        const { idPersona, monto, tasaInteresMensual, fechaInicio } = req.body;
+        const pool = await poolPromise;
+        const capital = parseFloat(monto);
+        const tasaNumerica = parseFloat(tasaInteresMensual || 10); // Default 10% para préstamos diarios
+        
+        // Para préstamos diarios, el interés se calcula por día
+        // Por defecto calculamos interés para 30 días
+        const interesTotal = capital * (tasaNumerica / 100);
+        const totalConInteres = capital + interesTotal;
+
+        // Usar la fecha proporcionada o la fecha actual
+        const fechaPrestamo = fechaInicio ? new Date(fechaInicio) : new Date();
+
+        await pool.request()
+            .input('id', sql.Int, idPersona)
+            .input('m', sql.Decimal(18,2), capital)
+            .input('t', sql.Decimal(5,2), tasaNumerica)
+            .input('i', sql.Decimal(18,2), interesTotal)
+            .input('s', sql.Decimal(18,2), totalConInteres)
+            .input('c', sql.Int, 1) // Préstamo diario = 1 cuota
+            .input('fecha', sql.Date, fechaPrestamo)
+            .query(`
+                INSERT INTO Prestamos 
+                (ID_Persona, MontoPrestado, TasaInteres, MontoInteres, MontoPagado, SaldoActual, Estado, Fecha, Cuotas, InteresesPagados) 
+                VALUES (@id, @m, @t, @i, 0, @s, 'Activo', @fecha, @c, 0)
             `);
         res.json({ success: true });
     } catch (err) { 
