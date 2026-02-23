@@ -1321,19 +1321,45 @@ function obtenerViernesSorteo(fechaReferencia = new Date()) {
     let mes = fecha.getMonth();
     let año = fecha.getFullYear();
 
-    // Determinar a qué objetivo apuntamos (quincena o fin de mes)
-    let diaObjetivo = diaMes <= 15 ? 15 : (new Date(año, mes + 1, 0).getDate() >= 30 ? 30 : 28);
-    let fechaObjetivo = new Date(año, mes, diaObjetivo);
+    let diaObjetivo;
+    let fechaObjetivo;
 
-    // Si hoy ya pasó el viernes de esta quincena, saltar a la siguiente quincena
-    if (fecha > fechaObjetivo && fecha.getDay() !== 5) {
-        // Lógica para saltar al siguiente periodo si es necesario
+    // Determinar el próximo objetivo (15 o 30)
+    if (diaMes < 15) {
+        // Estamos en la primera quincena (del 1 al 14)
+        // El próximo objetivo es el día 15
+        diaObjetivo = 15;
+    } else if (diaMes >= 15 && diaMes <= 30) {
+        // Estamos en la segunda quincena (del 15 al 30)
+        // El próximo objetivo es el día 30 (o fin de mes si es menor a 30)
+        const diasEnMes = new Date(año, mes + 1, 0).getDate();
+        diaObjetivo = Math.min(30, diasEnMes);
+    } else {
+        // Ya pasó el 30, entonces vamos al siguiente mes
+        // El próximo objetivo es el día 15 del siguiente mes
+        mes += 1;
+        if (mes > 11) {
+            mes = 0;
+            año += 1;
+        }
+        diaObjetivo = 15;
     }
 
-    // Retroceder hasta encontrar el viernes (5)
-    // Si el día objetivo ya es viernes, se queda ahí.
+    // Crear la fecha objetivo
+    fechaObjetivo = new Date(año, mes, diaObjetivo);
+
+    // Ahora buscar el viernes (día 5) más cercano a esa fecha
+    // Si la fecha objetivo es viernes, usar esa
+    // Si no, avanzar al siguiente viernes
     while (fechaObjetivo.getDay() !== 5) {
-        fechaObjetivo.setDate(fechaObjetivo.getDate() - 1);
+        fechaObjetivo.setDate(fechaObjetivo.getDate() + 1);
+    }
+
+    // Si el viernes calculado ya pasó (es antes que la fecha de referencia),
+    // entonces vamos al siguiente ciclo
+    if (fechaObjetivo < fecha) {
+        // Volver a calcular para el siguiente ciclo
+        return obtenerViernesSorteo(new Date(año, mes + 1, 1));
     }
 
     return fechaObjetivo.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
@@ -1724,7 +1750,9 @@ async function prepararNuevaQuincena() {
                     
                     // Si tenía pago adelantado, pasa a estar pagado
                     // Si ya estaba pagado, sigue pagado
-                    const esPagado = (p.adelantado === true || p.adelantado === "true") || (p.pago === true || p.pago === "true");
+                    // Solo los que pagaron ADELANTADO pasan a pagados en la nueva rifa
+                    // Los que pagaron normalmente esta quincena quedan pendientes (ya pagaron por esta, no por la siguiente)
+                    const esPagado = (p.adelantado === true || p.adelantado === "true");
                     
                     participantesNuevos[num] = {
                         nombre: p.nombre,
