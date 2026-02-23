@@ -401,6 +401,78 @@ app.post('/procesar-cruce', async (req, res) => {
     }
 });
 
+// --- RUTAS PARA EDITAR PRÉSTAMO ---
+
+// Editar Préstamo (monto, tasa, fecha)
+app.put('/api/editar-prestamo', async (req, res) => {
+    try {
+        const { idPrestamo, monto, tasaInteres, fecha } = req.body;
+
+        if (!idPrestamo || !monto) {
+            return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
+        }
+
+        const pool = await poolPromise;
+
+        // Obtener datos actuales del préstamo para calcular diferencia
+        const prestamoActual = await pool.request()
+            .input('id', sql.Int, idPrestamo)
+            .query("SELECT MontoPrestado, TasaInteres, Fecha FROM Prestamos WHERE ID_Prestamo = @id");
+
+        if (prestamoActual.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: "Préstamo no encontrado" });
+        }
+
+        const montoAnterior = parseFloat(prestamoActual.recordset[0].MontoPrestado);
+        const tasaAnterior = parseFloat(prestamoActual.recordset[0].TasaInteres || 0);
+        const fechaAnterior = prestamoActual.recordset[0].Fecha;
+
+        // Calcular nuevo interés total basado en el nuevo monto y la tasa
+        const tasaNueva = tasaInteres ? parseFloat(tasaInteres) : tasaAnterior;
+        
+        // Si es un préstamo diario, recalculamos el interés basado en días transcurridos
+        // Si es un préstamo normal, usamos el interés simple
+        let interesNuevo = 0;
+        
+        if (fechaAnterior) {
+            const diasTranscurridos = Math.floor((new Date() - new Date(fechaAnterior)) / (1000 * 60 * 60 * 24));
+            if (diasTranscurridos > 0) {
+                // Préstamo diario: interés por día
+                const interesDiario = (parseFloat(monto) * (tasaNueva / 100)) / 30;
+                interesNuevo = interesDiario * diasTranscurridos;
+            } else {
+                // Préstamo normal: interés simple
+                interesNuevo = parseFloat(monto) * (tasaNueva / 100);
+            }
+        }
+
+        const nuevoSaldo = parseFloat(monto) + interesNuevo;
+
+        // Actualizar el préstamo
+        await pool.request()
+            .input('id', sql.Int, idPrestamo)
+            .input('monto', sql.Decimal(18, 2), parseFloat(monto))
+            .input('tasa', sql.Decimal(5, 2), tasaNueva)
+            .input('interes', sql.Decimal(18, 2), interesNuevo)
+            .input('saldo', sql.Decimal(18, 2), nuevoSaldo)
+            .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
+            .query(`
+                UPDATE Prestamos 
+                SET MontoPrestado = @monto, 
+                    TasaInteres = @tasa, 
+                    MontoInteres = @interes,
+                    SaldoActual = @saldo,
+                    Fecha = @fecha
+                WHERE ID_Prestamo = @id
+            `);
+
+        res.json({ success: true, message: "Préstamo actualizado correctamente" });
+    } catch (err) {
+        console.error("Error al editar préstamo:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // --- RUTAS PARA EDITAR MOVIMIENTOS ---
 
 // 1. Editar Ahorro

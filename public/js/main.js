@@ -538,10 +538,11 @@ async function verHistorialFechas(id, nombre) {
         return `
         <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-100'} shadow-sm">
             <div class="flex justify-between items-center mb-2">
-                <span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
+<span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
                 <span class="text-[10px] ${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
                     ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaInicioFormateada || m.FechaPrestamo || 'S/F')}
                 </span>
+                ${!estaPago ? `<button onclick="abrirEditarPrestamo(${m.ID_Prestamo}, ${m.MontoPrestado}, ${m.TasaInteres}, '${m.FechaInicioFormateada || m.FechaPrestamo || ''}')" class="text-indigo-400 hover:text-indigo-600 p-1 ml-2" title="Editar Préstamo"><i class="fas fa-edit text-xs"></i></button>` : ''}
             </div>
 
             <div class="flex flex-wrap gap-2 mb-3">
@@ -1003,8 +1004,43 @@ function filtrarSocios() {
 }
 
     if (formValues) {
-        // Ajusta la URL según tu backend
-        apiCall('/registrar-prestamo-diario', formValues, "Préstamo dinámico registrado");
+        // Mostrar modal de confirmación antes de registrar
+        const confirmacion = await Swal.fire({
+            title: '¿Confirmar Préstamo?',
+            html: `
+                <div class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 text-xs font-bold uppercase">Socio ID:</span>
+                        <span class="text-indigo-600 font-black">#${formValues.idPersona}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 text-xs font-bold uppercase">Monto:</span>
+                        <span class="text-rose-600 font-black">$${Number(formValues.monto).toLocaleString()}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 text-xs font-bold uppercase">Tasa Mensual:</span>
+                        <span class="text-amber-600 font-black">${formValues.tasaInteresMensual}%</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500 text-xs font-bold uppercase">Fecha:</span>
+                        <span class="text-slate-600 font-bold">${formValues.fechaInicio}</span>
+                    </div>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, Registrar Préstamo',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#4f46e5',
+            cancelButtonColor: '#f1f5f9',
+            customClass: {
+                cancelButton: 'text-slate-500'
+            }
+        });
+
+        if (confirmacion.isConfirmed) {
+            apiCall('/registrar-prestamo-diario', formValues, "Préstamo dinámico registrado");
+        }
     }
 }
 
@@ -2462,6 +2498,91 @@ window.abrirEditarPago = async function(idPago, montoActual, fechaActual, detall
             }
         } catch (error) {
             console.error("Error al editar pago:", error);
+            Swal.fire('Error', 'Error de conexión', 'error');
+        }
+    }
+};
+
+// 3. Función para abrir el modal de edición de PRÉSTAMO
+window.abrirEditarPrestamo = async function(idPrestamo, montoActual, tasaActual, fechaActual) {
+    // Convertir fecha dd/MM/yyyy a yyyy-MM-dd para el input date
+    let fechaFormateada = '';
+    if (fechaActual) {
+        const parts = fechaActual.split('/');
+        if (parts.length === 3) {
+            fechaFormateada = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+    }
+
+    const { value: formValues } = await Swal.fire({
+        title: '✏️ Editar Préstamo',
+        html: `
+            <div class="text-left space-y-4">
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Monto Capital ($)</label>
+                    <input id="edit-prestamo-monto" type="number" class="swal2-input" value="${montoActual}" placeholder="Monto">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Tasa de Interés Mensual (%)</label>
+                    <input id="edit-prestamo-tasa" type="number" class="swal2-input" value="${tasaActual}" placeholder="Tasa %">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Fecha de Préstamo</label>
+                    <input id="edit-prestamo-fecha" type="date" class="swal2-input" value="${fechaFormateada}">
+                </div>
+                <div class="bg-amber-50 p-3 rounded-xl border border-amber-200">
+                    <p class="text-[10px] text-amber-700 leading-tight">
+                        <i class="fas fa-info-circle mr-1"></i> 
+                        Al cambiar el monto o la tasa, el interés y saldo se recalcularán automáticamente.
+                    </p>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar Cambios',
+        confirmButtonColor: '#4f46e5',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const monto = document.getElementById('edit-prestamo-monto').value;
+            const tasa = document.getElementById('edit-prestamo-tasa').value;
+            const fecha = document.getElementById('edit-prestamo-fecha').value;
+            
+            if (!monto || monto <= 0) {
+                Swal.showValidationMessage('El monto debe ser mayor a 0');
+                return false;
+            }
+            if (!tasa || tasa < 0) {
+                Swal.showValidationMessage('La tasa debe ser mayor o igual a 0');
+                return false;
+            }
+            return { monto, tasa, fecha };
+        }
+    });
+
+    if (formValues) {
+        try {
+            const response = await fetch('/api/editar-prestamo', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    idPrestamo: idPrestamo,
+                    monto: formValues.monto,
+                    tasaInteres: formValues.tasa,
+                    fecha: formValues.fecha
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                Swal.fire('¡Éxito!', 'Préstamo actualizado correctamente', 'success');
+                // Recargar
+                if (typeof cargarTodo === 'function') cargarTodo();
+            } else {
+                Swal.fire('Error', result.error || 'No se pudo actualizar', 'error');
+            }
+        } catch (error) {
+            console.error("Error al editar préstamo:", error);
             Swal.fire('Error', 'Error de conexión', 'error');
         }
     }
