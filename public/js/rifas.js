@@ -1352,7 +1352,7 @@ let datosPremios = {
     }
 };
 
-// Función para renderizar el panel de premios
+// Función para renderizar el panel de premios con 3 ganadores separados por tabla
 function renderizarPanelPremios() {
     const container = document.getElementById('listaPremios');
     if (!container) return;
@@ -1361,85 +1361,137 @@ function renderizarPanelPremios() {
     
     for (let i = 1; i <= 4; i++) {
         const key = `tabla${i}`;
-        const premio = datosPremios[key] || { numeroGanador: '', nombreGanador: '', entregado: false };
+        const premioData = datosPremios[key] || { 
+            ganadores: [
+                { numero: '', nombre: '', entregado: false },
+                { numero: '', nombre: '', entregado: false },
+                { numero: '', nombre: '', entregado: false }
+            ]
+        };
+        
+        // Verificar si todos los premios están entregados
+        const todosEntregados = premioData.ganadores.every(g => g.entregado && g.numero && g.nombre);
+        const algunosLlenos = premioData.ganadores.some(g => g.numero || g.nombre);
         
         const card = document.createElement('div');
         card.style.cssText = `
-            border: 2px solid ${premio.entregado ? '#00b894' : '#dfe6e9'};
+            border: 2px solid ${todosEntregados ? '#00b894' : '#dfe6e9'};
             border-radius: 12px;
             padding: 15px;
-            background: ${premio.entregado ? '#f0fff4' : '#fafafa'};
+            background: ${todosEntregados ? '#f0fff4' : '#fafafa'};
         `;
         
+        // Generar los 3 campos de ganadores
+        let htmlGanadores = '';
+        const posiciones = ['1er Premio', '2do Premio', '3er Premio'];
+        const iconos = ['🥇', '🥈', '🥉'];
+        const colores = ['#f1c40f', '#95a5a6', '#cd7f32'];
+        
+        for (let g = 0; g < 3; g++) {
+            const ganador = premioData.ganadores[g] || { numero: '', nombre: '', entregado: false };
+            const posicion = posiciones[g];
+            const icono = iconos[g];
+            const color = colores[g];
+            
+            htmlGanadores += `
+                <div style="margin-bottom: 15px; padding: 12px; background: ${ganador.entregado ? '#d4edda' : '#f8f9fa'}; border-radius: 8px; border-left: 4px solid ${color};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-weight: 700; font-size: 0.85rem; color: ${color};">${icono} ${posicion}</span>
+                        <span style="font-size: 0.7rem; color: ${ganador.entregado ? '#00b894' : '#e74c3c'}; font-weight: 700;">
+                            ${ganador.entregado ? '✓ ENTREGADO' : '⏳ PENDIENTE'}
+                        </span>
+                    </div>
+                    
+                    <div style="margin-bottom: 8px;">
+                        <label style="display: block; font-size: 0.65rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 3px;">
+                            Número (00-99)
+                        </label>
+                        <input type="text" 
+                            id="premio-numero-${i}-${g}" 
+                            value="${ganador.numero}"
+                            maxlength="2"
+                            placeholder="00"
+                            onchange="actualizarPremio(${i}, ${g}, 'numero', this.value)"
+                            style="width: 100%; padding: 6px; border: 2px solid ${color}40; border-radius: 6px; font-size: 0.9rem; font-weight: 700; text-align: center;">
+                    </div>
+                    
+                    <div style="margin-bottom: 8px;">
+                        <label style="display: block; font-size: 0.65rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 3px;">
+                            Nombre del Ganador
+                        </label>
+                        <input type="text" 
+                            id="premio-nombre-${i}-${g}"
+                            value="${ganador.nombre}"
+                            placeholder="Nombre del ganador..."
+                            onchange="actualizarPremio(${i}, ${g}, 'nombre', this.value)"
+                            style="width: 100%; padding: 6px; border: 2px solid ${color}40; border-radius: 6px; font-size: 0.85rem;">
+                    </div>
+                    
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px; background: ${ganador.entregado ? '#c3e6cb' : '#fff3cd'}; border-radius: 6px;">
+                        <input type="checkbox" 
+                            id="premio-entregado-${i}-${g}"
+                            ${ganador.entregado ? 'checked' : ''}
+                            onchange="actualizarPremio(${i}, ${g}, 'entregado', this.checked)"
+                            style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.75rem; font-weight: 700; color: ${ganador.entregado ? '#155724' : '#856404'};">
+                            Entregado
+                        </span>
+                    </label>
+                </div>
+            `;
+        }
+        
         card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <span style="font-weight: 800; font-size: 1rem; color: #2d3436;">Tabla ${i}</span>
-                <span style="font-size: 0.8rem; color: ${premio.entregado ? '#00b894' : '#e74c3c'}; font-weight: 700;">
-                    ${premio.entregado ? '✓ ENTREGADO' : '⏳ PENDIENTE'}
-                </span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <span style="font-weight: 800; font-size: 1.1rem; color: #2d3436;">🏆 Tabla ${i}</span>
+                ${algunosLlenos ? `<span style="font-size: 0.75rem; color: #0984e3; font-weight: 600;">${premioData.ganadores.filter(g => g.numero && g.nombre).length}/3 ganadores</span>` : ''}
             </div>
-            
-            <div style="margin-bottom: 10px;">
-                <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 4px;">
-                    Número Ganador (00-99)
-                </label>
-                <input type="text" 
-                    id="premio-numero-${i}" 
-                    value="${premio.numeroGanador}"
-                    maxlength="2"
-                    placeholder="00"
-                    onchange="actualizarPremio(${i}, 'numero', this.value)"
-                    style="width: 100%; padding: 8px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem; font-weight: 700; text-align: center;">
-            </div>
-            
-            <div style="margin-bottom: 12px;">
-                <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 4px;">
-                    Nombre del Ganador
-                </label>
-                <input type="text" 
-                    id="premio-nombre-${i}"
-                    value="${premio.nombreGanador}"
-                    placeholder="Nombre del ganador..."
-                    onchange="actualizarPremio(${i}, 'nombre', this.value)"
-                    style="width: 100%; padding: 8px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 0.9rem;">
-            </div>
-            
-            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; background: ${premio.entregado ? '#d4edda' : '#fff3cd'}; border-radius: 8px;">
-                <input type="checkbox" 
-                    id="premio-entregado-${i}"
-                    ${premio.entregado ? 'checked' : ''}
-                    onchange="actualizarPremio(${i}, 'entregado', this.checked)"
-                    style="width: 18px; height: 18px;">
-                <span style="font-size: 0.85rem; font-weight: 700; color: ${premio.entregado ? '#155724' : '#856404'};">
-                    Premio entregado
-                </span>
-            </label>
+            ${htmlGanadores}
         `;
         
         container.appendChild(card);
     }
 }
 
-// Función para actualizar un premio
-function actualizarPremio(numeroTabla, campo, valor) {
-    console.log('🔄 actualizarPremio llamado:', numeroTabla, campo, valor);
+// Función para actualizar un premio específico (tabla, posicion del ganador, campo, valor)
+function actualizarPremio(numeroTabla, posicionGanador, campo, valor) {
+    console.log('🔄 actualizarPremio llamado:', numeroTabla, posicionGanador, campo, valor);
 
     const key = `tabla${numeroTabla}`;
-    console.log('🔑 Key:', key);
+    
+    // Asegurar que existe la estructura
+    if (!datosPremios[key]) {
+        datosPremios[key] = {
+            ganadores: [
+                { numero: '', nombre: '', entregado: false },
+                { numero: '', nombre: '', entregado: false },
+                { numero: '', nombre: '', entregado: false }
+            ]
+        };
+    }
+    
+    // Asegurar que existe el array de ganadores
+    if (!datosPremios[key].ganadores || datosPremios[key].ganadores.length !== 3) {
+        datosPremios[key].ganadores = [
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false },
+            { numero: '', nombre: '', entregado: false }
+        ];
+    }
 
     // Mapear los nombres de campos del input a los campos de datosPremios
-    let campoPremio = campo;
     if (campo === 'numero') {
         // Validar que sea un número de 2 dígitos
         valor = valor.replace(/[^0-9]/g, '').substring(0, 2);
-        const inputEl = document.getElementById(`premio-numero-${numeroTabla}`);
+        const inputEl = document.getElementById(`premio-numero-${numeroTabla}-${posicionGanador}`);
         if (inputEl) inputEl.value = valor;
-        campoPremio = 'numeroGanador'; // Mapear al campo correcto
+        datosPremios[key].ganadores[posicionGanador].numero = valor;
     } else if (campo === 'nombre') {
-        campoPremio = 'nombreGanador'; // Mapear al campo correcto
+        datosPremios[key].ganadores[posicionGanador].nombre = valor;
+    } else if (campo === 'entregado') {
+        datosPremios[key].ganadores[posicionGanador].entregado = valor;
     }
-
-    datosPremios[key][campoPremio] = valor;
+    
     console.log('💾 datosPremios actualizado:', datosPremios);
 
     // Actualizar estilos visuales
