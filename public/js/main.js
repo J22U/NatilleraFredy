@@ -2527,8 +2527,13 @@ window.abrirEditarPrestamo = async function(idPrestamo, montoActual, tasaActual,
                     <input id="edit-prestamo-tasa" type="number" class="swal2-input" value="${tasaActual}" placeholder="Tasa %">
                 </div>
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase">Fecha de Préstamo</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase">Fecha de Préstamo (Inicio)</label>
                     <input id="edit-prestamo-fecha" type="date" class="swal2-input" value="${fechaFormateada}">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-emerald-600 uppercase">📅 Fecha Límite para Intereses (Opcional)</label>
+                    <input id="edit-prestamo-fecha-interes" type="date" class="swal2-input" placeholder="Dejar vacío para interés vigente">
+                    <p class="text-[9px] text-slate-400 mt-1">* Si estableces una fecha, los intereses se calcularán solo hasta esa fecha. Deja vacío para que sigan sumando.</p>
                 </div>
                 <div class="bg-amber-50 p-3 rounded-xl border border-amber-200">
                     <p class="text-[10px] text-amber-700 leading-tight">
@@ -2546,6 +2551,7 @@ window.abrirEditarPrestamo = async function(idPrestamo, montoActual, tasaActual,
             const monto = document.getElementById('edit-prestamo-monto').value;
             const tasa = document.getElementById('edit-prestamo-tasa').value;
             const fecha = document.getElementById('edit-prestamo-fecha').value;
+            const fechaInteres = document.getElementById('edit-prestamo-fecha-interes').value;
             
             if (!monto || monto <= 0) {
                 Swal.showValidationMessage('El monto debe ser mayor a 0');
@@ -2555,7 +2561,7 @@ window.abrirEditarPrestamo = async function(idPrestamo, montoActual, tasaActual,
                 Swal.showValidationMessage('La tasa debe ser mayor o igual a 0');
                 return false;
             }
-            return { monto, tasa, fecha };
+            return { monto, tasa, fecha, fechaInteres };
         }
     });
 
@@ -2568,7 +2574,8 @@ window.abrirEditarPrestamo = async function(idPrestamo, montoActual, tasaActual,
                     idPrestamo: idPrestamo,
                     monto: formValues.monto,
                     tasaInteres: formValues.tasa,
-                    fecha: formValues.fecha
+                    fecha: formValues.fecha,
+                    fechaInteres: formValues.fechaInteres || null
                 })
             });
 
