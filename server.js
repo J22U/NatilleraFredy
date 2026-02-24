@@ -46,65 +46,120 @@ app.post('/login', (req, res) => {
 
 // --- 3. RUTAS DE RIFAS ---
 
+// Obtener los datos de las rifas desde la nueva estructura de columnas
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
-        const { fecha } = req.query; // Capturamos la fecha que viene del navegador (?fecha=...)
+        const { fecha } = req.query;
         const pool = await poolPromise;
+        
         let query;
-        let request = pool.request();
-
+        
         if (fecha) {
-            // SI HAY FECHA: Buscamos específicamente esa rifa en el historial
-            // Usamos el formato de fecha para buscar en la columna nueva que creamos
-            query = "SELECT DatosJSON FROM ConfiguracionRifas WHERE FechaSorteo = @fechaBuscada";
-            request.input('fechaBuscada', fecha); 
+            // Buscar rifa por fecha específica
+            query = `
+                SELECT 
+                    TablaId, 
+                    Numero, 
+                    NombreParticipante, 
+                    EstadoPago, 
+                    TituloTabla, 
+                    FechaSorteo
+                FROM ConfiguracionRifas 
+                WHERE FechaSorteo = @fecha
+                ORDER BY TablaId, Numero
+            `;
         } else {
-            // SI NO HAY FECHA: Traemos la rifa actual (la última guardada)
-            query = "SELECT TOP 1 DatosJSON FROM ConfiguracionRifas ORDER BY Id DESC";
+            // Si no hay fecha, traer la rifa más reciente
+            query = `
+                SELECT TOP 1 
+                    TablaId, 
+                    Numero, 
+                    NombreParticipante, 
+                    EstadoPago, 
+                    TituloTabla, 
+                    FechaSorteo
+                FROM ConfiguracionRifas 
+                ORDER BY Id DESC
+            `;
         }
 
-        const result = await request.query(query);
-        
-        if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
-            const datosParseados = JSON.parse(result.recordset[0].DatosJSON);
-            
-            // Verificación de seguridad: si pedimos una fecha específica, 
-            // solo devolver datos si la fecha coincide
-            if (fecha && datosParseados.info && datosParseados.info.fecha !== fecha) {
-                // Los datos no son de la fecha solicitada - devolver "sin datos"
-                res.json({ sinDatos: true, mensaje: `No hay rifa guardada para ${fecha}` });
-            } else {
-                res.json(datosParseados);
-            }
-        } else {
-            // Si no encuentra nada para esa fecha, indicamos claramente que NO HAY DATOS
+        const result = await pool.request()
+            .input('fecha', sql.Date, fecha || null)
+            .query(query);
+
+        // Si no hay datos, devolver estructura vacía
+        if (result.recordset.length === 0) {
             res.json({ 
                 sinDatos: true, 
                 mensaje: `No hay rifa guardada para ${fecha || 'ninguna fecha'}`,
                 info: { nombre: '', premio: '', valor: '', fecha: fecha || '' }, 
-                tabla1: null, tabla2: null, tabla3: null, tabla4: null 
+                tabla1: { titulo: 'Tabla 1', participantes: {} }, 
+                tabla2: { titulo: 'Tabla 2', participantes: {} }, 
+                tabla3: { titulo: 'Tabla 3', participantes: {} }, 
+                tabla4: { titulo: 'Tabla 4', participantes: {} }
             });
+            return;
         }
+
+        // Construir el objeto de datos en el formato que espera el frontend
+        const datos = {
+            info: {
+                nombre: '',
+                premio: '',
+                valor: '',
+                fecha: result.recordset[0].FechaSorteo || fecha || ''
+            },
+            tabla1: { titulo: 'Tabla 1', participantes: {} },
+            tabla2: { titulo: 'Tabla 2', participantes: {} },
+            tabla3: { titulo: 'Tabla 3', participantes: {} },
+            tabla4: { titulo: 'Tabla 4', participantes: {} }
+        };
+
+        // Procesar cada registro y construir las tablas
+        result.recordset.forEach(row => {
+            const numTabla = parseInt(row.TablaId);
+            const numStr = row.Numero ? row.Numero.trim() : '';
+            const nombre = row.NombreParticipante || '';
+            const estaPagado = row.EstadoPago === 1 || row.EstadoPago === true;
+            const titulo = row.TituloTabla || `Tabla ${numTabla}`;
+
+            if (numTabla >= 1 && numTabla <= 4 && numStr) {
+                const keyTabla = `tabla${numTabla}`;
+                
+                // Guardar el título de la tabla
+                if (!datos[keyTabla].titulo || datos[keyTabla].titulo === `Tabla ${numTabla}`) {
+                    datos[keyTabla].titulo = titulo;
+                }
+
+                // Solo guardar participantes con nombre
+                if (nombre.trim() !== '') {
+                    datos[keyTabla].participantes[numStr] = {
+                        nombre: nombre.trim(),
+                        pago: estaPagado
+                    };
+                }
+            }
+        });
+
+        console.log("🔍 DATOS PROCESADOS DESDE LA BD:", datos);
+        res.json(datos);
+
     } catch (err) {
         console.error("❌ Error al leer la base de datos:", err.message);
-        res.status(500).json({ error: "Error al cargar datos." });
+        res.status(500).json({ error: "Error al cargar datos: " + err.message });
     }
 });
 
+// Guardar rifa usando columnas individuales
 app.post('/api/guardar-rifa', async (req, res) => {
+    const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+    
     try {
-        const pool = await poolPromise;
+        await transaction.begin();
+        
         const nuevosDatos = req.body;
-        
-        // LOG DE DEBUG: Ver qué datos llegan del frontend
         console.log('📥 Datos recibidos en /api/guardar-rifa:', JSON.stringify(nuevosDatos).substring(0, 500));
-        
-        // Verificar si vienen los premios
-        if (nuevosDatos.info && nuevosDatos.info.premios) {
-            console.log('✅ Premios recibidos:', JSON.stringify(nuevosDatos.info.premios));
-        } else {
-            console.log('⚠️ NO hay premios en los datos recibidos');
-        }
         
         // Sacamos la fecha del objeto info
         const fechaSorteo = nuevosDatos.info ? nuevosDatos.info.fecha : null;
@@ -113,49 +168,48 @@ app.post('/api/guardar-rifa', async (req, res) => {
             return res.status(400).json({ success: false, error: "La fecha es obligatoria para guardar." });
         }
 
-        // 1. Buscamos si ya existe un registro para esa fecha
-        const check = await pool.request()
+        // 1. Eliminar registros existentes para esa fecha
+        await transaction.request()
             .input('fecha', sql.Date, fechaSorteo)
-            .query("SELECT Id, DatosJSON FROM ConfiguracionRifas WHERE FechaSorteo = @fecha");
+            .query("DELETE FROM ConfiguracionRifas WHERE FechaSorteo = @fecha");
 
-        let datosFinales;
-
-        if (check.recordset.length > 0) {
-            // --- CORRECCIÓN AQUÍ ---
-            // En lugar de hacer {...datosViejos, ...nuevosDatos} que mantenía los nombres borrados,
-            // ahora reemplazamos las tablas y la info con lo que viene del frontend.
+        // 2. Insertar cada número como un registro separado
+        for (let numTabla = 1; numTabla <= 4; numTabla++) {
+            const keyTabla = `tabla${numTabla}`;
+            const tablaData = nuevosDatos[keyTabla];
             
-            const datosExistentes = JSON.parse(check.recordset[0].DatosJSON);
-
-            datosFinales = {
-                ...datosExistentes,       // Mantenemos otros datos si existieran
-                info: nuevosDatos.info,   // Sobrescribimos la info general
-                tabla1: nuevosDatos.tabla1, // Reemplazo total de la tabla (esto borra lo que falte)
-                tabla2: nuevosDatos.tabla2,
-                tabla3: nuevosDatos.tabla3,
-                tabla4: nuevosDatos.tabla4
-            };
-
-            console.log('💾 Guardando datos con premios:', datosFinales.info.premios ? 'SÍ' : 'NO');
-
-            await pool.request()
-                .input('id', sql.Int, check.recordset[0].Id)
-                .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosFinales))
-                .query("UPDATE ConfiguracionRifas SET DatosJSON = @datos, UltimaActualizacion = GETDATE() WHERE Id = @id");
-        } else {
-            // Si la fecha no existe, guardamos todo el objeto nuevo
-            datosFinales = nuevosDatos;
-            
-            console.log('💾 INSERTANDO datos nuevos con premios:', datosFinales.info.premios ? 'SÍ' : 'NO');
-            
-            await pool.request()
-                .input('fecha', sql.Date, fechaSorteo)
-                .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(datosFinales))
-                .query("INSERT INTO ConfiguracionRifas (FechaSorteo, DatosJSON, UltimaActualizacion) VALUES (@fecha, @datos, GETDATE())");
+            if (tablaData && tablaData.participantes) {
+                const titulo = tablaData.titulo || `Tabla ${numTabla}`;
+                
+                // Insertar cada número (00-99)
+                for (let num = 0; num <= 99; num++) {
+                    const numStr = num.toString().padStart(2, '0');
+                    const participante = tablaData.participantes[numStr];
+                    
+                    if (participante && participante.nombre && participante.nombre.trim() !== "") {
+                        await transaction.request()
+                            .input('fecha', sql.Date, fechaSorteo)
+                            .input('tablaId', sql.Int, numTabla)
+                            .input('numero', sql.Char(2), numStr)
+                            .input('nombre', sql.VarChar(255), participante.nombre.trim())
+                            .input('pago', sql.Bit, participante.pago ? 1 : 0)
+                            .input('titulo', sql.VarChar(100), titulo)
+                            .query(`
+                                INSERT INTO ConfiguracionRifas 
+                                (FechaSorteo, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla) 
+                                VALUES (@fecha, @tablaId, @numero, @nombre, @pago, @titulo)
+                            `);
+                    }
+                }
+            }
         }
 
-        res.json({ success: true, message: "Guardado correctamente en historial" });
+        await transaction.commit();
+        console.log('✅ Datos guardados correctamente en la BD');
+        res.json({ success: true, message: "Guardado correctamente" });
+        
     } catch (err) {
+        if (transaction) await transaction.rollback();
         console.error("❌ Error al guardar:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
@@ -270,7 +324,6 @@ app.post('/eliminar-socio', async (req, res) => {
 
 app.post('/registrar-prestamo-diario', async (req, res) => {
     try {
-        // Recibimos fechaInicio del body enviada por el frontend
         const { idPersona, monto, tasaInteresMensual, fechaInicio } = req.body;
         const pool = await poolPromise;
 
@@ -278,7 +331,7 @@ app.post('/registrar-prestamo-diario', async (req, res) => {
             .input('idPersona', sql.Int, idPersona)
             .input('monto', sql.Decimal(18, 2), monto)
             .input('tasa', sql.Decimal(18, 2), tasaInteresMensual)
-            .input('fechaInicio', sql.Date, fechaInicio) // <-- Nuevo input para la fecha
+            .input('fechaInicio', sql.Date, fechaInicio)
             .query(`
                 INSERT INTO Prestamos (
                     ID_Persona, 
@@ -293,7 +346,7 @@ app.post('/registrar-prestamo-diario', async (req, res) => {
                     @idPersona, 
                     @monto, 
                     @tasa, 
-                    @fechaInicio, -- Ahora usa la fecha manual en lugar de GETDATE()
+                    @fechaInicio,
                     0, 
                     @monto, 
                     'Activo'
@@ -314,17 +367,13 @@ app.post('/api/retirar-ahorro', async (req, res) => {
     try {
         const pool = await poolPromise;
 
-        // 1. Obtener el saldo actual del socio
         const resultSaldo = await pool.request()
             .input('id', sql.Int, id)
             .query('SELECT ISNULL(SUM(Monto), 0) as SaldoTotal FROM Ahorros WHERE ID_Persona = @id');
         
         const saldoActual = resultSaldo.recordset[0].SaldoTotal;
-
-        // 2. Determinar el monto final a retirar
         let montoARetirar = (tipo === 'total') ? saldoActual : parseFloat(monto);
 
-        // 3. VALIDACIONES
         if (montoARetirar > saldoActual) {
             return res.status(400).json({ 
                 success: false, 
@@ -336,8 +385,6 @@ app.post('/api/retirar-ahorro', async (req, res) => {
             return res.status(400).json({ success: false, message: "El monto debe ser mayor a 0." });
         }
 
-        // 4. Insertar el retiro (Monto en NEGATIVO)
-        // Usamos una descripción para saber que fue un retiro
         await pool.request()
             .input('id', sql.Int, id)
             .input('monto', sql.Decimal(18, 2), montoARetirar * -1)
@@ -361,17 +408,9 @@ app.get('/reporte-general', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT 
-                -- 1. TOTAL AHORRADO: El pasivo con tus socios.
                 (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) as TotalAhorrado,
-
-                -- 2. CAPITAL PRESTADO: Dinero que está "en la calle" trabajando.
                 (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
-
-                -- 3. GANANCIAS BRUTAS: Solo los intereses recolectados (Lo que pediste).
                 (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas,
-
-                -- 4. EFECTIVO EN CAJA: 
-                -- Es: (Ahorros + Ganancias) - (Lo que está prestado actualmente)
                 (
                     (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + 
                     (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) - 
@@ -380,14 +419,12 @@ app.get('/reporte-general', async (req, res) => {
         `);
         res.json(result.recordset[0]);
     } catch (err) {
-        console.error("Error en reporte-general:", err);
         res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0, CajaDisponible: 0 });
     }
 });
 
 // --- RUTAS PARA EL RESUMEN DEL SOCIO ---
 
-// 1. Obtener totales (Ahorro total y Deuda actual)
 app.get('/estado-cuenta/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -402,7 +439,6 @@ app.get('/estado-cuenta/:id', async (req, res) => {
     }
 });
 
-// 2. Historial de Ahorros
 app.get('/historial-ahorros/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -423,7 +459,6 @@ app.get('/historial-ahorros/:id', async (req, res) => {
     }
 });
 
-// 3. Historial de Abonos a Deuda
 app.get('/historial-abonos-deuda/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -434,19 +469,17 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
                     ID_Pago,
                     Monto as Monto_Abonado, 
                     FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada,
-                    ID_Prestamo -- Para saber a qué préstamo se le aplicó
+                    ID_Prestamo
                 FROM HistorialPagos 
                 WHERE ID_Persona = @id AND TipoMovimiento = 'Abono Deuda'
                 ORDER BY Fecha DESC
             `);
         res.json(result.recordset);
     } catch (err) {
-        console.error("Error en historial-abonos:", err);
         res.status(500).json([]);
     }
 });
 
-// Agrega esta ruta para los detalles de préstamos (el error 404 de tu imagen)
 app.get('/detalle-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -457,17 +490,15 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ID_Prestamo,
                     MontoPrestado,
                     MontoPagado,
-                    ISNULL(InteresesPagados, 0) as InteresesPagados, -- Importante para el descuento
+                    ISNULL(InteresesPagados, 0) as InteresesPagados,
                     TasaInteres,         
                     FechaInicio,         
-                    FechaInteres, -- Nueva columna para fecha límite de intereses
-                    -- Calculamos días desde la FechaInicio hasta la FechaInteres (si existe) o hasta HOY
+                    FechaInteres,
                     CASE 
                         WHEN FechaInteres IS NOT NULL THEN DATEDIFF(DAY, FechaInicio, FechaInteres)
                         WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
                         ELSE DATEDIFF(DAY, FechaInicio, GETDATE()) 
                     END as DiasTranscurridos,
-                    -- Interés basado en la fecha de corte (FechaInteres o GETDATE())
                     (MontoPrestado * (TasaInteres / 100.0 / 30.0) * CASE 
                             WHEN FechaInteres IS NOT NULL THEN DATEDIFF(DAY, FechaInicio, FechaInteres)
                             WHEN DATEDIFF(DAY, FechaInicio, GETDATE()) < 0 THEN 0 
@@ -481,25 +512,22 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             const capital = Number(p.MontoPrestado || 0);
             const interesTotal = Number(p.InteresAcumulado || 0);
             const pagadoCapital = Number(p.MontoPagado || 0);
-            const pagadoInteres = Number(p.InteresesPagados || 0); // Nuevo valor
+            const pagadoInteres = Number(p.InteresesPagados || 0);
             
-            // Cálculo del interés neto pendiente
             const interesPendiente = interesTotal - pagadoInteres;
-            // Cálculo del saldo total real (Capital pendiente + Interés pendiente)
             const saldoActual = (capital - pagadoCapital) + interesPendiente;
 
             return {
                 ID_Prestamo: p.ID_Prestamo,
                 MontoPrestado: capital,
                 MontoPagado: pagadoCapital,
-                InteresesPagados: pagadoInteres, // Informativo
+                InteresesPagados: pagadoInteres,
                 TasaInteres: p.TasaInteres,
                 FechaInicio: p.FechaInicio,
-                FechaInteres: p.FechaInteres, // Enviar al frontend
+                FechaInteres: p.FechaInteres,
                 DiasTranscurridos: p.DiasTranscurridos || 0,
                 InteresGenerado: interesPendiente > 0 ? interesPendiente : 0,
                 saldoHoy: saldoActual > 0 ? saldoActual : 0,
-                // Formateo de la fecha manual para el frontend
                 FechaInicioFormateada: p.FechaInicio ? new Date(p.FechaInicio).toLocaleDateString('es-CO') : 'S/F',
                 FechaInteresFormateada: p.FechaInteres ? new Date(p.FechaInteres).toLocaleDateString('es-CO') : null
             };
@@ -511,7 +539,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-// --- OBTENER PRÉSTAMOS ACTIVOS DE UN SOCIO PARA EL SELECTOR ---
+
 app.get('/api/cobro-general', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -519,14 +547,12 @@ app.get('/api/cobro-general', async (req, res) => {
             SELECT 
                 p.ID_Persona,
                 per.Nombre,
-                -- Sumamos Capital + Interés calculado por cada préstamo del socio
                 SUM(p.SaldoActual) as TotalCapital,
                 SUM(ROUND(
                     (p.MontoPrestado * (p.TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, p.FechaInicio, GETDATE()) < 0 THEN 0 
                     ELSE DATEDIFF(DAY, p.FechaInicio, GETDATE()) END) 
                     - ISNULL(p.InteresesPagados, 0), 0
                 )) as TotalInteres,
-                -- El Gran Total que debe aparecer en el cuadro azul
                 SUM(p.SaldoActual + ROUND(
                     (p.MontoPrestado * (p.TasaInteres / 100.0 / 30.0) * CASE WHEN DATEDIFF(DAY, p.FechaInicio, GETDATE()) < 0 THEN 0 
                     ELSE DATEDIFF(DAY, p.FechaInicio, GETDATE()) END) 
@@ -554,7 +580,6 @@ app.post('/procesar-movimiento', async (req, res) => {
         }
 
         const mesesParaSQL = MesesCorrespondientes || "Abono General";
-        // Si no viene fechaManual, usamos la fecha actual del servidor
         const fAporte = fechaManual || new Date().toISOString().split('T')[0];
 
         if (tipoMovimiento === 'deuda') {
@@ -602,7 +627,6 @@ app.post('/procesar-movimiento', async (req, res) => {
                     `);
             }
             
-            // Historial de Pagos: Cambiamos Fecha por @fAporte
             await pool.request()
                 .input('idPers', sql.Int, idPersona).input('idPre', sql.Int, idPrestamo)
                 .input('m', sql.Decimal(18, 2), m).input('det', sql.VarChar, mesesParaSQL)
@@ -611,7 +635,6 @@ app.post('/procesar-movimiento', async (req, res) => {
                         VALUES (@idPers, @idPre, @m, @fAporte, 'Abono Deuda', @det)`);
         } 
         else if (tipoMovimiento === 'ahorro') {
-            // AHORROS: Cambiamos Fecha por @fAporte para que el historial muestre la elegida
             await pool.request()
                 .input('id', sql.Int, idPersona)
                 .input('m', sql.Decimal(18, 2), m)
@@ -635,17 +658,15 @@ app.get('/api/quincenas-pagas/:idPersona', async (req, res) => {
             .input('id', sql.Int, req.params.idPersona)
             .query("SELECT MesesCorrespondientes FROM Ahorros WHERE ID_Persona = @id");
 
-        // Convertimos todos los registros en una sola lista de quincenas
         let pagas = [];
         result.recordset.forEach(reg => {
             if (reg.MesesCorrespondientes) {
-                // Separamos por coma y limpiamos espacios
                 const lista = reg.MesesCorrespondientes.split(',').map(s => s.trim());
                 pagas = pagas.concat(lista);
             }
         });
 
-        res.json(pagas); // Devuelve algo como ["Enero (Q1)", "Enero (Q2)"]
+        res.json(pagas);
     } catch (err) {
         res.status(500).json([]);
     }
@@ -660,7 +681,6 @@ app.post('/registrar-abono-dinamico', async (req, res) => {
         await transaction.begin();
         const m = parseFloat(monto);
 
-        // 1. Registrar el movimiento en el historial (Usando la columna 'Detalle' que creamos)
         await transaction.request()
             .input('idPrestamo', sql.Int, idPrestamo)
             .input('idPersona', sql.Int, idPersona)
@@ -669,24 +689,21 @@ app.post('/registrar-abono-dinamico', async (req, res) => {
             .query(`INSERT INTO HistorialPagos (ID_Prestamo, ID_Persona, Monto, Fecha, Detalle, TipoMovimiento) 
                     VALUES (@idPrestamo, @idPersona, @monto, GETDATE(), @detalle, 'Abono Deuda')`);
 
-        // 2. Si es abono a CAPITAL
         if (tipo === 'capital') {
             await transaction.request()
                 .input('idPrestamo', sql.Int, idPrestamo)
                 .input('monto', sql.Decimal(18, 2), m)
                 .query(`UPDATE Prestamos 
-                        SET MontoPagado = MontoPagado + @monto, -- Registra cuánto capital ha devuelto
+                        SET MontoPagado = MontoPagado + @monto,
                             SaldoActual = CASE WHEN (SaldoActual - @monto) < 0 THEN 0 ELSE SaldoActual - @monto END,
                             Estado = CASE WHEN (SaldoActual - @monto) <= 0 THEN 'Pagado' ELSE 'Activo' END 
                         WHERE ID_Prestamo = @idPrestamo`);
-        } 
-        // 3. Si es a INTERES (Esto es lo que el Reparto Global necesita ver)
-        else {
+        } else {
             await transaction.request()
                 .input('idPrestamo', sql.Int, idPrestamo)
                 .input('monto', sql.Decimal(18, 2), m)
                 .query(`UPDATE Prestamos 
-                        SET InteresesPagados = InteresesPagados + @monto -- AQUÍ SE SUMA LA GANANCIA REAL
+                        SET InteresesPagados = InteresesPagados + @monto
                         WHERE ID_Prestamo = @idPrestamo`);
         }
 
@@ -700,8 +717,6 @@ app.post('/registrar-abono-dinamico', async (req, res) => {
     }
 });
 
-// 1. Cambiar estado (Habilitar/Inhabilitar)
-// BUSCA ESTA RUTA EN SERVER.JS Y DÉJALA ASÍ:
 app.post('/cambiar-estado-socio', async (req, res) => {
     try {
         const { id, nuevoEstado } = req.body;
@@ -718,7 +733,6 @@ app.post('/cambiar-estado-socio', async (req, res) => {
     }
 });
 
-// Y ESTA PARA LOS INACTIVOS:
 app.get('/listar-inactivos', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -734,7 +748,6 @@ app.get('/api/ganancias-disponibles', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request().query(`
-            -- Sumamos los intereses pagados de todos los préstamos
             SELECT ISNULL(SUM(InteresesPagados), 0) as saldo 
             FROM Prestamos
         `);
@@ -755,13 +768,11 @@ app.get('/api/caja-disponible', async (req, res) => {
                 ISNULL((SELECT SUM(MontoPrestado - MontoPagado) FROM Prestamos WHERE Estado = 'Activo'), 0)
             ) as total
         `);
-        res.json(result.recordset[0]); // Esto devolverá { "total": X }
+        res.json(result.recordset[0]);
     } catch (err) {
         res.status(500).json({ total: 0 });
     }
 });
-
-// --- RUTAS FALTANTES PARA LOS CUADROS DEL DASHBOARD ---
 
 app.get('/api/total-ahorros', async (req, res) => {
     try {
@@ -776,7 +787,6 @@ app.get('/api/total-ahorros', async (req, res) => {
 app.get('/api/total-prestamos', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // Calculamos el capital que está en la calle (lo prestado menos lo que ya devolvieron)
         const result = await pool.request().query(`
             SELECT ISNULL(SUM(MontoPrestado - MontoPagado), 0) as total 
             FROM Prestamos 
@@ -788,12 +798,9 @@ app.get('/api/total-prestamos', async (req, res) => {
     }
 });
 
-// Ruta para obtener las ganancias acumuladas de rifas
 app.get('/api/ganancias-rifas-acumuladas', async (req, res) => {
     try {
         const pool = await poolPromise;
-        
-        // Buscar si existe un registro de ganancias acumuladas
         const result = await pool.request()
             .query("SELECT TOP 1 DatosJSON FROM ConfiguracionRifas WHERE FechaSorteo = '2099-12-31'");
         
@@ -809,23 +816,19 @@ app.get('/api/ganancias-rifas-acumuladas', async (req, res) => {
     }
 });
 
-// Ruta para guardar las ganancias acumuladas de rifas
 app.post('/api/ganancias-rifas-acumuladas', async (req, res) => {
     try {
         const { gananciaAcumulada } = req.body;
         const pool = await poolPromise;
         
-        // Verificar si ya existe el registro
         const check = await pool.request()
             .query("SELECT Id FROM ConfiguracionRifas WHERE FechaSorteo = '2099-12-31'");
         
         if (check.recordset.length > 0) {
-            // Actualizar
             await pool.request()
                 .input('ganancia', sql.NVarChar, JSON.stringify({ gananciaAcumulada }))
                 .query("UPDATE ConfiguracionRifas SET DatosJSON = @ganancia, UltimaActualizacion = GETDATE() WHERE FechaSorteo = '2099-12-31'");
         } else {
-            // Crear nuevo registro
             await pool.request()
                 .input('ganancia', sql.NVarChar, JSON.stringify({ gananciaAcumulada }))
                 .query("INSERT INTO ConfiguracionRifas (FechaSorteo, DatosJSON, UltimaActualizacion) VALUES ('2099-12-31', @ganancia, GETDATE())");
@@ -848,7 +851,6 @@ app.get('/api/estadisticas-rifas', async (req, res) => {
             let totalPorRecoger = 0;
             let totalRecogido = 0;
 
-            // Recorremos todas las tablas y sus números
             datos.tablas.forEach(tabla => {
                 tabla.numeros.forEach(n => {
                     const valorNum = parseFloat(datos.info.valor) || 0;
@@ -859,8 +861,6 @@ app.get('/api/estadisticas-rifas', async (req, res) => {
                 });
             });
 
-            // Ganancia (Asumiendo que la ganancia es lo recogido menos el valor del premio)
-            // Si el premio se paga aparte, la ganancia es el total recogido.
             const valorPremio = parseFloat(datos.info.premio_valor) || 0; 
             const gananciasActuales = totalRecogido - valorPremio;
 
@@ -882,8 +882,6 @@ app.post('/api/registrar-gasto-ganancias', async (req, res) => {
     const pool = await poolPromise;
 
     try {
-        // Esta consulta resta de la columna donde se acumulan los intereses
-        // O resetea a 0 si prefieres un reparto total
         await pool.request()
             .input('monto', sql.Decimal(18, 2), monto)
             .query(`
@@ -900,29 +898,25 @@ app.post('/api/registrar-gasto-ganancias', async (req, res) => {
     }
 });
 
-// --- RUTA PARA EJECUTAR EL REPARTO REAL A LOS SOCIOS ---
 app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
-    const { sociosAptos } = req.body; // Se asume que sociosAptos ya viene calculado por días desde el cliente
+    const { sociosAptos } = req.body;
     const pool = await poolPromise;
     const transaction = new sql.Transaction(pool);
 
     try {
         await transaction.begin();
 
-        // 1. Sumamos el total a repartir
         const totalRepartido = sociosAptos.reduce((sum, s) => sum + parseFloat(s.interes), 0);
 
         for (const s of sociosAptos) {
             await transaction.request()
                 .input('id', sql.Int, s.id)
                 .input('monto', sql.Decimal(18, 2), s.interes)
-                // Detalle actualizado para especificar que es por días de permanencia
                 .input('detalle', sql.VarChar(sql.MAX), s.detalle || 'REPARTO UTILIDADES EQUITATIVO (POR DÍAS)')
                 .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, FechaAporte, MesesCorrespondientes) 
                         VALUES (@id, @monto, GETDATE(), GETDATE(), @detalle)`);
         }
 
-        // 2. RESTA PROPORCIONAL: Corregido el ORDER BY para usar FechaInicio (nombre real en tu DB)
         await transaction.request()
             .input('totalADescontar', sql.Decimal(18, 2), totalRepartido)
             .query(`
@@ -932,7 +926,7 @@ app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
                     SELECT TOP 1 ID_Prestamo 
                     FROM Prestamos 
                     WHERE InteresesPagados > 0 
-                    ORDER BY FechaInicio DESC -- Nombre corregido de la columna
+                    ORDER BY FechaInicio DESC
                 )
             `);
 
@@ -949,7 +943,6 @@ app.get('/api/previsualizar-reparto-diario', async (req, res) => {
     try {
         const pool = await poolPromise;
 
-        // 1. Calculamos la utilidad neta total (Intereses cobrados - Gastos)
         const utilidadRes = await pool.request().query(`
             SELECT 
                 (SELECT ISNULL(SUM(Monto), 0) FROM HistorialPagos WHERE TipoMovimiento = 'Abono Deuda' AND Detalle LIKE '%INTERES%') -
@@ -957,7 +950,6 @@ app.get('/api/previsualizar-reparto-diario', async (req, res) => {
         `);
         const utilidadTotal = utilidadRes.recordset[0].UtilidadNeta;
 
-        // 2. Traemos los ahorros y calculamos los días de permanencia de cada uno
         const ahorrosRes = await pool.request().query(`
             SELECT 
                 A.ID_Persona, 
@@ -973,7 +965,6 @@ app.get('/api/previsualizar-reparto-diario', async (req, res) => {
         let puntajeGlobal = 0;
         const puntosPorSocio = {};
 
-        // 3. Lógica de Pesos-Día
         ahorros.forEach(ahorro => {
             const diasEfectivos = ahorro.Dias > 0 ? ahorro.Dias : 1;
             const puntos = ahorro.Monto * diasEfectivos;
@@ -989,7 +980,6 @@ app.get('/api/previsualizar-reparto-diario', async (req, res) => {
             puntajeGlobal += puntos;
         });
 
-        // 4. Convertimos puntos en dinero real
         const sociosAptos = Object.values(puntosPorSocio).map(s => {
             const participacion = s.puntos / puntajeGlobal;
             const utilidadAsignada = Math.floor(utilidadTotal * participacion);
@@ -997,7 +987,7 @@ app.get('/api/previsualizar-reparto-diario', async (req, res) => {
             return {
                 id: s.id,
                 nombre: s.nombre,
-                interes: utilidadAsignada, // Este es el campo que espera tu POST
+                interes: utilidadAsignada,
                 detalle: `REPARTO EQUITATIVO: ${s.puntos.toLocaleString()} PTS-DÍA`
             };
         });
@@ -1013,7 +1003,6 @@ app.get('/api/previsualizar-reparto-diario', async (req, res) => {
     }
 });
 
-// Agrega esto en tu server.js
 app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -1022,7 +1011,6 @@ app.get('/listar-miembros', async (req, res) => {
                 per.ID_Persona as id,
                 per.Nombre as nombre,
                 per.Documento as documento,
-                -- Calculamos el total real (Capital + Interés) por cada persona
                 ISNULL((
                     SELECT SUM(
                         p.SaldoActual + 
@@ -1051,7 +1039,6 @@ app.post('/procesar-cruce', async (req, res) => {
         await transaction.begin();
 
         try {
-            // 1. OBTENER EL INTERÉS ACUMULADO AL DÍA DE HOY
             const prestamoInfo = await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
                 .query(`
@@ -1065,18 +1052,15 @@ app.post('/procesar-cruce', async (req, res) => {
             const p = prestamoInfo.recordset[0];
             const interesPendiente = Math.max(0, p.InteresCalculado - p.InteresesPagados);
 
-            // Determinar cuánto va para interés y cuánto para capital
             let pagoInteres = Math.min(monto, interesPendiente);
             let pagoCapital = monto - pagoInteres;
 
-            // 2. DESCONTAR DE AHORROS
             await transaction.request()
                 .input('idPers', sql.Int, idPersona)
                 .input('m', sql.Decimal(18, 2), monto)
                 .query(`INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) 
                         VALUES (@idPers, -@m, GETDATE(), 'CRUCE DE CUENTAS POR DEUDA')`);
 
-            // 3. ACTUALIZAR PRÉSTAMO (Repartiendo el pago)
             await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
                 .input('pInt', sql.Decimal(18, 2), pagoInteres)
@@ -1091,7 +1075,6 @@ app.post('/procesar-cruce', async (req, res) => {
                     WHERE ID_Prestamo = @idP
                 `);
 
-            // 4. REGISTRAR EN HISTORIAL (Detallando el reparto)
             const detalleCruce = `Cruce Ahorros: Int: $${pagoInteres.toLocaleString()} | Cap: $${pagoCapital.toLocaleString()}`;
             await transaction.request()
                 .input('idPers', sql.Int, idPersona)
@@ -1113,7 +1096,6 @@ app.post('/procesar-cruce', async (req, res) => {
     }
 });
 
-// --- RUTA PARA EL SELECTOR DE DEUDAS (SOLUCIONA EL ERROR 404) ---
 app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -1128,7 +1110,6 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
                 WHERE ID_Persona = @id AND Estado = 'Activo'
             `);
         
-        // Enviamos el recordset (será [] si no hay deudas, lo cual está bien)
         res.json(result.recordset);
     } catch (err) {
         console.error("Error en api/prestamos-activos:", err.message);
@@ -1136,9 +1117,6 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
     }
 });
 
-// --- RUTAS PARA EDITAR MOVIMIENTOS ---
-
-// 1. Editar Ahorro - Ahora acepta RowNum y lo convierte a ID_Ahorro real
 app.put('/api/editar-ahorro', async (req, res) => {
     try {
         const { idAhorro, monto, fecha, MesesCorrespondientes, idPersona } = req.body;
@@ -1149,7 +1127,6 @@ app.put('/api/editar-ahorro', async (req, res) => {
 
         const pool = await poolPromise;
 
-        // Convertir RowNum a ID_Ahorro real
         const rowNum = parseInt(idAhorro);
         const ahorroReal = await pool.request()
             .input('idPersona', sql.Int, idPersona)
@@ -1167,10 +1144,8 @@ app.put('/api/editar-ahorro', async (req, res) => {
         }
 
         const realIdAhorro = ahorroReal.recordset[0].ID_Ahorro;
-        const montoAnterior = parseFloat(ahorroReal.recordset[0].Monto);
         const montoNuevo = parseFloat(monto);
 
-        // Actualizar el ahorro
         await pool.request()
             .input('id', sql.Int, realIdAhorro)
             .input('monto', sql.Decimal(18, 2), montoNuevo)
@@ -1192,7 +1167,6 @@ app.put('/api/editar-ahorro', async (req, res) => {
     }
 });
 
-// 2. Editar Pago de Deuda
 app.put('/api/editar-pago-deuda', async (req, res) => {
     try {
         const { idPago, monto, fecha, detalle, idPrestamo, montoAnterior } = req.body;
@@ -1206,7 +1180,6 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
         const montoAnt = montoAnterior ? parseFloat(montoAnterior) : 0;
         const diferencia = montoNuevo - montoAnt;
 
-        // Actualizar el pago en historial
         await pool.request()
             .input('id', sql.Int, idPago)
             .input('monto', sql.Decimal(18, 2), montoNuevo)
@@ -1220,11 +1193,9 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
                 WHERE ID_Pago = @id
             `);
 
-        // Determinar si es abono a interés o capital basado en el detalle
         const esCapital = String(detalle || '').toLowerCase().includes('capital');
         
         if (diferencia !== 0) {
-            // Actualizar el préstamo según corresponda
             if (esCapital) {
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
@@ -1241,7 +1212,6 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
                         WHERE ID_Prestamo = @idP
                     `);
             } else {
-                // Es abono a interés
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo)
                     .input('dif', sql.Decimal(18, 2), diferencia)
@@ -1260,7 +1230,6 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
     }
 });
 
-// 3. Obtener detalle de un ahorro específico
 app.get('/api/detalle-ahorro/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -1288,7 +1257,6 @@ app.get('/api/detalle-ahorro/:id', async (req, res) => {
     }
 });
 
-// --- RUTA PARA EDITAR PRÉSTAMO (MONTO, TASA, FECHA, FECHA HASTA) ---
 app.put('/api/editar-prestamo', async (req, res) => {
     try {
         const { idPrestamo, monto, tasaInteres, fecha, fechaInteres } = req.body;
@@ -1299,7 +1267,6 @@ app.put('/api/editar-prestamo', async (req, res) => {
 
         const pool = await poolPromise;
 
-        // Obtener datos actuales del préstamo
         const prestamoActual = await pool.request()
             .input('id', sql.Int, idPrestamo)
             .query("SELECT MontoPrestado, TasaInteres, FechaInicio FROM Prestamos WHERE ID_Prestamo = @id");
@@ -1311,40 +1278,33 @@ app.put('/api/editar-prestamo', async (req, res) => {
         const tasaAnterior = parseFloat(prestamoActual.recordset[0].TasaInteres || 0);
         const fechaAnterior = prestamoActual.recordset[0].FechaInicio;
 
-        // Calcular nuevo interés basado en el nuevo monto y la tasa
         const tasaNueva = tasaInteres ? parseFloat(tasaInteres) : tasaAnterior;
 
         let interesNuevo = 0;
         let diasTranscurridos = 0;
 
-        // Determinar hasta qué fecha calcular el interés
         let fechaCalculoInteres;
         if (fechaInteres && fechaInteres !== null && fechaInteres !== '') {
             fechaCalculoInteres = new Date(fechaInteres);
         } else {
-            // Si no hay fecha límite, usar fecha actual
             fechaCalculoInteres = new Date();
         }
 
         const fechaInicioPrestamo = fecha ? new Date(fecha) : new Date(fechaAnterior);
 
-        // Calcular días transcurridos desde inicio hasta la fecha de cálculo
         diasTranscurridos = Math.floor((fechaCalculoInteres - fechaInicioPrestamo) / (1000 * 60 * 60 * 24));
 
         if (diasTranscurridos < 0) diasTranscurridos = 0;
 
-        // Calcular interés basado en los días
         if (diasTranscurridos > 0) {
             const interesDiario = (parseFloat(monto) * (tasaNueva / 100)) / 30;
             interesNuevo = interesDiario * diasTranscurridos;
         } else {
-            // Si es el primer día, calcular interés de un mes
             interesNuevo = parseFloat(monto) * (tasaNueva / 100);
         }
 
         const nuevoSaldo = parseFloat(monto) + interesNuevo;
 
-        // Actualizar el préstamo con la fecha límite de intereses
         await pool.request()
             .input('id', sql.Int, idPrestamo)
             .input('monto', sql.Decimal(18, 2), parseFloat(monto))
@@ -1364,25 +1324,13 @@ app.put('/api/editar-prestamo', async (req, res) => {
                 WHERE ID_Prestamo = @id
             `);
 
-        res.json({ 
-            success: true, 
-            message: "Préstamo actualizado correctamente",
-            debug: {
-                monto: monto,
-                tasa: tasaNueva,
-                dias: diasTranscurridos,
-                interes: interesNuevo,
-                fechaInicio: fecha || fechaAnterior,
-                fechaInteres: fechaInteres
-            }
-        });
+        res.json({ success: true, message: "Préstamo actualizado correctamente" });
     } catch (err) {
         console.error("Error al editar préstamo:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });
 
-// 4. Obtener detalle de un pago específico
 app.get('/api/detalle-pago/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -1412,11 +1360,9 @@ app.get('/api/detalle-pago/:id', async (req, res) => {
     }
 });
 
-// --- SISTEMA DE BACKUP ---
 app.get('/api/backup-database', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // Obtenemos datos de las tablas principales
         const personas = await pool.request().query("SELECT * FROM Personas");
         const ahorros = await pool.request().query("SELECT * FROM Ahorros");
         const prestamos = await pool.request().query("SELECT * FROM Prestamos");
@@ -1440,7 +1386,6 @@ app.get('/api/backup-database', async (req, res) => {
     }
 });
 
-// --- SISTEMA DE RESTAURACIÓN COMPLETO ---
 app.post('/api/restore-database', async (req, res) => {
     const { data } = req.body;
     const pool = await poolPromise;
@@ -1449,7 +1394,6 @@ app.post('/api/restore-database', async (req, res) => {
     try {
         await transaction.begin();
 
-        // 1. LIMPIEZA TOTAL
         await transaction.request().query(`
             DELETE FROM HistorialPagos;
             DELETE FROM Ahorros;
@@ -1458,7 +1402,6 @@ app.post('/api/restore-database', async (req, res) => {
             DELETE FROM ConfiguracionRifas;
         `);
 
-        // 2. RESTAURAR PERSONAS (Con Identity Fix)
         if (data.personas && data.personas.length > 0) {
             for (const p of data.personas) {
                 await transaction.request()
@@ -1478,7 +1421,6 @@ app.post('/api/restore-database', async (req, res) => {
             }
         }
 
-        // 3. RESTAURAR PRÉSTAMOS (Con Identity Fix)
         if (data.prestamos && data.prestamos.length > 0) {
             for (const pr of data.prestamos) {
                 await transaction.request()
@@ -1503,7 +1445,6 @@ app.post('/api/restore-database', async (req, res) => {
             }
         }
 
-        // 4. RESTAURAR AHORROS (Con Identity Fix)
         if (data.ahorros && data.ahorros.length > 0) {
             for (const a of data.ahorros) {
                 await transaction.request()
@@ -1522,7 +1463,6 @@ app.post('/api/restore-database', async (req, res) => {
             }
         }
 
-        // 5. RESTAURAR HISTORIAL (Suele no tener Identity, pero lo dejamos simple)
         if (data.historial && data.historial.length > 0) {
             for (const h of data.historial) {
                 await transaction.request()
