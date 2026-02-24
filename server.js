@@ -51,14 +51,14 @@ app.get('/api/cargar-rifas', async (req, res) => {
         
         if (fecha) {
             query = `
-                SELECT TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
+                SELECT Id, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
                 FROM Rifas_Detalle 
                 WHERE FechaSorteo = @fechaBuscada
-                ORDER BY TablaId, Numero
+                ORDER BY Id, Numero
             `;
         } else {
             query = `
-                SELECT TOP 1 TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
+                SELECT Id, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
                 FROM Rifas_Detalle 
                 ORDER BY Id DESC
             `;
@@ -89,28 +89,62 @@ app.get('/api/cargar-rifas', async (req, res) => {
             tabla4: { titulo: 'Tabla 4', participantes: {} }
         };
 
-        result.recordset.forEach(row => {
-            const numTabla = parseInt(row.TablaId);
-            const numStr = row.Numero ? row.Numero.trim() : '';
-            const nombre = row.NombreParticipante || '';
-            const estaPagado = row.EstadoPago === 1 || row.EstadoPago === true;
-            const titulo = row.TituloTabla || 'Tabla ' + numTabla;
+        // Determinar cuántas tablas existen basadas en los IDs de registro
+        // Si TablaId está vacío, usamos el Id del registro para dividir en grupos de 100
+        const tieneTablaId = result.recordset.some(r => r.TablaId !== null && r.TablaId !== undefined);
+        
+        if (tieneTablaId) {
+            // Usar TablaId como antes
+            result.recordset.forEach(row => {
+                const numTabla = parseInt(row.TablaId);
+                const numStr = row.Numero ? row.Numero.trim() : '';
+                const nombre = row.NombreParticipante || '';
+                const estaPagado = row.EstadoPago === 1 || row.EstadoPago === true;
+                const titulo = row.TituloTabla || 'Tabla ' + numTabla;
 
-            if (numTabla >= 1 && numTabla <= 4 && numStr) {
-                const keyTabla = 'tabla' + numTabla;
-                
-                if (!datos[keyTabla].titulo || datos[keyTabla].titulo === 'Tabla ' + numTabla) {
-                    datos[keyTabla].titulo = titulo;
-                }
+                if (numTabla >= 1 && numTabla <= 4 && numStr) {
+                    const keyTabla = 'tabla' + numTabla;
+                    
+                    if (!datos[keyTabla].titulo || datos[keyTabla].titulo === 'Tabla ' + numTabla) {
+                        datos[keyTabla].titulo = titulo;
+                    }
 
-                if (nombre && nombre.trim() !== '') {
-                    datos[keyTabla].participantes[numStr] = {
-                        nombre: nombre.trim(),
-                        pago: estaPagado
-                    };
+                    if (nombre && nombre.trim() !== '') {
+                        datos[keyTabla].participantes[numStr] = {
+                            nombre: nombre.trim(),
+                            pago: estaPagado
+                        };
+                    }
                 }
-            }
-        });
+            });
+        } else {
+            // TablaId está vacío - inferir tabla basándose en el Id del registro
+            // Dividir los registros en grupos de 100 para asignar tablas
+            const registrosOrdenados = [...result.recordset].sort((a, b) => a.Id - b.Id);
+            
+            registrosOrdenados.forEach((row, index) => {
+                const numTabla = Math.floor(index / 100) + 1; // Primeros 100 = tabla 1, siguientes 100 = tabla 2, etc.
+                const numStr = row.Numero ? row.Numero.trim() : '';
+                const nombre = row.NombreParticipante || '';
+                const estaPagado = row.EstadoPago === 1 || row.EstadoPago === true;
+                const titulo = row.TituloTabla || 'Tabla ' + numTabla;
+
+                if (numTabla >= 1 && numTabla <= 4 && numStr) {
+                    const keyTabla = 'tabla' + numTabla;
+                    
+                    if (!datos[keyTabla].titulo || datos[keyTabla].titulo === 'Tabla ' + numTabla) {
+                        datos[keyTabla].titulo = titulo;
+                    }
+
+                    if (nombre && nombre.trim() !== '') {
+                        datos[keyTabla].participantes[numStr] = {
+                            nombre: nombre.trim(),
+                            pago: estaPagado
+                        };
+                    }
+                }
+            });
+        }
 
         console.log("DATOS DESDE Rifas_Detalle:", datos);
         res.json(datos);
