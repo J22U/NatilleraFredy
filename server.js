@@ -67,10 +67,20 @@ app.get('/api/cargar-rifas', async (req, res) => {
         
         if (result.recordset.length > 0 && result.recordset[0].DatosJSON) {
             const datosParseados = JSON.parse(result.recordset[0].DatosJSON);
-            res.json(datosParseados);
+            
+            // Verificación de seguridad: si pedimos una fecha específica, 
+            // solo devolver datos si la fecha coincide
+            if (fecha && datosParseados.info && datosParseados.info.fecha !== fecha) {
+                // Los datos no son de la fecha solicitada - devolver "sin datos"
+                res.json({ sinDatos: true, mensaje: `No hay rifa guardada para ${fecha}` });
+            } else {
+                res.json(datosParseados);
+            }
         } else {
-            // Si no encuentra nada para esa fecha, enviamos estructura vacía
+            // Si no encuentra nada para esa fecha, indicamos claramente que NO HAY DATOS
             res.json({ 
+                sinDatos: true, 
+                mensaje: `No hay rifa guardada para ${fecha || 'ninguna fecha'}`,
                 info: { nombre: '', premio: '', valor: '', fecha: fecha || '' }, 
                 tabla1: null, tabla2: null, tabla3: null, tabla4: null 
             });
