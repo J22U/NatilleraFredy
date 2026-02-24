@@ -293,8 +293,32 @@ async function cargarRifas() {
 
         datos = await response.json();
 
+        // DEBUG: Ver qué datos llegan del servidor
+        console.log("🔍 DATOS RECIBIDOS DEL SERVIDOR:", JSON.stringify(datos).substring(0, 1000));
+
         // 3. Limpiamos el contenedor antes de dibujar
         container.innerHTML = ''; 
+
+        // Verificar si hay datos reales o no
+        if (datos && datos.sinDatos) {
+            console.log("⚠️ No hay datos para esta fecha:", datos.mensaje);
+            // Mostrar mensaje de que no hay datos
+            container.innerHTML = `<div style="text-align:center; padding: 50px; color: #636e72;">
+                <i class="fas fa-info-circle" style="font-size: 3rem; color: #0984e3;"></i>
+                <p style="font-size: 1.2rem; margin-top: 15px;">${datos.mensaje || 'No hay rifa guardada para esta fecha'}</p>
+                <p style="font-size: 0.9rem;">Puedes agregar participantes y se guardará automáticamente.</p>
+            </div>`;
+            
+            // Dibujar tablas vacías para que pueda trabajar
+            for (let i = 1; i <= 4; i++) {
+                crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
+            }
+            
+            // Actualizar contadores y cargar premios vacíos
+            actualizarContadoresRifa();
+            cargarPremios({ info: {} });
+            return;
+        }
 
         // 4. Llenamos la información general (si existe)
         if (datos && datos.info) {
