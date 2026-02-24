@@ -46,49 +46,28 @@ app.post('/login', (req, res) => {
 
 // --- 3. RUTAS DE RIFAS ---
 
-// Obtener los datos de las rifas desde la nueva estructura de columnas
+// Obtener los datos de las rifas (usando DatosJSON)
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
         const { fecha } = req.query;
         const pool = await poolPromise;
         
         let query;
-        
+        let request = pool.request();
+
         if (fecha) {
             // Buscar rifa por fecha específica
-            query = `
-                SELECT 
-                    TablaId, 
-                    Numero, 
-                    NombreParticipante, 
-                    EstadoPago, 
-                    TituloTabla, 
-                    FechaSorteo
-                FROM ConfiguracionRifas 
-                WHERE FechaSorteo = @fecha
-                ORDER BY TablaId, Numero
-            `;
+            query = "SELECT DatosJSON, FechaSorteo FROM ConfiguracionRifas WHERE FechaSorteo = @fechaBuscada";
+            request.input('fechaBuscada', sql.Date, fecha); 
         } else {
             // Si no hay fecha, traer la rifa más reciente
-            query = `
-                SELECT TOP 1 
-                    TablaId, 
-                    Numero, 
-                    NombreParticipante, 
-                    EstadoPago, 
-                    TituloTabla, 
-                    FechaSorteo
-                FROM ConfiguracionRifas 
-                ORDER BY Id DESC
-            `;
+            query = "SELECT TOP 1 DatosJSON, FechaSorteo FROM ConfiguracionRifas ORDER BY Id DESC";
         }
 
-        const result = await pool.request()
-            .input('fecha', sql.Date, fecha || null)
-            .query(query);
+        const result = await request.query(query);
 
         // Si no hay datos, devolver estructura vacía
-        if (result.recordset.length === 0) {
+        if (result.recordset.length === 0 || !result.recordset[0].DatosJSON) {
             res.json({ 
                 sinDatos: true, 
                 mensaje: `No hay rifa guardada para ${fecha || 'ninguna fecha'}`,
@@ -101,47 +80,10 @@ app.get('/api/cargar-rifas', async (req, res) => {
             return;
         }
 
-        // Construir el objeto de datos en el formato que espera el frontend
-        const datos = {
-            info: {
-                nombre: '',
-                premio: '',
-                valor: '',
-                fecha: result.recordset[0].FechaSorteo || fecha || ''
-            },
-            tabla1: { titulo: 'Tabla 1', participantes: {} },
-            tabla2: { titulo: 'Tabla 2', participantes: {} },
-            tabla3: { titulo: 'Tabla 3', participantes: {} },
-            tabla4: { titulo: 'Tabla 4', participantes: {} }
-        };
-
-        // Procesar cada registro y construir las tablas
-        result.recordset.forEach(row => {
-            const numTabla = parseInt(row.TablaId);
-            const numStr = row.Numero ? row.Numero.trim() : '';
-            const nombre = row.NombreParticipante || '';
-            const estaPagado = row.EstadoPago === 1 || row.EstadoPago === true;
-            const titulo = row.TituloTabla || `Tabla ${numTabla}`;
-
-            if (numTabla >= 1 && numTabla <= 4 && numStr) {
-                const keyTabla = `tabla${numTabla}`;
-                
-                // Guardar el título de la tabla
-                if (!datos[keyTabla].titulo || datos[keyTabla].titulo === `Tabla ${numTabla}`) {
-                    datos[keyTabla].titulo = titulo;
-                }
-
-                // Solo guardar participantes con nombre
-                if (nombre.trim() !== '') {
-                    datos[keyTabla].participantes[numStr] = {
-                        nombre: nombre.trim(),
-                        pago: estaPagado
-                    };
-                }
-            }
-        });
-
-        console.log("🔍 DATOS PROCESADOS DESDE LA BD:", datos);
+        // Parsear los datos JSON
+        const datos = JSON.parse(result.recordset[0].DatosJSON);
+        
+        console.log("🔍 DATOS CARGADOS DESDE LA BD:", datos);
         res.json(datos);
 
     } catch (err) {
@@ -150,15 +92,12 @@ app.get('/api/cargar-rifas', async (req, res) => {
     }
 });
 
-// Guardar rifa usando columnas individuales
+// Guardar rifa (usando DatosJSON)
 app.post('/api/guardar-rifa', async (req, res) => {
-    const pool = await poolPromise;
-    const transaction = new sql.Transaction(pool);
-    
     try {
-        await transaction.begin();
-        
+        const pool = await poolPromise;
         const nuevosDatos = req.body;
+        
         console.log('📥 Datos recibidos en /api/guardar-rifa:', JSON.stringify(nuevosDatos).substring(0, 500));
         
         // Sacamos la fecha del objeto info
@@ -168,48 +107,29 @@ app.post('/api/guardar-rifa', async (req, res) => {
             return res.status(400).json({ success: false, error: "La fecha es obligatoria para guardar." });
         }
 
-        // 1. Eliminar registros existentes para esa fecha
-        await transaction.request()
+        // Buscar si ya existe un registro para esa fecha
+        const check = await pool.request()
             .input('fecha', sql.Date, fechaSorteo)
-            .query("DELETE FROM ConfiguracionRifas WHERE FechaSorteo = @fecha");
+            .query("SELECT Id, DatosJSON FROM ConfiguracionRifas WHERE FechaSorteo = @fecha");
 
-        // 2. Insertar cada número como un registro separado
-        for (let numTabla = 1; numTabla <= 4; numTabla++) {
-            const keyTabla = `tabla${numTabla}`;
-            const tablaData = nuevosDatos[keyTabla];
-            
-            if (tablaData && tablaData.participantes) {
-                const titulo = tablaData.titulo || `Tabla ${numTabla}`;
-                
-                // Insertar cada número (00-99)
-                for (let num = 0; num <= 99; num++) {
-                    const numStr = num.toString().padStart(2, '0');
-                    const participante = tablaData.participantes[numStr];
-                    
-                    if (participante && participante.nombre && participante.nombre.trim() !== "") {
-                        await transaction.request()
-                            .input('fecha', sql.Date, fechaSorteo)
-                            .input('tablaId', sql.Int, numTabla)
-                            .input('numero', sql.Char(2), numStr)
-                            .input('nombre', sql.VarChar(255), participante.nombre.trim())
-                            .input('pago', sql.Bit, participante.pago ? 1 : 0)
-                            .input('titulo', sql.VarChar(100), titulo)
-                            .query(`
-                                INSERT INTO ConfiguracionRifas 
-                                (FechaSorteo, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla) 
-                                VALUES (@fecha, @tablaId, @numero, @nombre, @pago, @titulo)
-                            `);
-                    }
-                }
-            }
+        if (check.recordset.length > 0) {
+            // Actualizar registro existente
+            await pool.request()
+                .input('id', sql.Int, check.recordset[0].Id)
+                .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(nuevosDatos))
+                .query("UPDATE ConfiguracionRifas SET DatosJSON = @datos, UltimaActualizacion = GETDATE() WHERE Id = @id");
+        } else {
+            // Crear nuevo registro
+            await pool.request()
+                .input('fecha', sql.Date, fechaSorteo)
+                .input('datos', sql.NVarChar(sql.MAX), JSON.stringify(nuevosDatos))
+                .query("INSERT INTO ConfiguracionRifas (FechaSorteo, DatosJSON, UltimaActualizacion) VALUES (@fecha, @datos, GETDATE())");
         }
 
-        await transaction.commit();
         console.log('✅ Datos guardados correctamente en la BD');
         res.json({ success: true, message: "Guardado correctamente" });
         
     } catch (err) {
-        if (transaction) await transaction.rollback();
         console.error("❌ Error al guardar:", err.message);
         res.status(500).json({ success: false, error: err.message });
     }
