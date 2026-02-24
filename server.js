@@ -41,36 +41,7 @@ app.post('/login', (req, res) => {
 
 // --- RUTAS DE RIFAS ---
 
-// Endpoint para crear las columnas si no existen
-app.post('/api/crear-columnas-rifas', async (req, res) => {
-    try {
-        const pool = await poolPromise;
-        
-        await pool.request().query(`
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'TablaId')
-                ALTER TABLE ConfiguracionRifas ADD TablaId INT NULL;
-            
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'Numero')
-                ALTER TABLE ConfiguracionRifas ADD Numero CHAR(2) NULL;
-            
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'NombreParticipante')
-                ALTER TABLE ConfiguracionRifas ADD NombreParticipante NVARCHAR(255) NULL;
-            
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'EstadoPago')
-                ALTER TABLE ConfiguracionRifas ADD EstadoPago BIT NULL;
-            
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'TituloTabla')
-                ALTER TABLE ConfiguracionRifas ADD TituloTabla NVARCHAR(100) NULL;
-        `);
-        
-        res.json({ success: true, message: "Columnas creadas correctamente" });
-    } catch (err) {
-        console.error("Error al crear columnas:", err.message);
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
-
-// Obtener los datos de las rifas (usando columnas individuales)
+// Obtener los datos de las rifas desde Rifas_Detalle
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
         const { fecha } = req.query;
@@ -81,14 +52,14 @@ app.get('/api/cargar-rifas', async (req, res) => {
         if (fecha) {
             query = `
                 SELECT TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
-                FROM ConfiguracionRifas 
+                FROM Rifas_Detalle 
                 WHERE FechaSorteo = @fechaBuscada
                 ORDER BY TablaId, Numero
             `;
         } else {
             query = `
                 SELECT TOP 1 TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
-                FROM ConfiguracionRifas 
+                FROM Rifas_Detalle 
                 ORDER BY Id DESC
             `;
         }
@@ -141,7 +112,7 @@ app.get('/api/cargar-rifas', async (req, res) => {
             }
         });
 
-        console.log("DATOS PROCESADOS:", datos);
+        console.log("DATOS DESDE Rifas_Detalle:", datos);
         res.json(datos);
 
     } catch (err) {
@@ -150,7 +121,7 @@ app.get('/api/cargar-rifas', async (req, res) => {
     }
 });
 
-// Guardar rifa (usando columnas individuales)
+// Guardar rifa en Rifas_Detalle
 app.post('/api/guardar-rifa', async (req, res) => {
     const pool = await poolPromise;
     const transaction = new sql.Transaction(pool);
@@ -161,38 +132,18 @@ app.post('/api/guardar-rifa', async (req, res) => {
         const nuevosDatos = req.body;
         console.log('Datos recibidos:', JSON.stringify(nuevosDatos).substring(0, 500));
         
-        // Crear columnas si no existen
-        try {
-            await transaction.request().query(`
-                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'TablaId')
-                    ALTER TABLE ConfiguracionRifas ADD TablaId INT NULL;
-                
-                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'Numero')
-                    ALTER TABLE ConfiguracionRifas ADD Numero CHAR(2) NULL;
-                
-                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'NombreParticipante')
-                    ALTER TABLE ConfiguracionRifas ADD NombreParticipante NVARCHAR(255) NULL;
-                
-                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'EstadoPago')
-                    ALTER TABLE ConfiguracionRifas ADD EstadoPago BIT NULL;
-                
-                IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConfiguracionRifas') AND name = 'TituloTabla')
-                    ALTER TABLE ConfiguracionRifas ADD TituloTabla NVARCHAR(100) NULL;
-            `);
-        } catch (colErr) {
-            console.log("Columnas ya existen:", colErr.message);
-        }
-        
         const fechaSorteo = nuevosDatos.info ? nuevosDatos.info.fecha : null;
 
         if (!fechaSorteo) {
             return res.status(400).json({ success: false, error: "La fecha es obligatoria" });
         }
 
+        // Eliminar registros existentes para esa fecha
         await transaction.request()
             .input('fecha', sql.Date, fechaSorteo)
-            .query("DELETE FROM ConfiguracionRifas WHERE FechaSorteo = @fecha");
+            .query("DELETE FROM Rifas_Detalle WHERE FechaSorteo = @fecha");
 
+        // Insertar cada número como un registro separado
         for (let numTabla = 1; numTabla <= 4; numTabla++) {
             const keyTabla = 'tabla' + numTabla;
             const tablaData = nuevosDatos[keyTabla];
@@ -207,15 +158,15 @@ app.post('/api/guardar-rifa', async (req, res) => {
                     if (participante && participante.nombre && participante.nombre.trim() !== "") {
                         await transaction.request()
                             .input('fecha', sql.Date, fechaSorteo)
-                            .input('tablaId', sql.Int, numTabla)
+                            .input('tablaId', sql.BigInt, numTabla)
                             .input('numero', sql.Char(2), numStr)
-                            .input('nombre', sql.VarChar(255), participante.nombre.trim())
+                            .input('nombre', sql.VarChar(100), participante.nombre.trim())
                             .input('pago', sql.Bit, participante.pago ? 1 : 0)
                             .input('titulo', sql.VarChar(100), titulo)
                             .query(`
-                                INSERT INTO ConfiguracionRifas 
-                                (FechaSorteo, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, UltimaActualizacion) 
-                                VALUES (@fecha, @tablaId, @numero, @nombre, @pago, @titulo, GETDATE())
+                                INSERT INTO Rifas_Detalle 
+                                (FechaSorteo, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla) 
+                                VALUES (@fecha, @tablaId, @numero, @nombre, @pago, @titulo)
                             `);
                     }
                 }
@@ -223,7 +174,7 @@ app.post('/api/guardar-rifa', async (req, res) => {
         }
 
         await transaction.commit();
-        console.log('Datos guardados correctamente');
+        console.log('Datos guardados correctamente en Rifas_Detalle');
         res.json({ success: true, message: "Guardado correctamente" });
         
     } catch (err) {
@@ -423,7 +374,7 @@ app.get('/api/quincenas-pagas/:idPersona', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().input('id', sql.Int, req.params.idPersona).query("SELECT MesesCorrespondientes FROM Ahorros WHERE ID_Persona = @id");
         let pagas = [];
-        result.recordset.forEach(reg => { if (reg.MesesCorrespondientes) { const lista = reg.MesesCorrespondientes.split(',').map(s => s.trim()); pagas = pagas.concat(lista); } });
+        result.recordset.forEach(reg => { if (reg.MesesCorrespondientes) { const lista = reg.MesesCorrespondientes.split(',').map(s => s.trim());argas =argas.concat(lista); } });
         res.json(pagas);
     } catch (err) { res.status(500).json([]); }
 });
