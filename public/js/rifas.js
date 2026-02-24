@@ -7,7 +7,15 @@ let timerDebounce;
 function crearTabla(t = {}) {
     const container = document.getElementById('rifasContainer');
     const idTabla = t.idTabla || (container.children.length + 1);
-    const participantes = t.participantes || {};
+    // Asegurarse de que participantes sea un objeto válido
+    const participantes = (t.participantes && typeof t.participantes === 'object') ? t.participantes : {};
+
+    console.log(`🔍 DEBUG crearTabla - Tabla ${idTabla}:`, {
+        nombre: t.nombre,
+        titulo: t.titulo,
+        participantesCount: Object.keys(participantes).length,
+        sampleData: Object.keys(participantes).slice(0, 3).map(k => ({num: k, data: participantes[k]}))
+    });
 
     const card = document.createElement('div');
     card.id = `rifa-${idTabla}`; 
@@ -42,10 +50,15 @@ function crearTabla(t = {}) {
         slot.className = 'n-slot';
         slot.id = `t${idTabla}-${numStr}`;
 
-        const p = participantes[numStr];
+        // Obtener datos del participante - verificar que existe y tiene la estructura correcta
+        let p = null;
+        if (participantes[numStr]) {
+            p = participantes[numStr];
+        }
 
         // --- CORRECCIÓN CLAVE: VALIDAR QUE EL NOMBRE NO ESTÉ VACÍO ---
-        if (p && p.nombre && p.nombre.trim() !== "") {
+        // Verificamos que p exista, tenga propiedad nombre, y no esté vacío
+        if (p && p.nombre && typeof p.nombre === 'string' && p.nombre.trim() !== "") {
             // Solo si tiene nombre real asignamos colores
             if (p.pago) slot.classList.add('paid');
             else slot.classList.add('reserved');
@@ -54,6 +67,7 @@ function crearTabla(t = {}) {
                 <span class="n-number">${numStr}</span>
                 <div class="n-name">${p.nombre}</div>
             `;
+            console.log(`✅ Slot ${numStr} tiene datos:`, p);
         } else {
             // Si el nombre es "" o no existe, queda limpio (blanco)
             slot.classList.remove('paid', 'reserved');
@@ -322,20 +336,39 @@ async function cargarRifas() {
 
         // 4. Llenamos la información general (si existe)
         if (datos && datos.info) {
+            console.log("🔍 DEBUG - Llenando info de rifa:", datos.info);
             if(document.getElementById('rifaName')) document.getElementById('rifaName').value = datos.info.nombre || '';
             if(document.getElementById('rifaPrize')) document.getElementById('rifaPrize').value = datos.info.premio || '';
             if(document.getElementById('rifaCost')) document.getElementById('rifaCost').value = datos.info.valor || '';
             if(document.getElementById('costoPremio')) document.getElementById('costoPremio').value = datos.info.inversion || '';
+            
+            // Also fill date fields
+            if(document.getElementById('rifaDate') && datos.info.fecha) {
+                document.getElementById('rifaDate').value = datos.info.fecha;
+            }
+            if(document.getElementById('filtroFecha') && datos.info.fecha) {
+                document.getElementById('filtroFecha').value = datos.info.fecha;
+            }
+        } else {
+            console.log("⚠️ DEBUG - No hay datos.info en la respuesta");
         }
 
         // 5. Dibujamos las 4 tablas (usando datos del servidor o vacías como respaldo)
         for (let i = 1; i <= 4; i++) {
             const llaveTabla = `tabla${i}`;
+            console.log(`🔍 DEBUG - Procesando ${llaveTabla}:`, datos[llaveTabla]);
+            
             const t = datos[llaveTabla] || { nombre: `Tabla ${i}`, participantes: {} };
             
             // Forzamos el ID correcto para que el acordeón funcione
             t.idTabla = i; 
             if (!t.nombre) t.nombre = `Tabla ${i}`;
+            
+            // Ensure participantes is a valid object
+            if (!t.participantes || typeof t.participantes !== 'object') {
+                t.participantes = {};
+                console.log(`⚠️ DEBUG - Tabla ${i} no tenía participantes, se inicializó como objeto vacío`);
+            }
             
             crearTabla(t);
         }
