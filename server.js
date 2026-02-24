@@ -89,12 +89,11 @@ app.get('/api/cargar-rifas', async (req, res) => {
             tabla4: { titulo: 'Tabla 4', participantes: {} }
         };
 
-        // Determinar cuántas tablas existen basadas en los IDs de registro
-        // Si TablaId está vacío, usamos el Id del registro para dividir en grupos de 100
+        // Determinar si TablaId tiene valores
         const tieneTablaId = result.recordset.some(r => r.TablaId !== null && r.TablaId !== undefined);
         
         if (tieneTablaId) {
-            // Usar TablaId como antes
+            // Usar TablaId del registro
             result.recordset.forEach(row => {
                 const numTabla = parseInt(row.TablaId);
                 const numStr = row.Numero ? row.Numero.trim() : '';
@@ -118,12 +117,11 @@ app.get('/api/cargar-rifas', async (req, res) => {
                 }
             });
         } else {
-            // TablaId está vacío - inferir tabla basándose en el Id del registro
-            // Dividir los registros en grupos de 100 para asignar tablas
+            // TablaId vacío - los registros ya vienen filtrados por fecha, solo ordenarlos
             const registrosOrdenados = [...result.recordset].sort((a, b) => a.Id - b.Id);
             
             registrosOrdenados.forEach((row, index) => {
-                const numTabla = Math.floor(index / 100) + 1; // Primeros 100 = tabla 1, siguientes 100 = tabla 2, etc.
+                const numTabla = Math.floor(index / 100) + 1;
                 const numStr = row.Numero ? row.Numero.trim() : '';
                 const nombre = row.NombreParticipante || '';
                 const estaPagado = row.EstadoPago === 1 || row.EstadoPago === true;
@@ -172,12 +170,10 @@ app.post('/api/guardar-rifa', async (req, res) => {
             return res.status(400).json({ success: false, error: "La fecha es obligatoria" });
         }
 
-        // Eliminar registros existentes para esa fecha
         await transaction.request()
             .input('fecha', sql.Date, fechaSorteo)
             .query("DELETE FROM Rifas_Detalle WHERE FechaSorteo = @fecha");
 
-        // Insertar cada número como un registro separado
         for (let numTabla = 1; numTabla <= 4; numTabla++) {
             const keyTabla = 'tabla' + numTabla;
             const tablaData = nuevosDatos[keyTabla];
