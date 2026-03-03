@@ -350,9 +350,38 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query("SELECT ID_Prestamo, MontoPrestado, MontoPagado, ISNULL(InteresesPagados, 0) as InteresesPagados, TasaInteres, FechaInicio FROM Prestamos WHERE ID_Persona = @id");
+            .query(`
+                SELECT 
+                    ID_Prestamo, 
+                    MontoPrestado, 
+                    MontoPagado, 
+                    ISNULL(InteresesPagados, 0) as InteresesPagados, 
+                    TasaInteres, 
+                    ISNULL(FechaInicio, Fecha) as FechaInicio,
+                    ISNULL(FechaInicio, Fecha) as FechaPrestamo,
+                    FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
+                    SaldoActual,
+                    Estado,
+                    DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
+                    CASE 
+                        WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
+                        THEN (MontoPrestado * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
+                        ELSE 0 
+                    END as InteresGenerado,
+                    CASE 
+                        WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
+                        THEN MontoPrestado + ((MontoPrestado * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())) - ISNULL(MontoPagado, 0)
+                        ELSE SaldoActual
+                    END as saldoHoy
+                FROM Prestamos 
+                WHERE ID_Persona = @id 
+                ORDER BY ISNULL(FechaInicio, Fecha) DESC
+            `);
         res.json(result.recordset);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("Error en detalle-prestamo:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.get('/api/cobro-general', async (req, res) => {
