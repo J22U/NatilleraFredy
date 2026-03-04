@@ -2442,8 +2442,9 @@ window.abrirEditarPago = async function(idPago, montoActual, fechaActual, detall
         }
     }
 
-    // Determinar si es capital o interés
+    // Determinar si es capital o interés basado en el detalle actual
     const esCapital = String(detalleActual || '').toLowerCase().includes('capital');
+    console.log("DEBUG abrirEditarPago - detalleActual:", detalleActual, "esCapital:", esCapital);
 
     const { value: formValues } = await Swal.fire({
         title: '✏️ Editar Pago de Deuda',
@@ -2490,7 +2491,19 @@ window.abrirEditarPago = async function(idPago, montoActual, fechaActual, detall
 
     if (formValues) {
         try {
+            // Construir el detalle final basado en el tipo seleccionado
             const detalleFinal = `Abono a ${formValues.tipo.toUpperCase()}`;
+            
+            console.log("DEBUG editar pago - Enviando:", {
+                idPago: idPago,
+                monto: formValues.monto,
+                fecha: formValues.fecha,
+                detalle: detalleFinal,
+                tipoOriginal: detalleActual,
+                tipoNuevo: formValues.tipo,
+                idPrestamo: idPrestamo,
+                montoOriginal: montoAnterior
+            });
             
             const response = await fetch('/api/editar-pago-deuda', {
                 method: 'PUT',
@@ -2506,6 +2519,7 @@ window.abrirEditarPago = async function(idPago, montoActual, fechaActual, detall
             });
 
             const result = await response.json();
+            console.log("DEBUG editar pago - Respuesta:", result);
 
             if (result.success) {
                 Swal.fire('¡Éxito!', 'Pago actualizado correctamente', 'success');
