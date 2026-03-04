@@ -1,27 +1,22 @@
-# Plan to Fix Rifas Information Display Issue
+# Plan de Corrección - Abono a Capital/Interés
 
-## Problem
-The raffle information (rifas) is showing empty when loading from the server.
+## Problema
+Cuando se realiza un abono al capital y existe interés, el sistema está abonando al interés en lugar del capital.
 
-## Root Cause Analysis
-1. Date format mismatch between frontend and database
-2. The API `/api/cargar-rifas` might be returning `{ sinDatos: true }` incorrectly
-3. The `crearTabla` function might not be receiving the participant data correctly
-4. Debug logging is insufficient to diagnose the issue
+## Causa Raíz
+1. **Server.js**: La lógica usa `else` que captura cualquier valor que no sea 'capital', incluyendo undefined/null
+2. **Edición de pagos**: No permite cambiar el tipo de abono (capital/interés)
 
-## Solution Plan
+## Tareas a Realizar
 
-### Step 1: Add Debug Logging
-- Add more detailed console logs in both frontend and backend
-- Log exactly what data is being sent and received
+### 1. Corregir lógica de procesar-movimiento en server.js ✅
+- [x] Cambiar la condición `else` por validación explícita para 'interes'
+- [x] Manejar caso cuando destinoAbono es undefined/null
 
-### Step 2: Fix Date Handling
-- Ensure consistent date format (YYYY-MM-DD) throughout
-- Add date normalization in the server
+### 2. Corregir lógica de editar-pago-deuda en server.js ✅
+- [x] Revisar y corregir la lógica de actualización de interesespagados
+- [x] Ahora consulta el registro original para comparar si cambió el tipo (capital <-> interes)
 
-### Step 3: Fix Data Loading
-- Verify the API returns correct data structure
-- Ensure `crearTabla` receives participants correctly
+### 3. Verificar cliente (main.js) ✅
+- [x] El valor de destinoAbono ya se envía correctamente al servidor
 
-### Step 4: Test the Fix
-- Verify data loads correctly after changes

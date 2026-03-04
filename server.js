@@ -404,11 +404,19 @@ app.post('/procesar-movimiento', async (req, res) => {
         const fAporte = fechaManual || new Date().toISOString().split('T')[0];
 
         if (tipoMovimiento === 'deuda') {
+            // Validar explícitamente el destino del abono
             if (destinoAbono === 'capital') {
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END, Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP");
+            } else if (destinoAbono === 'interes') {
+                // Solo abate al interés si el usuario específicamente seleccionó "interés"
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
+                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
             } else {
+                // Si destinoAbono es undefined, null o cualquier otro valor,默认为 interés para mantener compatibilidad
+                // O podrías lanzar un error: return res.status(400).json({success: false, error: "Tipo de abono no válido"});
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
@@ -605,24 +613,58 @@ app.get('/api/detalle-pago/:id', async (req, res) => {
 
 app.put('/api/editar-pago-deuda', async (req, res) => {
     try {
-        const { idPago, monto, fecha, detalle, idPrestamo, montoAnterior } = req.body;
+        const { idPago, monto, fecha, detalle, idPrestamo, montoAnterior, tipoAnterior } = req.body;
         if (!idPago || !monto || !idPrestamo) return res.status(400).json({ success: false, error: "Faltan datos" });
 
         const pool = await poolPromise;
+        
+        // Obtener el pago original para comparar el tipo
+        const pagoOriginal = await pool.request()
+            .input('id', sql.Int, idPago)
+            .query("SELECT Detalle, Monto FROM HistorialPagos WHERE ID_Pago = @id");
+        
+        const detalleOriginal = pagoOriginal.recordset[0]?.Detalle || '';
+        const montoOriginal = parseFloat(pagoOriginal.recordset[0]?.Monto || 0);
+        
+        // Determinar tipos
+        const eraCapital = detalleOriginal.toLowerCase().includes('capital');
+        const esCapitalNuevo = String(detalle || '').toLowerCase().includes('capital');
+        
         const montoNuevo = parseFloat(monto);
-        const montoAnt = montoAnterior ? parseFloat(montoAnterior) : 0;
-        const diferencia = montoNuevo - montoAnt;
+        const diferencia = montoNuevo - montoOriginal;
 
+        // Actualizar el registro del pago
         await pool.request()
             .input('id', sql.Int, idPago).input('monto', sql.Decimal(18, 2), montoNuevo)
             .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
             .input('detalle', sql.VarChar, detalle || 'Abono a deuda')
             .query("UPDATE HistorialPagos SET Monto = @monto, Fecha = @fecha, Detalle = @detalle WHERE ID_Pago = @id");
 
-        const esCapital = String(detalle || '').toLowerCase().includes('capital');
-        
-        if (diferencia !== 0) {
-            if (esCapital) {
+        // Lógica para manejar el cambio de tipo o cambio de monto
+        if (eraCapital !== esCapitalNuevo) {
+            // El tipo cambió: invertir el monto original
+            if (eraCapital) {
+                // Era capital, ahora es interés - revertir capital y agregar interés
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('monto', sql.Decimal(18, 2), montoOriginal)
+                    .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) - @monto, SaldoActual = SaldoActual + @monto, Estado = 'Activo' WHERE ID_Prestamo = @idP");
+                
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('monto', sql.Decimal(18, 2), montoNuevo)
+                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @monto WHERE ID_Prestamo = @idP");
+            } else {
+                // Era interés, ahora es capital - revertir interés y agregar capital
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('monto', sql.Decimal(18, 2), montoOriginal)
+                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) - @monto WHERE ID_Prestamo = @idP");
+                
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('monto', sql.Decimal(18, 2), montoNuevo)
+                    .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @monto, SaldoActual = CASE WHEN (SaldoActual - @monto) < 0 THEN 0 ELSE SaldoActual - @monto END, Estado = CASE WHEN (SaldoActual - @monto) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP");
+            }
+        } else if (diferencia !== 0) {
+            // Mismo tipo, pero cambió el monto
+            if (esCapitalNuevo) {
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('dif', sql.Decimal(18, 2), diferencia)
                     .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @dif, SaldoActual = CASE WHEN (SaldoActual - @dif) < 0 THEN 0 ELSE SaldoActual - @dif END, Estado = CASE WHEN (SaldoActual - @dif) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP");
