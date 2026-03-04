@@ -626,9 +626,26 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
         const detalleOriginal = pagoOriginal.recordset[0]?.Detalle || '';
         const montoOriginal = parseFloat(pagoOriginal.recordset[0]?.Monto || 0);
         
-        // Determinar tipos
-        const eraCapital = detalleOriginal.toLowerCase().includes('capital');
+        // Determinar tipos - si el detalle original está vacío, usar el tipoAnterior del frontend
+        let eraCapital = detalleOriginal.toLowerCase().includes('capital');
+        
+        // Si el detalle original está vacío pero tenemos tipoAnterior del frontend, usarlo
+        if (!detalleOriginal && tipoAnterior) {
+            eraCapital = tipoAnterior.toLowerCase().includes('capital');
+        }
+        
         const esCapitalNuevo = String(detalle || '').toLowerCase().includes('capital');
+        
+        // DEBUG: Registrar lo que está pasando
+        console.log("DEBUG editar-pago-deuda:", {
+            idPago,
+            detalleOriginal,
+            detalleNuevo: detalle,
+            eraCapital,
+            esCapitalNuevo,
+            montoOriginal,
+            montoNuevo: monto
+        });
         
         const montoNuevo = parseFloat(monto);
         const diferencia = montoNuevo - montoOriginal;
@@ -642,6 +659,7 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
 
         // Lógica para manejar el cambio de tipo o cambio de monto
         if (eraCapital !== esCapitalNuevo) {
+            console.log("DEBUG: El tipo cambió, ejecutando inversión de montos");
             // El tipo cambió: invertir el monto original
             if (eraCapital) {
                 // Era capital, ahora es interés - revertir capital y agregar interés
@@ -663,6 +681,7 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
                     .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @monto, SaldoActual = CASE WHEN (SaldoActual - @monto) < 0 THEN 0 ELSE SaldoActual - @monto END, Estado = CASE WHEN (SaldoActual - @monto) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP");
             }
         } else if (diferencia !== 0) {
+            console.log("DEBUG: Mismo tipo pero cambió el monto, ajustando diferencia:", diferencia);
             // Mismo tipo, pero cambió el monto
             if (esCapitalNuevo) {
                 await pool.request()
@@ -673,10 +692,15 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
                     .input('idP', sql.Int, idPrestamo).input('dif', sql.Decimal(18, 2), diferencia)
                     .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @dif WHERE ID_Prestamo = @idP");
             }
+        } else {
+            console.log("DEBUG: No hay cambios en tipo ni monto, solo se actualizó el registro");
         }
 
         res.json({ success: true, message: "Pago actualizado" });
-    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+    } catch (err) { 
+        console.error("Error en editar-pago-deuda:", err);
+        res.status(500).json({ success: false, error: err.message }); 
+    }
 });
 
 // --- INICIO DEL SERVIDOR ---
