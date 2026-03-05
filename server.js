@@ -414,21 +414,62 @@ app.post('/procesar-movimiento', async (req, res) => {
                 idPersona, monto: m, tipoMovimiento, idPrestamo, destinoAbono, MesesCorrespondientes
             });
             
+            // OBTENER DATOS ACTUALES DEL PRÉSTAMO PARA VALIDAR
+            const prestamoActual = await pool.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query(`
+                    SELECT 
+                        MontoPrestado, 
+                        ISNULL(MontoPagado, 0) as MontoPagado, 
+                        ISNULL(InteresesPagados, 0) as InteresesPagados,
+                        DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as DiasTranscurridos,
+                        TasaInteres
+                    FROM Prestamos 
+                    WHERE ID_Prestamo = @idP
+                `);
+
+            if (prestamoActual.recordset.length === 0) {
+                return res.status(400).json({ success: false, error: "Préstamo no encontrado" });
+            }
+
+            const p = prestamoActual.recordset[0];
+            const capitalPendiente = p.MontoPrestado - p.MontoPagado;
+            // Calcular interés pendiente actual
+            const interesPendiente = Math.max(0, ((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * p.DiasTranscurridos - p.InteresesPagados);
+            
             // Validar explícitamente el destino del abono
             if (destinoAbono === 'capital') {
                 console.log(">>> Abono a CAPITAL");
+                
+                // VALIDACIÓN: No puede abonar más de lo que debe a capital
+                if (m > capitalPendiente) {
+                    return res.status(400).json({ success: false, error: `No puede abonar más de $${capitalPendiente.toLocaleString()} (capital pendiente)` });
+                }
+                
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
                     .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END, Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END, FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
             } else if (destinoAbono === 'interes') {
                 // Abono a INTERÉS: se suma a InteresesPagados (el saldo total se recalcula dinámicamente)
                 console.log(">>> Abono a INTERÉS");
+                
+                // VALIDACIÓN: No puede abonar más de lo que hay generado de interés
+                if (m > interesPendiente + 100) { // Margen de 100 por redondeo
+                    return res.status(400).json({ success: false, error: `No puede abonar más de $${Math.round(interesPendiente).toLocaleString()} (interés pendiente actual)` });
+                }
+                
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
             } else {
                 // Si destinoAbono es undefined, null o cualquier otro valor -> SE TRATA COMO INTERÉS (sin tocar el SaldoActual)
                 console.log(">>> Abono a INTERÉS (default)", destinoAbono);
+                
+                // VALIDACIÓN: No puede abonar más de lo que hay generado de interés
+                if (m > interesPendiente + 100) { // Margen de 100 por redondeo
+                    return res.status(400).json({ success: false, error: `No puede abonar más de $${Math.round(interesPendiente).toLocaleString()} (interés pendiente actual)` });
+                }
+                
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
