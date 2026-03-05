@@ -631,7 +631,7 @@ function esTipoCapital(detalle) {
     return normalized.includes('capital');
 }
 
-aapp.put('/api/editar-pago-deuda', async (req, res) => {
+app.put('/api/editar-pago-deuda', async (req, res) => {
     try {
         const { idPago, monto, fecha, detalle, idPrestamo } = req.body;
         const pool = await poolPromise;
