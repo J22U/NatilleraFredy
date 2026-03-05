@@ -704,7 +704,7 @@ function toggleAcordeon(id, btn) {
     const fechaManual = document.getElementById('mov_fecha_manual')?.value || new Date().toISOString().split('T')[0];
 
     const radioDestino = document.querySelector('input[name="destinoAbono"]:checked');
-    const destinoAbono = radioDestino ? radioDestino.value : 'interes'; 
+    const destinoAbono = radioDestino ? radioDestino.value : 'capital';
 
     if (!idReal || isNaN(monto)) {
         return Swal.fire('Faltan datos', 'Ingresa un monto válido', 'warning');
