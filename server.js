@@ -354,7 +354,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                 SELECT 
                     ID_Prestamo, 
                     MontoPrestado, 
-                    MontoPagado, 
+                    ISNULL(MontoPagado, 0) as MontoPagado, 
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
                     TasaInteres, 
                     ISNULL(FechaInicio, Fecha) as FechaInicio,
@@ -363,16 +363,21 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     SaldoActual,
                     Estado,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
+                    -- Cálculo del interés basado en CAPITAL PENDIENTE (no capital original)
+                    -- Capital Pendiente = MontoPrestado - MontoPagado (abonos a capital)
+                    -- Interés generado = CapitalPendiente * (Tasa/100) / 30 * Días
                     CASE 
                         WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
-                        THEN (MontoPrestado * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
+                        THEN ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
                         ELSE 0 
                     END as InteresGenerado,
+                    -- Saldo total hoy = Capital Pendiente + Interés Pendiente - Intereses Pagados
                     CASE 
                         WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
-THEN MontoPrestado + ((MontoPrestado * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())) - ISNULL(MontoPagado, 0)
+                        THEN (MontoPrestado - ISNULL(MontoPagado, 0)) + ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) - ISNULL(InteresesPagados, 0)
                         ELSE SaldoActual
                     END as saldoHoy,
+                    -- Capital hoy (lo que falta por pagar de capital)
                     CASE 
                         WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
                         THEN MontoPrestado - ISNULL(MontoPagado, 0)
