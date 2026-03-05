@@ -529,59 +529,70 @@ async function verHistorialFechas(id, nombre) {
         const interesGenerado = Number(m.InteresGenerado || m.MontoInteres || 0);
         const capitalOriginal = Number(m.MontoPrestado || 0);
         const montoPagado = Number(m.MontoPagado || 0);
-        const capitalHoy = Number(m.capitalHoy || 0); // Capital剩余 después de abonos
+        const capitalHoy = Number(m.capitalHoy || 0);
         const saldoCalculado = (capitalOriginal + interesGenerado) - montoPagado;
         const estaPago = m.Estado === 'Pagado' || saldoCalculado <= 0;
         
-        // CORRECCIÓN: Usamos nullish coalescing o validamos que no sea undefined
         const dias = m.diasActivo !== undefined ? m.diasActivo : m.DiasTranscurridos;
 
-        // Calcular cuánto se ha abonado a capital vs interés
-        // Si capitalHoy < capitalOriginal, significa que hay abonos a capital
+        // Calcular cuánto se ha abonado a capital
         const abonadoACapital = capitalOriginal - capitalHoy;
         const tieneAbonosCapital = abonadoACapital > 0;
 
+        // Breakdown: Capital Hoy = Capital Original - Abonos a Capital
+        const breakdownCapital = tieneAbonosCapital ? `
+            <div class="mt-1 pt-1 border-t border-slate-200/30">
+                <span class="text-[6px] text-slate-400 uppercase">Detalle:</span>
+                <div class="flex justify-between text-[7px] mt-0.5">
+                    <span class="text-slate-500">Capital Inicial:</span>
+                    <span class="font-medium">$${capitalOriginal.toLocaleString()}</span>
+                </div>
+                <div class="flex justify-between text-[7px]">
+                    <span class="text-emerald-500">- Abonos a Capital:</span>
+                    <span class="font-medium text-emerald-600">$${abonadoACapital.toLocaleString()}</span>
+                </div>
+                <div class="flex justify-between text-[7px] font-bold bg-emerald-100/50 px-1 rounded mt-0.5">
+                    <span class="text-emerald-700">= Capital Hoy:</span>
+                    <span class="text-emerald-700">$${capitalHoy.toLocaleString()}</span>
+                </div>
+            </div>
+        ` : '';
+
         return `
-        <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-100'} shadow-sm">
+        <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'} shadow-sm">
             <div class="flex justify-between items-center mb-2">
-                <span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
+                <span class="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
                 <span class="text-[10px] ${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
                     ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaInicioFormateada || m.FechaPrestamo || 'S/F')}
                 </span>
-                ${!estaPago ? `<button onclick="abrirEditarPrestamo(${m.ID_Prestamo}, ${m.MontoPrestado}, ${m.TasaInteres}, '${m.FechaInicioFormateada || m.FechaPrestamo || ''}')" class="text-indigo-400 hover:text-indigo-600 p-1 ml-2" title="Editar Préstamo"><i class="fas fa-edit text-xs"></i></button>` : ''}
             </div>
 
-            <div class="flex flex-wrap gap-2 mb-3">
-                <span class="bg-white/60 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
+            <div class="flex flex-wrap gap-2 mb-2">
+                <span class="bg-slate-100 text-[9px] font-bold text-slate-600 px-2 py-1 rounded-lg border border-slate-200">
                     <i class="fas fa-percentage mr-1 text-indigo-400"></i>Int: ${m.TasaInteres}%
                 </span>
                 
                 ${(dias !== undefined && dias !== null) ? `
                 <span class="bg-indigo-100 text-[9px] font-black text-indigo-700 px-2 py-1 rounded-lg border border-indigo-200 ${dias > 0 ? 'animate-pulse' : ''}">
-                    <i class="fas fa-clock mr-1"></i>${dias} DÍAS ACTIVOS
+                    <i class="fas fa-clock mr-1"></i>${dias} DÍAS
                 </span>` : ''}
             </div>
 
-            <div class="grid grid-cols-2 gap-2 border-t border-slate-200/50 pt-2">
+            <div class="grid grid-cols-2 gap-2 border-t border-slate-200 pt-2">
                 <div class="flex flex-col text-left">
-                    <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Capital Inicial</span>
-                    <span class="text-[13px] font-black text-slate-800">$${capitalOriginal.toLocaleString()}</span>
-                    ${tieneAbonosCapital ? `
-                    <span class="text-[7px] text-emerald-500 font-bold mt-1">
-                        <i class="fas fa-minus-circle mr-1"></i>-$${abonadoACapital.toLocaleString()} (Abonos a Capital)
-                    </span>
-                    ` : ''}
-                    <span class="text-[7px] text-rose-400 font-bold">Int. Acumulado: $${interesGenerado.toLocaleString()}</span>
+                    <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Resumen</span>
+                    <span class="text-[11px] font-bold text-slate-700">Capital: $${capitalOriginal.toLocaleString()}</span>
+                    <span class="text-[9px] text-rose-500 font-medium">Interés: $${interesGenerado.toLocaleString()}</span>
                 </div>
                 
                 ${!estaPago ? `
                 <div class="flex flex-col text-right">
-                    <span class="text-[8px] uppercase font-black text-emerald-600 leading-tight">Capital Hoy</span>
-                    <span class="text-[13px] font-black text-emerald-600">$${capitalHoy.toLocaleString()}</span>
-                    <span class="text-[8px] uppercase font-black text-rose-500 leading-tight mt-1">Saldo Total Hoy</span>
-                    <span class="text-[15px] font-black text-rose-600 tracking-tighter">$${Math.max(0, saldoCalculado).toLocaleString()}</span>
+                    <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Total</span>
+                    <span class="text-[14px] font-black text-rose-600 tracking-tight">$${Math.max(0, saldoCalculado).toLocaleString()}</span>
+                    ${breakdownCapital}
                 </div>` : `
-                <div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO</div>`}
+                <div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO ✓</div>`}
+            </div>
         </div>`;
     }).join('');
 };
