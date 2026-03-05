@@ -415,17 +415,17 @@ app.post('/procesar-movimiento', async (req, res) => {
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
                     .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END, Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END, FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
             } else if (destinoAbono === 'interes') {
-                // Solo abate al interés si el usuario específicamente seleccionó "interés"
+                // Abono a INTERÉS: se suma a InteresesPagados Y se resta del SaldoActual
                 console.log(">>> Abono a INTERÉS");
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
-                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
+                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END WHERE ID_Prestamo = @idP");
             } else {
-                // Si destinoAbono es undefined, null o cualquier otro valor
+                // Si destinoAbono es undefined, null o cualquier otro valor -> SE TRATA COMO INTERÉS y se resta del saldo
                 console.log(">>> Abono a INTERÉS (default)", destinoAbono);
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
-                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
+                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END WHERE ID_Prestamo = @idP");
             }
             
             await pool.request()
