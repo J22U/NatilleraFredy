@@ -340,7 +340,7 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query("SELECT ID_Pago, Monto as Monto_Abonado, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, ID_Prestamo FROM HistorialPagos WHERE ID_Persona = @id AND TipoMovimiento = 'Abono Deuda' ORDER BY Fecha DESC");
+            .query("SELECT ID_Pago, Monto as Monto_Abonado, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, ID_Prestamo, ISNULL(Detalle, '') as Detalle FROM HistorialPagos WHERE ID_Persona = @id AND TipoMovimiento = 'Abono Deuda' ORDER BY Fecha DESC");
         res.json(result.recordset);
     } catch (err) { res.status(500).json([]); }
 });
