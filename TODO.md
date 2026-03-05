@@ -12,6 +12,7 @@ Cuando se realiza un abono al capital y existe interés, el sistema está abonan
 ### 1. Corregir lógica de procesar-movimiento en server.js ✅
 - [x] Cambiar la condición `else` por validación explícita para 'interes'
 - [x] Manejar caso cuando destinoAbono es undefined/null
+- [x] Agregar logs de debug para verificar valores recibidos
 
 ### 2. Corregir lógica de editar-pago-deuda en server.js ✅
 - [x] Revisar y corregir la lógica de actualización de interesespagados
@@ -20,13 +21,21 @@ Cuando se realiza un abono al capital y existe interés, el sistema está abonan
 ### 3. Verificar cliente (main.js) ✅
 - [x] El valor de destinoAbono ya se envía correctamente al servidor
 
-### 4. Mejorar visualización del Capital Hoy en detalle de préstamos ✅
-- [x] Mostrar el Capital Inicial
-- [x] Mostrar "-$${abonadoACapital} (Abonos a Capital)" cuando hay abonos a capital
-- [x] Mostrar "Capital Hoy" de forma prominente
-- [x] Mostrar "Saldo Total Hoy" separado (Capital Hoy + Interés)
+### 4. Mostrar Capital Hoy en detalle de préstamo ✅
+- [x] El servidor calcula `capitalHoy = MontoPrestado - MontoPagado`
+- [x] El frontend muestra el capital pendiente después de abonos
 
-### 5. Corregir comportamiento del acordeón en historial ✅
-- [x] Los acordeones ya no se cierran al hacer click en uno ya abierto
-- [x] Ahora puedes mantener "Abonos a Préstamos" abierto mientras ves "Préstamos Detallados"
+## Cambios Realizados
 
+### server.js
+- Agregado log de debug en `procesar-movimiento` para ver qué valores llegan
+- Validación explícita para destinoAbono === 'capital' vs 'interes'
+- El cálculo de capitalHoy: `MontoPrestado - ISNULL(MontoPagado, 0)`
+
+### public/js/main.js
+- La función renderPrestamos ya muestra:
+  - Capital Inicial
+  - Abonos a Capital (si hay)
+  - Interés Acumulado
+  - Capital Hoy
+  - Saldo Total Hoy

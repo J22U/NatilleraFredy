@@ -401,18 +401,26 @@ app.post('/procesar-movimiento', async (req, res) => {
         const fAporte = fechaManual || new Date().toISOString().split('T')[0];
 
         if (tipoMovimiento === 'deuda') {
+            // DEBUG: Log para ver qué valores llegan
+            console.log("DEBUG procesar-movimiento:", {
+                idPersona, monto: m, tipoMovimiento, idPrestamo, destinoAbono, MesesCorrespondientes
+            });
+            
             // Validar explícitamente el destino del abono
             if (destinoAbono === 'capital') {
+                console.log(">>> Abono a CAPITAL");
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
                     .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END, Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END, FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
             } else if (destinoAbono === 'interes') {
                 // Solo abate al interés si el usuario específicamente seleccionó "interés"
+                console.log(">>> Abono a INTERÉS");
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
             } else {
                 // Si destinoAbono es undefined, null o cualquier otro valor
+                console.log(">>> Abono a INTERÉS (default)", destinoAbono);
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
