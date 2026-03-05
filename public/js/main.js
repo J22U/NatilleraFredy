@@ -529,13 +529,9 @@ async function verHistorialFechas(id, nombre) {
         ]);
 
         // --- CORRECCIÓN DE DEUDA DINÁMICA ---
-        // Recalculamos la deuda total sumando (Capital + Interés - Pagado) de cada préstamo activo
+        // Ahora usamos saldoHoy que ya viene calculado del servidor (Capital Pendiente + Interés Pendiente)
         const deudaRealActualizada = p.reduce((acc, m) => {
-            const cap = Number(m.MontoPrestado || 0);
-            const int = Number(m.InteresGenerado || m.MontoInteres || 0);
-            const pag = Number(m.MontoPagado || 0);
-            const saldo = (cap + int) - pag;
-            return acc + (saldo > 0 ? saldo : 0);
+            return acc + Number(m.saldoHoy || 0);
         }, 0);
 
         // Actualizamos el objeto totales para que el modal use el valor con intereses
@@ -576,12 +572,13 @@ async function verHistorialFechas(id, nombre) {
     );
     
     return prestamosOrdenados.map((m, index) => {
-        const interesGenerado = Number(m.InteresGenerado || m.MontoInteres || 0);
+        // Ahora usamos los valores que envía el servidor directamente
+        const interesPendiente = Number(m.InteresPendiente || 0);
         const capitalOriginal = Number(m.MontoPrestado || 0);
-        const montoPagado = Number(m.MontoPagado || 0);
         const capitalHoy = Number(m.capitalHoy || 0);
-        const saldoCalculado = (capitalOriginal + interesGenerado) - montoPagado;
-        const estaPago = m.Estado === 'Pagado' || saldoCalculado <= 0;
+        // Usar saldoHoy que ya viene calculado del servidor
+        const saldoTotal = Number(m.saldoHoy || 0);
+        const estaPago = m.Estado === 'Pagado' || saldoTotal <= 0;
         
         const dias = m.diasActivo !== undefined ? m.diasActivo : m.DiasTranscurridos;
 
@@ -632,13 +629,13 @@ async function verHistorialFechas(id, nombre) {
                 <div class="flex flex-col text-left">
                     <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Resumen</span>
                     <span class="text-[11px] font-bold text-slate-700">Capital: $${capitalOriginal.toLocaleString()}</span>
-                    <span class="text-[9px] text-rose-500 font-medium">Interés: $${interesGenerado.toLocaleString()}</span>
+                    <span class="text-[9px] text-rose-500 font-medium">Interés: $${interesPendiente.toLocaleString()}</span>
                 </div>
                 
                 ${!estaPago ? `
                 <div class="flex flex-col text-right">
                     <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Total</span>
-                    <span class="text-[14px] font-black text-rose-600 tracking-tight">$${Math.max(0, saldoCalculado).toLocaleString()}</span>
+                    <span class="text-[14px] font-black text-rose-600 tracking-tight">$${Math.max(0, saldoTotal).toLocaleString()}</span>
                     ${breakdownCapital}
                 </div>` : `
                 <div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO ✓</div>`}
