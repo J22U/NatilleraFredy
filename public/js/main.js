@@ -529,16 +529,22 @@ async function verHistorialFechas(id, nombre) {
         const interesGenerado = Number(m.InteresGenerado || m.MontoInteres || 0);
         const capitalOriginal = Number(m.MontoPrestado || 0);
         const montoPagado = Number(m.MontoPagado || 0);
+        const capitalHoy = Number(m.capitalHoy || 0); // Capital剩余 después de abonos
         const saldoCalculado = (capitalOriginal + interesGenerado) - montoPagado;
         const estaPago = m.Estado === 'Pagado' || saldoCalculado <= 0;
         
         // CORRECCIÓN: Usamos nullish coalescing o validamos que no sea undefined
         const dias = m.diasActivo !== undefined ? m.diasActivo : m.DiasTranscurridos;
 
+        // Calcular cuánto se ha abonado a capital vs interés
+        // Si capitalHoy < capitalOriginal, significa que hay abonos a capital
+        const abonadoACapital = capitalOriginal - capitalHoy;
+        const tieneAbonosCapital = abonadoACapital > 0;
+
         return `
         <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-100'} shadow-sm">
             <div class="flex justify-between items-center mb-2">
-<span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
+                <span class="text-[10px] font-black text-indigo-600 bg-white px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
                 <span class="text-[10px] ${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
                     ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaInicioFormateada || m.FechaPrestamo || 'S/F')}
                 </span>
@@ -560,16 +566,22 @@ async function verHistorialFechas(id, nombre) {
                 <div class="flex flex-col text-left">
                     <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Capital Inicial</span>
                     <span class="text-[13px] font-black text-slate-800">$${capitalOriginal.toLocaleString()}</span>
+                    ${tieneAbonosCapital ? `
+                    <span class="text-[7px] text-emerald-500 font-bold mt-1">
+                        <i class="fas fa-minus-circle mr-1"></i>-$${abonadoACapital.toLocaleString()} (Abonos a Capital)
+                    </span>
+                    ` : ''}
                     <span class="text-[7px] text-rose-400 font-bold">Int. Acumulado: $${interesGenerado.toLocaleString()}</span>
                 </div>
                 
                 ${!estaPago ? `
                 <div class="flex flex-col text-right">
-                    <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Total Hoy</span>
+                    <span class="text-[8px] uppercase font-black text-emerald-600 leading-tight">Capital Hoy</span>
+                    <span class="text-[13px] font-black text-emerald-600">$${capitalHoy.toLocaleString()}</span>
+                    <span class="text-[8px] uppercase font-black text-rose-500 leading-tight mt-1">Saldo Total Hoy</span>
                     <span class="text-[15px] font-black text-rose-600 tracking-tighter">$${Math.max(0, saldoCalculado).toLocaleString()}</span>
                 </div>` : `
                 <div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO</div>`}
-            </div>
         </div>`;
     }).join('');
 };

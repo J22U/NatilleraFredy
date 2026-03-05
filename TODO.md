@@ -20,3 +20,9 @@ Cuando se realiza un abono al capital y existe interés, el sistema está abonan
 ### 3. Verificar cliente (main.js) ✅
 - [x] El valor de destinoAbono ya se envía correctamente al servidor
 
+### 4. Mejorar visualización del Capital Hoy en detalle de préstamos ✅
+- [x] Mostrar el Capital Inicial
+- [x] Mostrar "-$${abonadoACapital} (Abonos a Capital)" cuando hay abonos a capital
+- [x] Mostrar "Capital Hoy" de forma prominente
+- [x] Mostrar "Saldo Total Hoy" separado (Capital Hoy + Interés)
+

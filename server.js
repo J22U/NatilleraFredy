@@ -370,9 +370,14 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     END as InteresGenerado,
                     CASE 
                         WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
-                        THEN MontoPrestado + ((MontoPrestado * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())) - ISNULL(MontoPagado, 0)
+THEN MontoPrestado + ((MontoPrestado * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())) - ISNULL(MontoPagado, 0)
                         ELSE SaldoActual
-                    END as saldoHoy
+                    END as saldoHoy,
+                    CASE 
+                        WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
+                        THEN MontoPrestado - ISNULL(MontoPagado, 0)
+                        ELSE SaldoActual
+                    END as capitalHoy
                 FROM Prestamos 
                 WHERE ID_Persona = @id 
                 ORDER BY ISNULL(FechaInicio, Fecha) DESC
