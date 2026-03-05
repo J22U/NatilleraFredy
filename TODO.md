@@ -26,3 +26,7 @@ Cuando se realiza un abono al capital y existe interés, el sistema está abonan
 - [x] Mostrar "Capital Hoy" de forma prominente
 - [x] Mostrar "Saldo Total Hoy" separado (Capital Hoy + Interés)
 
+### 5. Corregir comportamiento del acordeón en historial ✅
+- [x] Los acordeones ya no se cierran al hacer click en uno ya abierto
+- [x] Ahora puedes mantener "Abonos a Préstamos" abierto mientras ves "Préstamos Detallados"
+

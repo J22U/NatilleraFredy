@@ -690,18 +690,30 @@ function toggleAcordeon(id, btn) {
     const content = document.getElementById(id);
     const icon = btn.querySelector('.fa-chevron-down');
     
-    // Si ya está abierto, lo cerramos
-    if (content.style.maxHeight && content.style.maxHeight !== '0px') {
-        content.style.maxHeight = '0px';
-        icon.style.transform = 'rotate(0deg)';
-    } else {
-        // Cerramos otros por si acaso (opcional)
-        document.querySelectorAll('[id^="acc-"]').forEach(el => el.style.maxHeight = '0px');
-        document.querySelectorAll('.fa-chevron-down').forEach(i => i.style.transform = 'rotate(0deg)');
+    // Si ya está abierto, lo mantenemos abierto (no cerramos al hacer click en el mismo)
+    // Solo cerramos si está en height = '0px'
+    const isClosed = !content.style.maxHeight || content.style.maxHeight === '0px';
+    
+    if (isClosed) {
+        // Cerramos todos los demás primero
+        document.querySelectorAll('[id^="acc-"]').forEach(el => {
+            if (el.id !== id) {
+                el.style.maxHeight = '0px';
+            }
+        });
+        document.querySelectorAll('.fa-chevron-down').forEach(i => {
+            if (i !== icon) {
+                i.style.transform = 'rotate(0deg)';
+            }
+        });
 
         // Abrimos el actual
         content.style.maxHeight = content.scrollHeight + "px";
-        icon.style.transform = 'rotate(180deg)';
+        if (icon) icon.style.transform = 'rotate(180deg)';
+    } else {
+        // Si ya está abierto, lo cerramos
+        content.style.maxHeight = '0px';
+        if (icon) icon.style.transform = 'rotate(0deg)';
     }
 }
 
