@@ -363,49 +363,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     SaldoActual,
                     Estado,
-                    -- Cálculo del interés en DOS TRAMOS
-                    -- Tramo A: Desde FechaInicio hasta FechaUltimoAbonoCapital (sobre capital original)
-                    -- Tramo B: Desde FechaUltimoAbonoCapital + 1 día hasta hoy (sobre capital pendiente)
-                    CASE 
-                        WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
-                        THEN 
-                            -- Tramo A: Interés sobre capital original hasta el abono
-                            CASE 
-                                WHEN ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) >= ISNULL(FechaInicio, Fecha)
-                                THEN (MontoPrestado * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), DATEADD(DAY, 1, ISNULL(FechaUltimoAbonoCapital, GETDATE())))
-                                ELSE 0
-                            END +
-                            -- Tramo B: Interés sobre capital pendiente desde el abono hasta hoy
-                            CASE 
-                                WHEN ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) < GETDATE() AND ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) >= ISNULL(FechaInicio, Fecha)
-                                THEN ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, DATEADD(DAY, 1, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha))), GETDATE())
-                                ELSE 0
-                            END
-                        ELSE 0 
-                    END as InteresGenerado,
+                    DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
+                    -- Cálculo del interés: Simple sobre capital pendiente desde el inicio
+                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as InteresGenerado,
                     -- Saldo total hoy = Capital Pendiente + Interés Pendiente - Intereses Pagados
-                    CASE 
-                        WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
-                        THEN (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                            (CASE 
-                                WHEN ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) >= ISNULL(FechaInicio, Fecha)
-                                THEN (MontoPrestado * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), DATEADD(DAY, 1, ISNULL(FechaUltimoAbonoCapital, GETDATE())))
-                                ELSE 0
-                            END +
-                            CASE 
-                                WHEN ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) < GETDATE() AND ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) >= ISNULL(FechaInicio, Fecha)
-                                THEN ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, DATEADD(DAY, 1, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha))), GETDATE())
-                                ELSE 0
-                            END) - ISNULL(InteresesPagados, 0)
-                        ELSE SaldoActual
-                    END as saldoHoy,
+                    (MontoPrestado - ISNULL(MontoPagado, 0)) + ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) - ISNULL(InteresesPagados, 0) as saldoHoy,
                     -- Capital hoy (lo que falta por pagar de capital)
-                    CASE 
-                        WHEN ISNULL(FechaInicio, Fecha) IS NOT NULL 
-                        THEN MontoPrestado - ISNULL(MontoPagado, 0)
-                        ELSE SaldoActual
-                    END as capitalHoy,
-                    DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos
+                    MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
                 FROM Prestamos 
                 WHERE ID_Persona = @id 
                 ORDER BY ISNULL(FechaInicio, Fecha) DESC
