@@ -364,12 +364,12 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     SaldoActual,
                     Estado,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
-                    -- Cálculo del interés total generado hasta hoy
-                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as InteresGenerado,
+                    -- Cálculo del interés total generado hasta hoy (usando FechaUltimoAbonoCapital para reiniciar el conteo)
+                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as InteresGenerado,
                     -- Interés pendiente = Interés generado - Intereses pagados
-                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) - ISNULL(InteresesPagados, 0) as InteresPendiente,
+                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) - ISNULL(InteresesPagados, 0) as InteresPendiente,
                     -- Saldo total hoy = Capital Pendiente + Interés Pendiente
-                    (MontoPrestado - ISNULL(MontoPagado, 0)) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) - ISNULL(InteresesPagados, 0)) as saldoHoy,
+                    (MontoPrestado - ISNULL(MontoPagado, 0)) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) - ISNULL(InteresesPagados, 0)) as saldoHoy,
                     -- Capital hoy (lo que falta por pagar de capital)
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
                 FROM Prestamos 
