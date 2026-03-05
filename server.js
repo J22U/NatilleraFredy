@@ -274,7 +274,7 @@ app.post('/registrar-prestamo-diario', async (req, res) => {
         await pool.request()
             .input('idPersona', sql.Int, idPersona).input('monto', sql.Decimal(18, 2), monto)
             .input('tasa', sql.Decimal(18, 2), tasaInteresMensual).input('fechaInicio', sql.Date, fechaInicio)
-            .query("INSERT INTO Prestamos (ID_Persona, MontoPrestado, TasaInteres, FechaInicio, MontoPagado, SaldoActual, Estado) VALUES (@idPersona, @monto, @tasa, @fechaInicio, 0, @monto, 'Activo')");
+            .query("INSERT INTO Prestamos (ID_Persona, MontoPrestado, TasaInteres, FechaInicio, MontoPagado, SaldoActual, Estado, InteresesPagados) VALUES (@idPersona, @monto, @tasa, @fechaInicio, 0, @monto, 'Activo', 0)");
         res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
@@ -710,6 +710,27 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
 
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log('SERVIDOR CORRIENDO EN PUERTO ' + PORT);
+
+// Verificar y crear columnas necesarias al iniciar
+async function inicializarBaseDeDatos() {
+    try {
+        const pool = await poolPromise;
+        
+        // Verificar si existe la columna InteresesPagados en Prestamos
+        const checkColumn = await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'InteresesPagados')
+            BEGIN
+                ALTER TABLE Prestamos ADD InteresesPagados DECIMAL(18,2) DEFAULT 0
+            END`);
+        
+        console.log('✅ Verificación de columnas completada');
+    } catch (err) {
+        console.error('❌ Error al inicializar columnas:', err.message);
+    }
+}
+
+inicializarBaseDeDatos().then(() => {
+    app.listen(PORT, () => {
+        console.log('SERVIDOR CORRIENDO EN PUERTO ' + PORT);
+    });
 });
