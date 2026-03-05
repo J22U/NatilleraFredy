@@ -654,21 +654,17 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
                 .query("UPDATE HistorialPagos SET Monto = @monto, Fecha = @fecha, Detalle = @detalle WHERE ID_Pago = @id");
 
             // 2. SINCRONIZACIÓN TOTAL: Sumar TODO el historial del préstamo
-            // Usamos LIKE con '%' para manejar cualquier variación de capital/interés
-            // Para interés: cualquier detalle que NO contenga 'capital' (ignorando mayúsculas/minúsculas y tildes)
-            
-            // SQL Server no tiene COLLATE bin2 para ignore accent directamente, 
-            // así que usamos la técnica de reemplazar caracteres con acentos
+            // Manejamos acentos en SQL Server reemplazando caracteres manualmente
             
             // Sumar abonos a INTERÉS (todo lo que NO contiene 'capital')
-            // Usamos una búsqueda que ignore mayúsculas
+            // Reemplazamos áéíóúüÁÉÍÓÚÜ por aeiouAEIOU para comparación sin acentos
             const resInteres = await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
                 .query(`
                     SELECT ISNULL(SUM(Monto), 0) as total 
                     FROM HistorialPagos 
                     WHERE ID_Prestamo = @idP 
-                    AND LOWER(Detalle) NOT LIKE '%capital%'
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) NOT LIKE '%capital%'
                 `);
             
             // Sumar abonos a CAPITAL (todo lo que contiene 'capital')
@@ -678,7 +674,7 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
                     SELECT ISNULL(SUM(Monto), 0) as total 
                     FROM HistorialPagos 
                     WHERE ID_Prestamo = @idP 
-                    AND LOWER(Detalle) LIKE '%capital%'
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) LIKE '%capital%'
                 `);
 
             const totalInteres = parseFloat(resInteres.recordset[0]?.total || 0);
