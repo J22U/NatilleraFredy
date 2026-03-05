@@ -433,8 +433,11 @@ async function actualizarListaDeudas() {
         const res = await fetch(`/detalle-prestamo/${idReal}`);
         const prestamos = await res.json();
         
+        // Ordenar préstamos por fecha de inicio (mismo orden que en renderPrestamos y renderAbonosDetallados)
+        const prestamosOrdenados = [...prestamos].sort((a, b) => new Date(a.FechaInicio || a.FechaPrestamo || 0) - new Date(b.FechaInicio || b.FechaPrestamo || 0));
+        
         // Filtramos solo los que tengan deuda según el SaldoActual de la DB
-        const activos = prestamos.filter(p => Number(p.SaldoActual) > 0);
+        const activos = prestamosOrdenados.filter(p => Number(p.SaldoActual) > 0);
         
         if (activos.length > 0) {
             select.innerHTML = activos.map((p, index) => {
@@ -443,7 +446,7 @@ async function actualizarListaDeudas() {
                 const saldoReal = Number(p.SaldoActual); 
                 const numPrestamoSocio = index + 1; 
 
-                return `<option value="${p.ID_Prestamo}" data-saldo="${saldoReal}">
+                return `<option value="${p.ID_Prestamo}" data-saldo="${saldoReal}" data-index="${index}">
                     Préstamo #${numPrestamoSocio} (Saldo: $${saldoReal.toLocaleString()})
                 </option>`;
             }).join('');
