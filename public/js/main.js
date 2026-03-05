@@ -608,7 +608,12 @@ async function verHistorialFechas(id, nombre) {
         return `
         <div class="p-3 mb-3 rounded-2xl border ${estaPago ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'} shadow-sm">
             <div class="flex justify-between items-center mb-2">
-                <span class="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full shadow-sm">PRÉSTAMO #${index + 1}</span>
+                    <button onclick="window.abrirEditarPrestamo(${m.ID_Prestamo}, ${capitalOriginal}, ${m.TasaInteres}, '${m.FechaInicioFormateada || m.FechaPrestamo || ''}')" class="text-amber-500 hover:text-amber-700 text-[10px] font-bold bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 hover:bg-amber-100 transition-all" title="Editar Préstamo">
+                        <i class="fas fa-edit mr-1"></i>Editar
+                    </button>
+                </div>
                 <span class="text-[10px] ${estaPago ? 'text-emerald-700' : 'text-slate-500'} font-bold">
                     ${estaPago ? '✅ PAGADO' : '📅 ' + (m.FechaInicioFormateada || m.FechaPrestamo || 'S/F')}
                 </span>
