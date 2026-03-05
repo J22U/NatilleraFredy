@@ -364,10 +364,12 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     SaldoActual,
                     Estado,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
-                    -- Cálculo del interés: Simple sobre capital pendiente desde el inicio
+                    -- Cálculo del interés total generado hasta hoy
                     ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as InteresGenerado,
-                    -- Saldo total hoy = Capital Pendiente + Interés Pendiente - Intereses Pagados
-                    (MontoPrestado - ISNULL(MontoPagado, 0)) + ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) - ISNULL(InteresesPagados, 0) as saldoHoy,
+                    -- Interés pendiente = Interés generado - Intereses pagados
+                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) - ISNULL(InteresesPagados, 0) as InteresPendiente,
+                    -- Saldo total hoy = Capital Pendiente + Interés Pendiente
+                    (MontoPrestado - ISNULL(MontoPagado, 0)) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) - ISNULL(InteresesPagados, 0)) as saldoHoy,
                     -- Capital hoy (lo que falta por pagar de capital)
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
                 FROM Prestamos 
@@ -616,6 +618,19 @@ app.get('/api/detalle-pago/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Función helper para normalizar texto (eliminar acentos y convertir a minúsculas)
+function normalizeText(text) {
+    if (!text) return '';
+    return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// Función helper para determinar si el detalle es "capital" o "interés"
+function esTipoCapital(detalle) {
+    if (!detalle) return false;
+    const normalized = normalizeText(detalle);
+    return normalized.includes('capital');
+}
+
 app.put('/api/editar-pago-deuda', async (req, res) => {
     try {
         const { idPago, monto, fecha, detalle, idPrestamo, montoAnterior, tipoAnterior } = req.body;
@@ -631,15 +646,15 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
         const detalleOriginal = pagoOriginal.recordset[0]?.Detalle || '';
         const montoOriginal = parseFloat(pagoOriginal.recordset[0]?.Monto || 0);
         
-        // Determinar tipos - si el detalle original está vacío, usar el tipoAnterior del frontend
-        let eraCapital = detalleOriginal.toLowerCase().includes('capital');
+        // Determinar tipos usando la función helper que maneja acentos
+        let eraCapital = esTipoCapital(detalleOriginal);
         
         // Si el detalle original está vacío pero tenemos tipoAnterior del frontend, usarlo
         if (!detalleOriginal && tipoAnterior) {
-            eraCapital = tipoAnterior.toLowerCase().includes('capital');
+            eraCapital = esTipoCapital(tipoAnterior);
         }
         
-        const esCapitalNuevo = String(detalle || '').toLowerCase().includes('capital');
+        const esCapitalNuevo = esTipoCapital(detalle);
         
         // DEBUG: Registrar lo que está pasando
         console.log("DEBUG editar-pago-deuda:", {
