@@ -445,23 +445,64 @@ async function actualizarListaDeudas() {
                 // No restamos nada a mano, usamos el saldo que manda SQL
                 const saldoReal = Number(p.SaldoActual); 
                 const numPrestamoSocio = index + 1; 
+                
+                // Guardamos el interés generado en un atributo data para usarlo después
+                const interesGenerado = Number(p.InteresGenerado || 0);
 
-                return `<option value="${p.ID_Prestamo}" data-saldo="${saldoReal}" data-index="${index}">
+                return `<option value="${p.ID_Prestamo}" data-saldo="${saldoReal}" data-index="${index}" data-interes="${interesGenerado}">
                     Préstamo #${numPrestamoSocio} (Saldo: $${saldoReal.toLocaleString()})
                 </option>`;
             }).join('');
             
             select.onchange = () => {
                 const saldo = select.options[select.selectedIndex].getAttribute('data-saldo');
+                const interes = select.options[select.selectedIndex].getAttribute('data-interes');
                 inputMonto.placeholder = `Máximo: $${Number(saldo).toLocaleString()}`;
+                // Guardar el interés actual para mostrar cuando se seleccione "A Interés"
+                window.interesActualPrestamo = interes;
+                actualizarInfoInteres();
             };
             select.onchange();
             
         } else {
             select.innerHTML = '<option value="">Sin deudas activas</option>';
             inputMonto.placeholder = "Monto $";
+            window.interesActualPrestamo = 0;
         }
     } catch (e) { console.error("Error al actualizar deudas:", e); }
+}
+
+// Función para mostrar/ocultar la info de intereses según la opción seleccionada
+function actualizarInfoInteres() {
+    const radioInteres = document.querySelector('input[name="destinoAbono"]:checked');
+    const infoInteres = document.getElementById('info-interes');
+    const montoInteres = document.getElementById('monto-interes-pendiente');
+    
+    if (!radioInteres || !infoInteres || !montoInteres) return;
+    
+    if (radioInteres.value === 'interes') {
+        // Mostrar el interés pendiente
+        const interes = Number(window.interesActualPrestamo || 0);
+        montoInteres.textContent = `$${interes.toLocaleString()}`;
+        infoInteres.classList.remove('hidden');
+        
+        // También actualizar el placeholder del monto con el máximo de interés
+        const inputMonto = document.getElementById('mov_monto');
+        if (inputMonto) {
+            inputMonto.placeholder = `Máximo: $${interes.toLocaleString()}`;
+        }
+    } else {
+        // Ocultar el info de interés y restaurar el placeholder normal
+        infoInteres.classList.add('hidden');
+        const select = document.getElementById('mov_prestamo_id');
+        const inputMonto = document.getElementById('mov_monto');
+        if (select && inputMonto) {
+            const saldo = select.options[select.selectedIndex]?.getAttribute('data-saldo');
+            if (saldo) {
+                inputMonto.placeholder = `Máximo: $${Number(saldo).toLocaleString()}`;
+            }
+        }
+    }
 }
 
 async function verHistorialFechas(id, nombre) {
