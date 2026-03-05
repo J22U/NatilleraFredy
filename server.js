@@ -633,102 +633,95 @@ function esTipoCapital(detalle) {
 
 app.put('/api/editar-pago-deuda', async (req, res) => {
     try {
-        const { idPago, monto, fecha, detalle, idPrestamo, montoAnterior, tipoAnterior } = req.body;
+        const { idPago, monto, fecha, detalle, idPrestamo } = req.body;
         
         if (!idPago || !monto || !idPrestamo) {
             return res.status(400).json({ success: false, error: "Faltan datos" });
         }
 
         const pool = await poolPromise;
+        const transaction = new sql.Transaction(pool);
 
-        // Obtener el pago original para comparar el tipo
-        const pagoOriginal = await pool.request()
-            .input('id', sql.Int, idPago)
-            .query("SELECT Detalle, Monto FROM HistorialPagos WHERE ID_Pago = @id");
-        
-        const detalleOriginal = pagoOriginal.recordset[0]?.Detalle || '';
-        const montoOriginal = parseFloat(pagoOriginal.recordset[0]?.Monto || 0);
-        
-        // Determinar tipos usando las funciones helper (maneja acentos)
-        let eraCapital = esTipoCapital(detalleOriginal);
-        
-        // Si el detalle original está vacío pero tenemos tipoAnterior del frontend
-        if (!detalleOriginal && tipoAnterior) {
-            eraCapital = esTipoCapital(tipoAnterior);
-        }
-        
-        const esCapitalNuevo = esTipoCapital(detalle);
-        
-        // Debug: ver qué estamos procesando
-        console.log("DEBUG editar-pago-deuda:", {
-            idPago,
-            detalleOriginal,
-            detalleNuevo: detalle,
-            eraCapital,
-            esCapitalNuevo,
-            montoOriginal,
-            montoNuevo: monto
-        });
-        
-        const montoNuevo = parseFloat(monto);
-        const diferencia = montoNuevo - montoOriginal;
+        try {
+            await transaction.begin();
 
-        // 1. Actualizar el registro del pago en el historial
-        await pool.request()
-            .input('id', sql.Int, idPago)
-            .input('monto', sql.Decimal(18, 2), montoNuevo)
-            .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
-            .input('detalle', sql.VarChar, detalle || 'Abono a deuda')
-            .query("UPDATE HistorialPagos SET Monto = @monto, Fecha = @fecha, Detalle = @detalle WHERE ID_Pago = @id");
+            // 1. Actualizar el registro del pago en el historial
+            await transaction.request()
+                .input('id', sql.Int, idPago)
+                .input('monto', sql.Decimal(18, 2), parseFloat(monto))
+                .input('fecha', sql.Date, fecha || new Date().toISOString().split('T')[0])
+                .input('detalle', sql.VarChar, detalle || 'Abono a deuda')
+                .query("UPDATE HistorialPagos SET Monto = @monto, Fecha = @fecha, Detalle = @detalle WHERE ID_Pago = @id");
 
-        // 2. Lógica para manejar el cambio de tipo o cambio de monto
-        if (eraCapital !== esCapitalNuevo) {
-            console.log("DEBUG: El tipo cambió, ejecutando inversión de montos");
+            // 2. SINCRONIZACIÓN TOTAL: Sumar TODO el historial del préstamo
+            // Usamos LIKE con '%' para manejar cualquier variación de capital/interés
+            // Para interés: cualquier detalle que NO contenga 'capital' (ignorando mayúsculas/minúsculas y tildes)
             
-            // El tipo cambió: invertir el monto original
-            if (eraCapital) {
-                // Era capital, ahora es interés - revertir capital y agregar interés
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo)
-                    .input('monto', sql.Decimal(18, 2), montoOriginal)
-                    .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) - @monto, SaldoActual = SaldoActual + @monto, Estado = 'Activo' WHERE ID_Prestamo = @idP");
-                
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo)
-                    .input('monto', sql.Decimal(18, 2), montoNuevo)
-                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @monto WHERE ID_Prestamo = @idP");
-            } else {
-                // Era interés, ahora es capital - revertir interés y agregar capital
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo)
-                    .input('monto', sql.Decimal(18, 2), montoOriginal)
-                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) - @monto WHERE ID_Prestamo = @idP");
-                
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo)
-                    .input('monto', sql.Decimal(18, 2), montoNuevo)
-                    .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @monto, SaldoActual = CASE WHEN (SaldoActual - @monto) < 0 THEN 0 ELSE SaldoActual - @monto END, Estado = CASE WHEN (SaldoActual - @monto) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP");
-            }
-        } else if (diferencia !== 0) {
-            console.log("DEBUG: Mismo tipo pero cambió el monto, ajustando diferencia:", diferencia);
+            // SQL Server no tiene COLLATE bin2 para ignore accent directamente, 
+            // así que usamos la técnica de reemplazar caracteres con acentos
             
-            // Mismo tipo, pero cambió el monto
-            if (esCapitalNuevo) {
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo)
-                    .input('dif', sql.Decimal(18, 2), diferencia)
-                    .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @dif, SaldoActual = CASE WHEN (SaldoActual - @dif) < 0 THEN 0 ELSE SaldoActual - @dif END, Estado = CASE WHEN (SaldoActual - @dif) <= 0 THEN 'Pagado' ELSE 'Activo' END WHERE ID_Prestamo = @idP");
-            } else {
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo)
-                    .input('dif', sql.Decimal(18, 2), diferencia)
-                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @dif WHERE ID_Prestamo = @idP");
-            }
-        } else {
-            console.log("DEBUG: No hay cambios en tipo ni monto, solo se actualizó el registro");
+            // Sumar abonos a INTERÉS (todo lo que NO contiene 'capital')
+            // Usamos una búsqueda que ignore mayúsculas
+            const resInteres = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query(`
+                    SELECT ISNULL(SUM(Monto), 0) as total 
+                    FROM HistorialPagos 
+                    WHERE ID_Prestamo = @idP 
+                    AND LOWER(Detalle) NOT LIKE '%capital%'
+                `);
+            
+            // Sumar abonos a CAPITAL (todo lo que contiene 'capital')
+            const resCapital = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query(`
+                    SELECT ISNULL(SUM(Monto), 0) as total 
+                    FROM HistorialPagos 
+                    WHERE ID_Prestamo = @idP 
+                    AND LOWER(Detalle) LIKE '%capital%'
+                `);
+
+            const totalInteres = parseFloat(resInteres.recordset[0]?.total || 0);
+            const totalCapital = parseFloat(resCapital.recordset[0]?.total || 0);
+
+            console.log("DEBUG sincronizacion total:", {
+                idPrestamo,
+                totalInteres,
+                totalCapital
+            });
+
+            // 3. Obtener el monto prestado original para calcular el saldo
+            const resPrestamo = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query("SELECT MontoPrestado FROM Prestamos WHERE ID_Prestamo = @idP");
+            
+            const montoPrestado = parseFloat(resPrestamo.recordset[0]?.MontoPrestado || 0);
+            const nuevoSaldo = Math.max(0, montoPrestado - totalCapital);
+
+            // 4. Actualizar el préstamo con los totales recalculados
+            await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .input('intereses', sql.Decimal(18, 2), totalInteres)
+                .input('capital', sql.Decimal(18, 2), totalCapital)
+                .input('saldo', sql.Decimal(18, 2), nuevoSaldo)
+                .query(`
+                    UPDATE Prestamos 
+                    SET InteresesPagados = @intereses, 
+                        MontoPagado = @capital,
+                        SaldoActual = @saldo,
+                        Estado = CASE WHEN @saldo <= 0 THEN 'Pagado' ELSE 'Activo' END
+                    WHERE ID_Prestamo = @idP
+                `);
+
+            await transaction.commit();
+
+            res.json({ success: true, message: "Pago actualizado y préstamo sincronizado" });
+
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
         }
 
-        res.json({ success: true, message: "Pago actualizado" });
     } catch (err) { 
         console.error("Error en editar-pago-deuda:", err);
         res.status(500).json({ success: false, error: err.message }); 
