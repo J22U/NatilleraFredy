@@ -528,7 +528,13 @@ async function verHistorialFechas(id, nombre) {
         const renderPrestamos = (data) => {
     if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
     
-    return data.map((m, index) => {
+    // Ordenar préstamos por fecha de inicio (más antiguo primero)
+    const prestamosOrdenados = [...data].sort((a, b) => 
+        new Date(a.FechaInicio || a.FechaPrestamo || 0) - 
+        new Date(b.FechaInicio || b.FechaPrestamo || 0)
+    );
+    
+    return prestamosOrdenados.map((m, index) => {
         const interesGenerado = Number(m.InteresGenerado || m.MontoInteres || 0);
         const capitalOriginal = Number(m.MontoPrestado || 0);
         const montoPagado = Number(m.MontoPagado || 0);
