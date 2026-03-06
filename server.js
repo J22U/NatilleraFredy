@@ -373,13 +373,14 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     -- (Calculado sobre el capital que se debe hoy, desde FechaUltimoAbonoCapital)
                     ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as InteresGenerado,
                     
-                    -- 2. Interés pendiente (Generado Total - Pagado Total - Anticipado)
-                    -- ESTA ES LA LÍNEA QUE HARÁ QUE EL SALDO BAJE
+                    -- 2. Interés pendiente = Interés Generado - Intereses Pagados - Interés Anticipado
+                    -- El Interés Anticipado reduce el interés pendiente (no el capital)
                     (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0) as InteresPendiente,
                     
-                    -- 3. Saldo total hoy (Capital hoy + Interés pendiente ya restado)
+                    -- 3. Saldo total hoy = Capital Pendiente + Interés Pendiente (si es positivo)
+                    -- El interés anticipado NO reduce el capital, solo el interés pendiente
                     (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                    ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0)) as saldoHoy,
+                    MAX(0, (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0)) as saldoHoy,
                     
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
                 FROM Prestamos 
