@@ -715,18 +715,29 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
             // 2. SINCRONIZACIÓN TOTAL: Sumar TODO el historial del préstamo
             // Manejamos acentos en SQL Server reemplazando caracteres manualmente
             
-            // Sumar abonos a INTERÉS (todo lo que NO contiene 'capital')
-            // Reemplazamos áéíóúüÁÉÍÓÚÜ por aeiouAEIOU para comparación sin acentos
+            // Sumar abonos a INTERÉS REGULAR (contiene 'interes' pero NO 'anticipado' y NO 'capital')
             const resInteres = await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
                 .query(`
                     SELECT ISNULL(SUM(Monto), 0) as total 
                     FROM HistorialPagos 
                     WHERE ID_Prestamo = @idP 
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) LIKE '%interes%'
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) NOT LIKE '%anticipado%'
                     AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) NOT LIKE '%capital%'
                 `);
             
-            // Sumar abonos a CAPITAL (todo lo que contiene 'capital')
+            // Sumar abonos a INTERÉS ANTICIPADO (contiene 'anticipado')
+            const resInteresAnticipado = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query(`
+                    SELECT ISNULL(SUM(Monto), 0) as total 
+                    FROM HistorialPagos 
+                    WHERE ID_Prestamo = @idP 
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) LIKE '%anticipado%'
+                `);
+            
+            // Sumar abonos a CAPITAL (contiene 'capital')
             const resCapital = await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
                 .query(`
@@ -737,6 +748,7 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
                 `);
 
             const totalInteres = parseFloat(resInteres.recordset[0]?.total || 0);
+            const totalInteresAnticipado = parseFloat(resInteresAnticipado.recordset[0]?.total || 0);
             const totalCapital = parseFloat(resCapital.recordset[0]?.total || 0);
 
             console.log("DEBUG sincronizacion total:", {
@@ -757,11 +769,13 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
             await transaction.request()
                 .input('idP', sql.Int, idPrestamo)
                 .input('intereses', sql.Decimal(18, 2), totalInteres)
+                .input('interesAnticipado', sql.Decimal(18, 2), totalInteresAnticipado)
                 .input('capital', sql.Decimal(18, 2), totalCapital)
                 .input('saldo', sql.Decimal(18, 2), nuevoSaldo)
                 .query(`
                     UPDATE Prestamos 
                     SET InteresesPagados = @intereses, 
+                        InteresAnticipado = @interesAnticipado,
                         MontoPagado = @capital,
                         SaldoActual = @saldo,
                         Estado = CASE WHEN @saldo <= 0 THEN 'Pagado' ELSE 'Activo' END
