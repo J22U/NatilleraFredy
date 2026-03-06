@@ -1,40 +1,27 @@
-# TODO - Implementar Abonos Anticipados a Intereses
+# TODO - Sistema de Rifas Completado
 
-## Objetivo
-Permitir realizar abonos a los intereses de los préstamos por adelantado, mostrando el saldo de adelanto en el detalle del préstamo y descontando automáticamente a medida que se generan intereses.
+## Cambios realizados
 
-## Pasos Completados ✅
+### 1. Eliminado el ciclo automático de rifas
+- ✅ Eliminada la función `verificarCambioCiclo()` - que creaba rifas automáticamente
+- ✅ Eliminada la función `obtenerProximaFechaSorteo()` - que calculaba fechas automáticamente
+- ✅ Simplificada la función `obtenerViernesSorteo()` - solo para uso manual del botón "Nueva Quincena"
 
-### 1. Backend (server.js) ✅
-- [x] La lógica de cálculo de interés ya considera automáticamente el interés anticipado (ya estaba implementado)
-- [x] La columna InteresAnticipado existe en la base de datos
+### 2. Funcionalidad Mantenida
+- ✅ Botón "Nueva Quincena" funciona manualmente (solo se ejecuta cuando el usuario hace clic)
+- ✅ Sistema completo de 4 tablas con 100 números cada una (00-99)
+- ✅ Compra múltiple de números
+- ✅ Sistema de premios por tabla (3 ganadores por tabla)
+- ✅ Panel de deudores
+- ✅ Búsqueda de clientes
+- ✅ Guardado automático con debounce
+- ✅ Contadores de ganancias
 
-### 2. Frontend - Interfaz (dashboard.html) ✅
-- [x] Agregada nueva opción de radiobutton: "Anticipado" en la sección de abonos a deuda
-- [x] Cambiado el layout de 2 columnas a 3 columnas para los botones de destino
-- [x] Agregado estilo CSS para el color del botón seleccionado (ámbar)
+### 3. Cómo funciona ahora
+- Las rifas ya NO se crean automáticamente al cambiar la fecha
+- El usuario debe usar el botón "Nueva Quincena" manualmente cuando quiera crear una nueva rifa
+- Los datos se guardan por fecha en la base de datos
+- Se puede cambiar entre fechas usando el filtro de fecha
 
-### 3. Frontend - Lógica (main.js) ✅
-- [x] Actualizada la función `actualizarInfoInteres()` para manejar el nuevo tipo de destino
-- [x] Cuando se selecciona "Anticipado", el placeholder del monto cambia a "Monto a adelantar"
-- [x] No se muestra la validación de monto máximo para intereses anticipados (permite flexibilidad)
-- [x] El detalle del préstamo ya muestra el "Interés Anticipado" cuando existe un saldo
-
----
-
-## Cómo Funciona:
-
-1. **Registro de Abono Anticipado:**
-   - En la sección "Abono a Deuda", selecciona "Anticipado" como destino
-   - El sistema permite cualquier cantidad (sin límite de interés pendiente)
-   - Se registra en el historial como "Abono a INTERESANTICIPADO"
-
-2. **Cálculo Automático:**
-   - El sistema diariamente descuenta del anticipado a medida que genera intereses
-   - El saldo del anticipado se muestra en el detalle del préstamo
-   - El interés pendiente se calcula: Interés Generado - Intereses Pagados - Interés Anticipado
-
-3. **Visualización:**
-   - En "Préstamos Detallados" se muestra el valor de "Interés Anticipado" cuando existe
-   - El saldo total se actualiza automáticamente considerando el anticipado
+## Estado: ✅ COMPLETADO
 

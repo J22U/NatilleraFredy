@@ -1275,6 +1275,132 @@ async function cargarRifasPorFecha() {
 
 
 
+async function verificarCambioCiclo() {
+    // 1. Cargar los datos actuales del servidor
+    const fechaActual = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
+    const response = await fetch(`/api/cargar-rifas?fecha=${fechaActual}`);
+    const datos = await response.json();
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // 2. Si la rifa guardada ya "venció" (la fecha del sorteo es menor a hoy)
+    if (datos.info && datos.info.fecha < hoy) {
+        console.log("Ciclo vencido. Creando nueva rifa automática...");
+
+        // Calculamos la base para la nueva fecha: mañana mismo para evitar repetir la fecha actual
+        let manana = new Date();
+        manana.setDate(manana.getDate() + 1);
+        
+        const nuevaFecha = obtenerViernesSorteo(manana); 
+        
+        const nuevaRifa = {
+            info: {
+                ...datos.info,
+                fecha: nuevaFecha,
+                nombre: `Rifa - Ciclo ${nuevaFecha}`
+            }
+        };
+
+        // 3. REUTILIZAR TABLAS Y RESPETAR PAGOS ADELANTADOS
+        Object.keys(datos).forEach(key => {
+            if (key.startsWith('tabla')) {
+                const tablaOriginal = datos[key];
+                const participantesNuevos = {};
+
+                Object.keys(tablaOriginal.participantes).forEach(num => {
+                    const p = tablaOriginal.participantes[num];
+                    
+                    participantesNuevos[num] = {
+                        nombre: p.nombre,
+                        // Si p.adelantado era true, ahora p.pago es true
+                        pago: p.adelantado === true || p.adelantado === "true", 
+                        adelantado: false // El adelanto se consume
+                    };
+                });
+
+                nuevaRifa[key] = {
+                    titulo: tablaOriginal.titulo,
+                    participantes: participantesNuevos
+                };
+            }
+        });
+
+        // 4. Acumular la ganancia de la rifa actual antes de cambiar
+        await acumularGananciaRifa();
+        
+        // 5. Guardar automáticamente y Notificar
+        try {
+            // Guardamos el nuevo objeto
+            await guardarTodo(nuevaRifa);
+
+            // Mostramos el SweetAlert antes de recargar
+            await Swal.fire({
+                title: '¡Nueva Quincena Detectada!',
+                text: `Se ha generado automáticamente el sorteo para el viernes ${nuevaFecha}. Se mantuvieron los nombres, se procesaron los pagos adelantados y la ganancia se acumuló al total.`,
+                icon: 'success',
+                confirmButtonColor: '#0984e3',
+                confirmButtonText: 'Entendido',
+                allowOutside            });
+
+            // 5. Recargar para mostrar la nueva rifa
+            location.reload(); 
+            
+        } catch (error) {
+            console.error("Error al automatizar el cambio de ciclo:", error);
+            Swal.fire('Error', 'No se pudo crear el nuevo ciclo automáticamente.', 'error');
+        }
+    }
+}
+
+function obtenerViernesSorteo(fechaReferencia = new Date()) {
+    let fecha = new Date(fechaReferencia);
+    let diaMes = fecha.getDate();
+    let mes = fecha.getMonth();
+    let año = fecha.getFullYear();
+
+    let diaObjetivo;
+    let fechaObjetivo;
+
+    // Determinar el próximo objetivo (15 o 30)
+    if (diaMes < 15) {
+        // Estamos en la primera quincena (del 1 al 14)
+        // El próximo objetivo es el día 15
+        diaObjetivo = 15;
+    } else if (diaMes >= 15 && diaMes <= 30) {
+        // Estamos en la segunda quincena (del 15 al 30)
+        // El próximo objetivo es el día 30 (o fin de mes si es menor a 30)
+        const diasEnMes = new Date(año, mes + 1, 0).getDate();
+        diaObjetivo = Math.min(30, diasEnMes);
+    } else {
+        // Ya pasó el 30, entonces vamos al siguiente mes
+        // El próximo objetivo es el día 15 del siguiente mes
+        mes += 1;
+        if (mes > 11) {
+            mes = 0;
+            año += 1;
+        }
+        diaObjetivo = 15;
+    }
+
+    // Crear la fecha objetivo
+    fechaObjetivo = new Date(año, mes, diaObjetivo);
+
+    // Ahora buscar el viernes (día 5) más cercano a esa fecha
+    // Si la fecha objetivo es viernes, usar esa
+    // Si no, avanzar al siguiente viernes
+    while (fechaObjetivo.getDay() !== 5) {
+        fechaObjetivo.setDate(fechaObjetivo.getDate() + 1);
+    }
+
+    // Si el viernes calculado ya pasó (es antes que la fecha de referencia),
+    // entonces vamos al siguiente ciclo
+    if (fechaObjetivo < fecha) {
+        // Volver a calcular para el siguiente ciclo
+        return obtenerViernesSorteo(new Date(año, mes + 1, 1));
+    }
+
+    return fechaObjetivo.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
+}
+
 // Al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
     const f1 = document.getElementById('filtroFecha');
@@ -1314,16 +1440,6 @@ window.onclick = function(event) {
     if (event.target == modal) {
         cerrarModal();
     }
-}
-
-// Función simple para obtener el próximo viernes (solo para el botón manual)
-function obtenerViernesSorteo(fechaReferencia = new Date()) {
-    let fecha = new Date(fechaReferencia);
-    // Buscar el viernes más cercano (día 5 de la semana)
-    while (fecha.getDay() !== 5) {
-        fecha.setDate(fecha.getDate() + 1);
-    }
-    return fecha.toISOString().split('T')[0];
 }
 
 // ==================== SISTEMA DE PREMIOS POR TABLA ====================
