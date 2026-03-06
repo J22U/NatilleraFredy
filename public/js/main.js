@@ -682,11 +682,22 @@ async function verHistorialFechas(id, nombre) {
         const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'Ref';
         
         // --- LÓGICA DE DESTINO ---
-        // Asumimos que m.MesesCorrespondientes contiene "Abono a CAPITAL" o "Abono a INTERES"
-        // o que tienes un campo directo m.Destino
-        const esCapital = String(m.MesesCorrespondientes || m.Detalle || '').toLowerCase().includes('capital');
-        const colorBadge = esCapital ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
-        const textoDestino = esCapital ? 'CAPITAL' : 'INTERÉS';
+        // Verificar si es CAPITAL, INTERÉS ANTICIPADO, o INTERÉS regular
+        const detalleLower = String(m.MesesCorrespondientes || m.Detalle || '').toLowerCase();
+        const esCapital = detalleLower.includes('capital');
+        const esAnticipado = detalleLower.includes('anticipado');
+        
+        let colorBadge, textoDestino;
+        if (esCapital) {
+            colorBadge = 'bg-emerald-100 text-emerald-700';
+            textoDestino = 'CAPITAL';
+        } else if (esAnticipado) {
+            colorBadge = 'bg-amber-100 text-amber-700';
+            textoDestino = 'INTERÉS ANTICIPADO';
+        } else {
+            colorBadge = 'bg-amber-100 text-amber-700';
+            textoDestino = 'INTERÉS';
+        }
 
         const idPago = m.ID_Pago || 0;
         const idPrestamo = m.ID_Prestamo || 0;
