@@ -465,6 +465,14 @@ app.post('/procesar-movimiento', async (req, res) => {
                 await pool.request()
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
                     .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
+            } else if (destinoAbono === 'interesAnticipado') {
+                // Abono a INTERÉS ANTICIPADO: se suma a InteresAnticipado (adelanto de intereses)
+                console.log(">>> Abono a INTERÉS ANTICIPADO (ADELANTO)");
+                
+                // Para interés anticipado, permitimos un monto más flexible (no validamos contra interés pendiente)
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
+                    .query("UPDATE Prestamos SET InteresAnticipado = ISNULL(InteresAnticipado, 0) + @m WHERE ID_Prestamo = @idP");
             } else {
                 // Si destinoAbono es undefined, null o cualquier otro valor -> SE TRATA COMO INTERÉS (sin tocar el SaldoActual)
                 console.log(">>> Abono a INTERÉS (default)", destinoAbono);

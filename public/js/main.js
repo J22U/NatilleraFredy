@@ -491,8 +491,17 @@ function actualizarInfoInteres() {
         if (inputMonto) {
             inputMonto.placeholder = `Máximo: $${interes.toLocaleString()}`;
         }
+    } else if (radioInteres.value === 'interesAnticipado') {
+        // Para interés anticipado, no hay límite (se puede pagar por adelantado)
+        infoInteres.classList.add('hidden');
+        
+        // Placeholder flexible para interés anticipado
+        const inputMonto = document.getElementById('mov_monto');
+        if (inputMonto) {
+            inputMonto.placeholder = "Monto a adelantar";
+        }
     } else {
-        // Ocultar el info de interés y restaurar el placeholder normal
+        // Ocultar el info de interés y restaurar el placeholder normal (para capital)
         infoInteres.classList.add('hidden');
         const select = document.getElementById('mov_prestamo_id');
         const inputMonto = document.getElementById('mov_monto');
@@ -577,6 +586,7 @@ async function verHistorialFechas(id, nombre) {
     return prestamosOrdenados.map((m, index) => {
         // Ahora usamos los valores que envía el servidor directamente
         const interesPendiente = Number(m.InteresPendiente || 0);
+        const interesAnticipado = Number(m.InteresAnticipado || 0);
         const capitalOriginal = Number(m.MontoPrestado || 0);
         const capitalHoy = Number(m.capitalHoy || 0);
         // Usar saldoHoy que ya viene calculado del servidor
@@ -605,6 +615,14 @@ async function verHistorialFechas(id, nombre) {
                     <span class="text-emerald-700">= Capital Hoy:</span>
                     <span class="text-emerald-700">$${capitalHoy.toLocaleString()}</span>
                 </div>
+            </div>
+        ` : '';
+
+        // Mostrar interés anticipado si existe
+        const mostrarInteresAnticipado = interesAnticipado > 0 ? `
+            <div class="flex justify-between text-[7px] mt-0.5">
+                <span class="text-emerald-500">- Interés Anticipado:</span>
+                <span class="font-medium text-emerald-600">-$${interesAnticipado.toLocaleString()}</span>
             </div>
         ` : '';
 
@@ -638,6 +656,7 @@ async function verHistorialFechas(id, nombre) {
                     <span class="text-[8px] uppercase font-black text-slate-400 leading-tight">Resumen</span>
                     <span class="text-[11px] font-bold text-slate-700">Capital: $${capitalOriginal.toLocaleString()}</span>
                     <span class="text-[9px] text-rose-500 font-medium">Interés: $${interesPendiente.toLocaleString()}</span>
+                    ${mostrarInteresAnticipado}
                 </div>
                 
                 ${!estaPago ? `

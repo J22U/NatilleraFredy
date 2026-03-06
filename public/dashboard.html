@@ -19,6 +19,7 @@
         .destino-radio:checked + div { background-color: white !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .destino-radio[value="capital"]:checked + div { color: #059669 !important; }
         .destino-radio[value="interes"]:checked + div { color: #4f46e5 !important; }
+        .destino-radio[value="interesAnticipado"]:checked + div { color: #f59e0b !important; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -116,7 +117,7 @@
                                         <span id="monto-interes-pendiente" class="text-sm font-black text-amber-700">$0</span>
                                     </div>
                                 </div>
-                                <div class="grid grid-cols-2 gap-2 p-1 bg-slate-200/50 rounded-xl border border-slate-200">
+                                <div class="grid grid-cols-3 gap-1 p-1 bg-slate-200/50 rounded-xl border border-slate-200">
                                     <label class="relative flex items-center justify-center cursor-pointer">
                                         <input type="radio" name="destinoAbono" value="capital" class="destino-radio hidden" checked onchange="actualizarInfoInteres()">
                                         <div class="w-full py-2 rounded-lg text-center text-[9px] font-black text-slate-400 transition-all uppercase">A Capital</div>
@@ -124,6 +125,10 @@
                                     <label class="relative flex items-center justify-center cursor-pointer">
                                         <input type="radio" name="destinoAbono" value="interes" class="destino-radio hidden" onchange="actualizarInfoInteres()">
                                         <div class="w-full py-2 rounded-lg text-center text-[9px] font-black text-slate-400 transition-all uppercase">A Interés</div>
+                                    </label>
+                                    <label class="relative flex items-center justify-center cursor-pointer">
+                                        <input type="radio" name="destinoAbono" value="interesAnticipado" class="destino-radio hidden" onchange="actualizarInfoInteres()">
+                                        <div class="w-full py-2 rounded-lg text-center text-[8px] font-black text-slate-400 transition-all uppercase">Anticipado</div>
                                     </label>
                                 </div>
                             </div>

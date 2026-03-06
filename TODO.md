@@ -1,41 +1,40 @@
-# Plan de Corrección - Abono a Capital/Interés
+# TODO - Implementar Abonos Anticipados a Intereses
 
-## Problema
-Cuando se realiza un abono al capital y existe interés, el sistema está abonando al interés en lugar del capital.
+## Objetivo
+Permitir realizar abonos a los intereses de los préstamos por adelantado, mostrando el saldo de adelanto en el detalle del préstamo y descontando automáticamente a medida que se generan intereses.
 
-## Causa Raíz
-1. **Server.js**: La lógica usa `else` que captura cualquier valor que no sea 'capital', incluyendo undefined/null
-2. **Edición de pagos**: No permite cambiar el tipo de abono (capital/interés)
+## Pasos Completados ✅
 
-## Tareas a Realizar
+### 1. Backend (server.js) ✅
+- [x] La lógica de cálculo de interés ya considera automáticamente el interés anticipado (ya estaba implementado)
+- [x] La columna InteresAnticipado existe en la base de datos
 
-### 1. Corregir lógica de procesar-movimiento en server.js ✅
-- [x] Cambiar la condición `else` por validación explícita para 'interes'
-- [x] Manejar caso cuando destinoAbono es undefined/null
-- [x] Agregar logs de debug para verificar valores recibidos
+### 2. Frontend - Interfaz (dashboard.html) ✅
+- [x] Agregada nueva opción de radiobutton: "Anticipado" en la sección de abonos a deuda
+- [x] Cambiado el layout de 2 columnas a 3 columnas para los botones de destino
+- [x] Agregado estilo CSS para el color del botón seleccionado (ámbar)
 
-### 2. Corregir lógica de editar-pago-deuda en server.js ✅
-- [x] Revisar y corregir la lógica de actualización de interesespagados
-- [x] Ahora consulta el registro original para comparar si cambió el tipo (capital <-> interes)
+### 3. Frontend - Lógica (main.js) ✅
+- [x] Actualizada la función `actualizarInfoInteres()` para manejar el nuevo tipo de destino
+- [x] Cuando se selecciona "Anticipado", el placeholder del monto cambia a "Monto a adelantar"
+- [x] No se muestra la validación de monto máximo para intereses anticipados (permite flexibilidad)
+- [x] El detalle del préstamo ya muestra el "Interés Anticipado" cuando existe un saldo
 
-### 3. Verificar cliente (main.js) ✅
-- [x] El valor de destinoAbono ya se envía correctamente al servidor
+---
 
-### 4. Mostrar Capital Hoy en detalle de préstamo ✅
-- [x] El servidor calcula `capitalHoy = MontoPrestado - MontoPagado`
-- [x] El frontend muestra el capital pendiente después de abonos
+## Cómo Funciona:
 
-## Cambios Realizados
+1. **Registro de Abono Anticipado:**
+   - En la sección "Abono a Deuda", selecciona "Anticipado" como destino
+   - El sistema permite cualquier cantidad (sin límite de interés pendiente)
+   - Se registra en el historial como "Abono a INTERESANTICIPADO"
 
-### server.js
-- Agregado log de debug en `procesar-movimiento` para ver qué valores llegan
-- Validación explícita para destinoAbono === 'capital' vs 'interes'
-- El cálculo de capitalHoy: `MontoPrestado - ISNULL(MontoPagado, 0)`
+2. **Cálculo Automático:**
+   - El sistema diariamente descuenta del anticipado a medida que genera intereses
+   - El saldo del anticipado se muestra en el detalle del préstamo
+   - El interés pendiente se calcula: Interés Generado - Intereses Pagados - Interés Anticipado
 
-### public/js/main.js
-- La función renderPrestamos ya muestra:
-  - Capital Inicial
-  - Abonos a Capital (si hay)
-  - Interés Acumulado
-  - Capital Hoy
-  - Saldo Total Hoy
+3. **Visualización:**
+   - En "Préstamos Detallados" se muestra el valor de "Interés Anticipado" cuando existe
+   - El saldo total se actualiza automáticamente considerando el anticipado
+
