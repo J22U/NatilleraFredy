@@ -797,6 +797,112 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
     }
 });
 
+// Endpoint para eliminar un pago de deuda
+app.delete('/api/eliminar-pago-deuda', async (req, res) => {
+    try {
+        const { idPago, idPrestamo, monto, detalle } = req.body;
+        
+        if (!idPago || !idPrestamo) {
+            return res.status(400).json({ success: false, error: "Faltan datos: idPago e idPrestamo son requeridos" });
+        }
+
+        const pool = await poolPromise;
+        const transaction = new sql.Transaction(pool);
+
+        try {
+            await transaction.begin();
+
+            // 1. Eliminar el pago del historial
+            await transaction.request()
+                .input('id', sql.Int, idPago)
+                .query("DELETE FROM HistorialPagos WHERE ID_Pago = @id");
+
+            console.log("DEBUG eliminar-pago-deuda: Pago eliminado", { idPago, idPrestamo });
+
+            // 2. SINCRONIZACIÓN TOTAL: Sumar TODO el historial restante del préstamo
+            // Sumar abonos a INTERÉS REGULAR (contiene 'interes' pero NO 'anticipado' y NO 'capital')
+            const resInteres = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query(`
+                    SELECT ISNULL(SUM(Monto), 0) as total 
+                    FROM HistorialPagos 
+                    WHERE ID_Prestamo = @idP 
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) LIKE '%interes%'
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) NOT LIKE '%anticipado%'
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) NOT LIKE '%capital%'
+                `);
+            
+            // Sumar abonos a INTERÉS ANTICIPADO (contiene 'anticipado')
+            const resInteresAnticipado = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query(`
+                    SELECT ISNULL(SUM(Monto), 0) as total 
+                    FROM HistorialPagos 
+                    WHERE ID_Prestamo = @idP 
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) LIKE '%anticipado%'
+                `);
+            
+            // Sumar abonos a CAPITAL (contiene 'capital')
+            const resCapital = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query(`
+                    SELECT ISNULL(SUM(Monto), 0) as total 
+                    FROM HistorialPagos 
+                    WHERE ID_Prestamo = @idP 
+                    AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(Detalle, 'á','a'), 'é','e'), 'í','i'), 'ó','o'), 'ú','u'), 'Á','A'), 'É','E'), 'Í','I'), 'Ó','O'), 'Ú','U')) LIKE '%capital%'
+                `);
+
+            const totalInteres = parseFloat(resInteres.recordset[0]?.total || 0);
+            const totalInteresAnticipado = parseFloat(resInteresAnticipado.recordset[0]?.total || 0);
+            const totalCapital = parseFloat(resCapital.recordset[0]?.total || 0);
+
+            console.log("DEBUG eliminar-pago-deuda sincronizacion:", {
+                idPrestamo,
+                totalInteres,
+                totalInteresAnticipado,
+                totalCapital
+            });
+
+            // 3. Obtener el monto prestado original para calcular el saldo
+            const resPrestamo = await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .query("SELECT MontoPrestado FROM Prestamos WHERE ID_Prestamo = @idP");
+            
+            const montoPrestado = parseFloat(resPrestamo.recordset[0]?.MontoPrestado || 0);
+            const nuevoSaldo = Math.max(0, montoPrestado - totalCapital);
+
+            // 4. Actualizar el préstamo con los totales recalculados
+            await transaction.request()
+                .input('idP', sql.Int, idPrestamo)
+                .input('intereses', sql.Decimal(18, 2), totalInteres)
+                .input('interesAnticipado', sql.Decimal(18, 2), totalInteresAnticipado)
+                .input('capital', sql.Decimal(18, 2), totalCapital)
+                .input('saldo', sql.Decimal(18, 2), nuevoSaldo)
+                .query(`
+                    UPDATE Prestamos 
+                    SET InteresesPagados = @intereses, 
+                        InteresAnticipado = @interesAnticipado,
+                        MontoPagado = @capital,
+                        SaldoActual = @saldo,
+                        Estado = CASE WHEN @saldo <= 0 THEN 'Pagado' ELSE 'Activo' END
+                    WHERE ID_Prestamo = @idP
+                `);
+
+            await transaction.commit();
+
+            res.json({ success: true, message: "Pago eliminado y préstamo sincronizado" });
+
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
+        }
+
+    } catch (err) { 
+        console.error("Error en eliminar-pago-deuda:", err);
+        res.status(500).json({ success: false, error: err.message }); 
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 
