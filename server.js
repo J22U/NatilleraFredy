@@ -395,49 +395,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
 app.get('/api/cobro-general', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT 
-                p.ID_Persona, 
-                per.Nombre, 
-                -- 1. Sumamos el Capital real (Monto menos lo pagado a capital)
-                SUM(p.MontoPrestado - ISNULL(p.MontoPagado, 0)) as TotalCapital,
-                
-                -- 2. Sumamos el Interés Pendiente (Calculado dinámicamente y protegido)
-                SUM(
-                    CASE 
-                        WHEN (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) 
-                             * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE())) 
-                             - ISNULL(p.InteresesPagados, 0) < 0 
-                        THEN 0 
-                        ELSE (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) 
-                             * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE())) 
-                             - ISNULL(p.InteresesPagados, 0) 
-                    END
-                ) as TotalInteres,
-
-                -- 3. La suma de ambos para el total por persona
-                SUM(
-                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
-                    CASE 
-                        WHEN (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) 
-                             * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE())) 
-                             - ISNULL(p.InteresesPagados, 0) < 0 
-                        THEN 0 
-                        ELSE (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) 
-                             * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE())) 
-                             - ISNULL(p.InteresesPagados, 0) 
-                    END
-                ) as TotalDeuda
-            FROM Prestamos p 
-            INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona 
-            WHERE p.Estado = 'Activo' 
-            GROUP BY p.ID_Persona, per.Nombre
-        `);
+        const result = await pool.request().query("SELECT p.ID_Persona, per.Nombre, SUM(p.SaldoActual) as TotalCapital FROM Prestamos p INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona WHERE p.Estado = 'Activo' GROUP BY p.ID_Persona, per.Nombre");
         res.json(result.recordset);
-    } catch (err) { 
-        console.error("Error en cobro-general:", err.message);
-        res.status(500).json({ error: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/procesar-movimiento', async (req, res) => {

@@ -530,8 +530,11 @@ async function verHistorialFechas(id, nombre) {
 
         // --- CORRECCIÓN DE DEUDA DINÁMICA ---
         // Ahora usamos saldoHoy que ya viene calculado del servidor (Capital Pendiente + Interés Pendiente)
+        // Solo incluimos préstamos con saldo mayor a 0
         const deudaRealActualizada = p.reduce((acc, m) => {
-            return acc + Number(m.saldoHoy || 0);
+            const saldo = Number(m.saldoHoy || 0);
+            // Solo incluir si el saldo es mayor a 0 (excluir préstamos pagados)
+            return acc + (saldo > 0 ? saldo : 0);
         }, 0);
 
         // Actualizamos el objeto totales para que el modal use el valor con intereses
