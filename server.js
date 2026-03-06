@@ -369,18 +369,14 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     Estado,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
                     
-                    -- 1. Interés generado TOTAL desde que empezó el préstamo (o desde el último abono a capital)
-                    -- (Calculado sobre el capital que se debe hoy, desde FechaUltimoAbonoCapital)
+                    -- 1. Interés generado TOTAL
                     ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as InteresGenerado,
                     
-                    -- 2. Interés pendiente = Interés Generado - Intereses Pagados - Interés Anticipado
-                    -- El Interés Anticipado reduce el interés pendiente (no el capital)
+                    -- 2. Interés pendiente (Generado - Pagados - Anticipado)
                     (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0) as InteresPendiente,
                     
-                    -- 3. Saldo total hoy = Capital Pendiente + Interés Pendiente (si es positivo)
-                    -- El interés anticipado NO reduce el capital, solo el interés pendiente
-                    (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                    MAX(0, (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0)) as saldoHoy,
+                    -- 3. Saldo total hoy = Capital + InteresPendiente (no puede ser menor a 0)
+                    (MontoPrestado - ISNULL(MontoPagado, 0)) + MAX(0, (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0)) as saldoHoy,
                     
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
                 FROM Prestamos 
