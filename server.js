@@ -307,9 +307,12 @@ app.get('/reporte-general', async (req, res) => {
         const result = await pool.request().query(`
             SELECT 
                 (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) as TotalAhorrado,
+                -- Solo préstamos ACTIVOS (no los pagados/completados)
                 (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
-                (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) as GananciasBrutas,
-                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + (SELECT ISNULL(SUM(InteresesPagados), 0) FROM Prestamos) - (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')) as CajaDisponible
+                -- Solo intereses de préstamos ACTIVOS (blindado para que no sea negativo)
+                (SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) FROM Prestamos WHERE Estado = 'Activo') as GananciasBrutas,
+                -- Caja: Ahorros + Ganancias (blindadas) - Capital Préstamos Activos
+                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + (SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) FROM Prestamos WHERE Estado = 'Activo') - (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')) as CajaDisponible
         `);
         res.json(result.recordset[0]);
     } catch (err) { res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0, CajaDisponible: 0 }); }
