@@ -72,17 +72,44 @@ app.get('/api/cargar-rifas', async (req, res) => {
             res.json({ 
                 sinDatos: true, 
                 mensaje: "No hay rifa guardada",
-                info: { nombre: '', premio: '', valor: '', fecha: fecha || '' }, 
-                tabla1: { titulo: 'Tabla 1', participantes: {} }, 
-                tabla2: { titulo: 'Tabla 2', participantes: {} }, 
-                tabla3: { titulo: 'Tabla 3', participantes: {} }, 
+                info: { nombre: '', premio: '', valor: '', fecha: fecha || '', inversion: '' },
+                tabla1: { titulo: 'Tabla 1', participantes: {} },
+                tabla2: { titulo: 'Tabla 2', participantes: {} },
+                tabla3: { titulo: 'Tabla 3', participantes: {} },
                 tabla4: { titulo: 'Tabla 4', participantes: {} }
             });
             return;
         }
 
+        // Consultar también Rifas_Info para obtener la información de la rifa
+        let infoRifa = { nombre: '', premio: '', valor: '', fecha: fecha || '', inversion: '' };
+        try {
+            const infoResult = await pool.request()
+                .input('fechaBuscada', sql.Date, fecha || null)
+                .query("SELECT NombreRifa, Premio, ValorPuesto, CostoPremio, Premios FROM Rifas_Info WHERE FechaSorteo = @fechaBuscada");
+            
+            if (infoResult.recordset.length > 0) {
+                const r = infoResult.recordset[0];
+                infoRifa = {
+                    nombre: r.NombreRifa || '',
+                    premio: r.Premo || r.Premio || '',
+                    valor: r.ValorPuesto || '',
+                    fecha: fecha || '',
+                    inversion: r.CostoPremio || ''
+                };
+                // Intentar parsear Premios si existe
+                if (r.Premios) {
+                    try {
+                        infoRifa.premios = JSON.parse(r.Premios);
+                    } catch(e) {}
+                }
+            }
+        } catch(errInfo) {
+            console.log("Error al cargar info de rifa:", errInfo.message);
+        }
+
         const datos = {
-            info: { nombre: '', premio: '', valor: '', fecha: result.recordset[0].FechaSorteo || fecha || '' },
+            info: infoRifa,
             tabla1: { titulo: 'Tabla 1', participantes: {} },
             tabla2: { titulo: 'Tabla 2', participantes: {} },
             tabla3: { titulo: 'Tabla 3', participantes: {} },
@@ -205,6 +232,35 @@ app.post('/api/guardar-rifa', async (req, res) => {
 
         await transaction.commit();
         console.log('Datos guardados correctamente en Rifas_Detalle');
+        
+        // Guardar información de la rifa en Rifas_Info
+        try {
+            const pool = await poolPromise;
+            const info = nuevosDatos.info || {};
+            const premiosString = info.premios ? JSON.stringify(info.premios) : null;
+            
+            // Eliminar info anterior de esta fecha y insertar nueva
+            await pool.request()
+                .input('fecha', sql.Date, fechaSorteo)
+                .query("DELETE FROM Rifas_Info WHERE FechaSorteo = @fecha");
+            
+            await pool.request()
+                .input('fecha', sql.Date, fechaSorteo)
+                .input('nombre', sql.VarChar(200), info.nombre || '')
+                .input('premio', sql.VarChar(200), info.premio || '')
+                .input('valorPuesto', sql.Decimal(18,2), parseFloat(info.valor) || 0)
+                .input('costoPremio', sql.Decimal(18,2), parseFloat(info.inversion) || 0)
+                .input('premios', sql.NVARCHAR(sql.MAX), premiosString)
+                .query(`
+                    INSERT INTO Rifas_Info (FechaSorteo, NombreRifa, Premio, ValorPuesto, CostoPremio, Premios)
+                    VALUES (@fecha, @nombre, @premio, @valorPuesto, @costoPremio, @premios)
+                `);
+            
+            console.log('Información de rifa guardada en Rifas_Info');
+        } catch(errInfo) {
+            console.log('Error al guardar info de rifa:', errInfo.message);
+        }
+        
         res.json({ success: true, message: "Guardado correctamente" });
         
     } catch (err) {
@@ -1075,7 +1131,22 @@ async function inicializarBaseDeDatos() {
                 ALTER TABLE Prestamos ADD InteresAnticipado DECIMAL(18,2) DEFAULT 0
             END`);
 
-        console.log('✅ Verificación de columnas completada');
+        // Verificar si existe la tabla Rifas_Info
+        await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Info')
+            BEGIN
+                CREATE TABLE Rifas_Info (
+                    ID INT IDENTITY(1,1) PRIMARY KEY,
+                    FechaSorteo DATE NOT NULL,
+                    NombreRifa VARCHAR(200),
+                    Premio VARCHAR(200),
+                    ValorPuesto DECIMAL(18,2),
+                    CostoPremio DECIMAL(18,2),
+                   Premios NVARCHAR(MAX)
+                )
+            END`);
+
+        console.log('✅ Verificación de columnas completadas');
     } catch (err) {
         console.error('❌ Error al inicializar columnas:', err.message);
     }
