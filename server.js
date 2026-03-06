@@ -930,6 +930,122 @@ app.delete('/api/eliminar-pago-deuda', async (req, res) => {
     }
 });
 
+// --- ENDPOINTS DE BACKUP Y RESTORE ---
+
+// Endpoint para descargar backup de la base de datos
+app.get('/api/backup-database', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Obtener todas las tablas importantes
+        const personas = await pool.request().query("SELECT * FROM Personas");
+        const prestamos = await pool.request().query("SELECT * FROM Prestamos");
+        const ahorros = await pool.request().query("SELECT * FROM Ahorros");
+        const historialPagos = await pool.request().query("SELECT * FROM HistorialPagos");
+        
+        const backup = {
+            fecha: new Date().toISOString(),
+            personas: personas.recordset,
+            prestamos: prestamos.recordset,
+            ahorros: ahorros.recordset,
+            historialPagos: historialPagos.recordset
+        };
+        
+        res.json(backup);
+    } catch (err) {
+        console.error("Error en backup:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Endpoint para restaurar la base de datos desde un backup
+app.post('/api/restore-database', async (req, res) => {
+    try {
+        const { data } = req.body;
+        
+        if (!data || !data.personas) {
+            return res.status(400).json({ success: false, error: "Datos de backup inválidos" });
+        }
+        
+        const pool = await poolPromise;
+        const transaction = new sql.Transaction(pool);
+        
+        await transaction.begin();
+        
+        // Limpiar tablas existentes (en orden inverso por foreign keys)
+        await transaction.request().query("DELETE FROM HistorialPagos");
+        await transaction.request().query("DELETE FROM Ahorros");
+        await transaction.request().query("DELETE FROM Prestamos");
+        await transaction.request().query("DELETE FROM Personas");
+        
+        // Restaurar Personas
+        for (const p of data.personas) {
+            await transaction.request()
+                .input('id', sql.Int, p.ID_Persona)
+                .input('nombre', sql.VarChar, p.Nombre)
+                .input('documento', sql.VarChar, p.Documento)
+                .input('estado', sql.VarChar, p.Estado || 'Activo')
+                .input('esSocio', sql.Bit, p.EsSocio || 0)
+                .query("INSERT INTO Personas (ID_Persona, Nombre, Documento, Estado, EsSocio) VALUES (@id, @nombre, @documento, @estado, @esSocio)");
+        }
+        
+        // Restaurar Prestamos
+        if (data.prestamos) {
+            for (const p of data.prestamos) {
+                await transaction.request()
+                    .input('id', sql.Int, p.ID_Prestamo)
+                    .input('idPersona', sql.Int, p.ID_Persona)
+                    .input('monto', sql.Decimal(18,2), p.MontoPrestado)
+                    .input('tasa', sql.Decimal(5,2), p.TasaInteres)
+                    .input('fecha', sql.Date, p.FechaInicio || p.Fecha)
+                    .input('montoPagado', sql.Decimal(18,2), p.MontoPagado || 0)
+                    .input('saldo', sql.Decimal(18,2), p.SaldoActual)
+                    .input('estado', sql.VarChar, p.Estado)
+                    .input('interesesPagados', sql.Decimal(18,2), p.InteresesPagados || 0)
+                    .input('interesAnticipado', sql.Decimal(18,2), p.InteresAnticipado || 0)
+                    .query(`INSERT INTO Prestamos (ID_Prestamo, ID_Persona, MontoPrestado, TasaInteres, FechaInicio, MontoPagado, SaldoActual, Estado, InteresesPagados, InteresAnticipado) 
+                            VALUES (@id, @idPersona, @monto, @tasa, @fecha, @montoPagado, @saldo, @estado, @interesesPagados, @interesAnticipado)`);
+            }
+        }
+        
+        // Restaurar Ahorros
+        if (data.ahorros) {
+            for (const a of data.ahorros) {
+                await transaction.request()
+                    .input('id', sql.Int, a.ID_Ahorro)
+                    .input('idPersona', sql.Int, a.ID_Persona)
+                    .input('monto', sql.Decimal(18,2), a.Monto)
+                    .input('fecha', sql.Date, a.Fecha)
+                    .input('meses', sql.VarChar(sql.MAX), a.MesesCorrespondientes || 'Abono General')
+                    .query("INSERT INTO Ahorros (ID_Ahorro, ID_Persona, Monto, Fecha, MesesCorrespondientes) VALUES (@id, @idPersona, @monto, @fecha, @meses)");
+            }
+        }
+        
+        // Restaurar HistorialPagos
+        if (data.historialPagos) {
+            for (const hp of data.historialPagos) {
+                await transaction.request()
+                    .input('id', sql.Int, hp.ID_Pago)
+                    .input('idPersona', sql.Int, hp.ID_Persona)
+                    .input('idPrestamo', sql.Int, hp.ID_Prestamo)
+                    .input('monto', sql.Decimal(18,2), hp.Monto)
+                    .input('fecha', sql.Date, hp.Fecha)
+                    .input('detalle', sql.VarChar, hp.Detalle || 'Abono a deuda')
+                    .input('tipo', sql.VarChar, hp.TipoMovimiento || 'Abono Deuda')
+                    .query("INSERT INTO HistorialPagos (ID_Pago, ID_Persona, ID_Prestamo, Monto, Fecha, Detalle, TipoMovimiento) VALUES (@id, @idPersona, @idPrestamo, @monto, @fecha, @detalle, @tipo)");
+            }
+        }
+        
+        await transaction.commit();
+        res.json({ success: true, message: "Base de datos restaurada correctamente" });
+        
+    } catch (err) {
+        if (transaction) await transaction.rollback();
+        console.error("Error en restore:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 
