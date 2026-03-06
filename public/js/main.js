@@ -1453,7 +1453,8 @@ async function verListaRapidaDeudores() {
                                     <p class="text-[10px] text-slate-400">${d.documento || ''}</p>
                                 </div>
                                 <div class="text-right">
-                                    <p class="text-lg font-black text-indigo-600">$${Number(d.saldoPendiente).toLocaleString()}</p>
+<p class="text-[8px] uppercase font-bold text-rose-500">Deuda Total (Con Int.)</p>
+                                    <p class="text-lg font-black text-rose-600">$${Number(d.saldoPendiente).toLocaleString()}</p>
                                     <button onclick="verHistorialFechas(${d.id}, '${d.nombre}')" class="text-[10px] font-bold text-indigo-400 uppercase">Ver Detalles</button>
                                 </div>
                             </div>
