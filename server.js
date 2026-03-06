@@ -434,9 +434,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0) as InteresPendiente,
                     
                     -- 3. Saldo total hoy (Capital Pendiente + Interés Pendiente)
-                    -- NOTA: Ya NO se resta InteresAnticipado del saldo - el anticipado es un crédito que reduce intereses FUTUROS, no el capital
+                    -- CORREGIDO: Ahora resta el InteresAnticipado del saldo cuando se paga interés por adelantado
                     (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                    ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0)) as saldoHoy,
+                    ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0)) as saldoHoy,
                     
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
                 FROM Prestamos 
@@ -653,14 +653,15 @@ app.get('/api/total-prestamos', async (req, res) => {
 app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // Consulta mejorada: calcula saldoPendiente igual que saldoHoy en verHistorialFechas
+        // Consulta mejorada: calcula saldoPendiente igual que saldoHoy en detalle-prestamo
+        // CORREGIDO: Ahora resta InteresAnticipado cuando se ha pagado interés por adelantado
         const result = await pool.request().query(`
             SELECT 
                 per.ID_Persona as id, 
                 per.Nombre as nombre, 
                 per.Documento as documento,
                 ISNULL((
-                    -- Calcular saldo total: capital pendiente + intereses generados - intereses pagados
+                    -- Calcular saldo total: capital pendiente + intereses generados - intereses pagados - interes anticipado
                     SELECT SUM(
                         (ISNULL(p.MontoPrestado, 0) - ISNULL(p.MontoPagado, 0)) + 
                         -- Interés generado desde el último abono a capital
@@ -671,6 +672,7 @@ app.get('/listar-miembros', async (req, res) => {
                             ELSE 0
                         END
                         - ISNULL(p.InteresesPagados, 0)
+                        - ISNULL(p.InteresAnticipado, 0)
                     )
                     FROM Prestamos p 
                     WHERE p.ID_Persona = per.ID_Persona AND p.Estado = 'Activo'
