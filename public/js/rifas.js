@@ -1244,6 +1244,10 @@ async function cargarRifasPorFecha() {
     const fechaSeleccionada = document.getElementById('filtroFecha').value;
     if (!fechaSeleccionada) return;
 
+    // Sincronizar con el otro campo de fecha también
+    const rifaDate = document.getElementById('rifaDate');
+    if (rifaDate) rifaDate.value = fechaSeleccionada;
+
     const container = document.getElementById('rifasContainer');
     container.innerHTML = '<p style="text-align:center; padding:50px;">Buscando registros...</p>';
 
@@ -1257,19 +1261,67 @@ async function cargarRifasPorFecha() {
         // Verificamos si la fecha que llegó es la misma que pedimos
         if (datos && datos.info && datos.info.fecha !== fechaSeleccionada) {
             console.warn("¡El servidor ignoró el filtro y mandó otra fecha!");
+            // No limpiamos la fecha, mostramos mensaje y tablas vacías
             container.innerHTML = `<p style="text-align:center; padding:50px; color: orange;">
                 El servidor no encontró datos para el ${fechaSeleccionada}. <br>
                 (Se recibió la rifa del: ${datos.info.fecha})
             </p>`;
-            return; // Detenemos aquí para no mostrar la rifa equivocada
+            
+            // Dibujar tablas vacías para que pueda trabajar
+            for (let i = 1; i <= 4; i++) {
+                crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
+            }
+            actualizarContadoresRifa();
+            cargarPremios({ info: {} });
+            return;
         }
 
         if (datos && !datos.error) {
             container.innerHTML = ''; 
-            // ... resto de tu lógica de crear tablas ...
+            // Llenamos la información general (si existe)
+            if (datos && datos.info) {
+                if(document.getElementById('rifaName')) document.getElementById('rifaName').value = datos.info.nombre || '';
+                if(document.getElementById('rifaPrize')) document.getElementById('rifaPrize').value = datos.info.premio || '';
+                if(document.getElementById('rifaCost')) document.getElementById('rifaCost').value = datos.info.valor || '';
+                if(document.getElementById('costoPremio')) document.getElementById('costoPremio').value = datos.info.inversion || '';
+            }
+
+            // Dibujamos las 4 tablas
+            for (let i = 1; i <= 4; i++) {
+                const llaveTabla = `tabla${i}`;
+                const t = datos[llaveTabla] || { nombre: `Tabla ${i}`, participantes: {} };
+                t.idTabla = i; 
+                if (!t.nombre) t.nombre = `Tabla ${i}`;
+                if (!t.participantes || typeof t.participantes !== 'object') {
+                    t.participantes = {};
+                }
+                crearTabla(t);
+            }
+            
+            actualizarContadoresRifa();
+            cargarPremios(datos);
+        } else {
+            // Si no hay datos (datos.error), dibujar tablas vacías
+            container.innerHTML = `<p style="text-align:center; padding:50px; color: #636e72;">
+                No hay rifa guardada para el ${fechaSeleccionada}.<br>
+                Puedes agregar participantes y se guardará automáticamente.
+            </p>`;
+            
+            for (let i = 1; i <= 4; i++) {
+                crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
+            }
+            actualizarContadoresRifa();
+            cargarPremios({ info: {} });
         }
     } catch (error) {
         console.error("Error historial:", error);
+        // En caso de error, dibujar tablas vacías
+        container.innerHTML = '<p style="text-align:center; padding:50px; color: red;">Error al cargar datos</p>';
+        
+        for (let i = 1; i <= 4; i++) {
+            crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
+        }
+        actualizarContadoresRifa();
     }
 }
 
