@@ -597,9 +597,34 @@ app.get('/api/total-prestamos', async (req, res) => {
 app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query("SELECT per.ID_Persona as id, per.Nombre as nombre, per.Documento as documento FROM Personas per");
+        // Consulta mejorada: incluye el cálculo del saldo pendiente (capital + intereses generados) por socio
+        const result = await pool.request().query(`
+            SELECT 
+                per.ID_Persona as id, 
+                per.Nombre as nombre, 
+                per.Documento as documento,
+                ISNULL((
+                    -- Calcular saldo total por cada préstamo activo: capital pendiente + intereses generados
+                    SELECT SUM(
+                        (ISNULL(p.MontoPrestado, 0) - ISNULL(p.MontoPagado, 0)) + 
+                        -- Interés generado desde el último abono a capital
+                        CASE 
+                            WHEN p.TasaInteres IS NOT NULL AND p.TasaInteres > 0 THEN
+                                ((ISNULL(p.MontoPrestado, 0) - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * 
+                                DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, GETDATE())), GETDATE())
+                            ELSE 0
+                        END
+                    )
+                    FROM Prestamos p 
+                    WHERE p.ID_Persona = per.ID_Persona AND p.Estado = 'Activo'
+                ), 0) as saldoPendiente
+            FROM Personas per
+        `);
         res.json(result.recordset);
-    } catch (err) { res.status(500).json({ error: "Error al obtener miembros" }); }
+    } catch (err) { 
+        console.error("Error en /listar-miembros:", err.message);
+        res.status(500).json({ error: "Error al obtener miembros" }); 
+    }
 });
 
 app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
