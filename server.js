@@ -359,6 +359,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     MontoPrestado, 
                     ISNULL(MontoPagado, 0) as MontoPagado, 
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
+                    ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     TasaInteres, 
                     ISNULL(FechaInicio, Fecha) as FechaInicio,
                     ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaUltimoAbonoCapital,
@@ -372,13 +373,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     -- (Calculado sobre el capital que se debe hoy, desde FechaUltimoAbonoCapital)
                     ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as InteresGenerado,
                     
-                    -- 2. Interés pendiente (Generado Total - Pagado Total)
+                    -- 2. Interés pendiente (Generado Total - Pagado Total - Anticipado)
                     -- ESTA ES LA LÍNEA QUE HARÁ QUE EL SALDO BAJE
-                    (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) as InteresPendiente,
+                    (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0) as InteresPendiente,
                     
                     -- 3. Saldo total hoy (Capital hoy + Interés pendiente ya restado)
                     (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                    ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0)) as saldoHoy,
+                    ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0)) as saldoHoy,
                     
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
                 FROM Prestamos 
@@ -796,6 +797,13 @@ async function inicializarBaseDeDatos() {
                 ALTER TABLE Prestamos ADD FechaUltimoAbonoCapital DATETIME NULL
             END`);
         
+        // Verificar si existe la columna InteresAnticipado (para abonos anticipados a intereses)
+        await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'InteresAnticipado')
+            BEGIN
+                ALTER TABLE Prestamos ADD InteresAnticipado DECIMAL(18,2) DEFAULT 0
+            END`);
+
         console.log('✅ Verificación de columnas completada');
     } catch (err) {
         console.error('❌ Error al inicializar columnas:', err.message);
