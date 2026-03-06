@@ -597,14 +597,14 @@ app.get('/api/total-prestamos', async (req, res) => {
 app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // Consulta mejorada: incluye el cálculo del saldo pendiente (capital + intereses generados) por socio
+        // Consulta mejorada: calcula saldoPendiente igual que saldoHoy en verHistorialFechas
         const result = await pool.request().query(`
             SELECT 
                 per.ID_Persona as id, 
                 per.Nombre as nombre, 
                 per.Documento as documento,
                 ISNULL((
-                    -- Calcular saldo total por cada préstamo activo: capital pendiente + intereses generados
+                    -- Calcular saldo total: capital pendiente + intereses generados - intereses pagados
                     SELECT SUM(
                         (ISNULL(p.MontoPrestado, 0) - ISNULL(p.MontoPagado, 0)) + 
                         -- Interés generado desde el último abono a capital
@@ -614,6 +614,7 @@ app.get('/listar-miembros', async (req, res) => {
                                 DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, GETDATE())), GETDATE())
                             ELSE 0
                         END
+                        - ISNULL(p.InteresesPagados, 0)
                     )
                     FROM Prestamos p 
                     WHERE p.ID_Persona = per.ID_Persona AND p.Estado = 'Activo'
