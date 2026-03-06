@@ -597,6 +597,58 @@ app.put('/api/editar-pago-deuda', async (req, res) => {
     }
 });
 
+// 3. Eliminar Pago de Deuda
+app.delete('/api/eliminar-pago-deuda', async (req, res) => {
+    try {
+        const { idPago, idPrestamo, monto, detalle } = req.body;
+        
+        if (!idPago || !idPrestamo || !monto) {
+            return res.status(400).json({ success: false, error: "Faltan datos requeridos" });
+        }
+
+        const pool = await poolPromise;
+        const montoEliminado = parseFloat(monto);
+        const esCapital = String(detalle || '').toLowerCase().includes('capital');
+
+        // Eliminar el pago de la tabla HistorialPagos
+        await pool.request()
+            .input('id', sql.Int, idPago)
+            .query(`DELETE FROM HistorialPagos WHERE ID_Pago = @id`);
+
+        // Recalcular el préstamo restando el monto eliminado
+        if (esCapital) {
+            // Si era abono a capital, restar del MontoPagado
+            await pool.request()
+                .input('idP', sql.Int, idPrestamo)
+                .input('monto', sql.Decimal(18, 2), montoEliminado)
+                .query(`
+                    UPDATE Prestamos 
+                    SET MontoPagado = ISNULL(MontoPagado, 0) - @monto,
+                        SaldoActual = SaldoActual + @monto,
+                        Estado = 'Activo'
+                    WHERE ID_Prestamo = @idP
+                `);
+        } else {
+            // Si era abono a interés, restar del InteresesPagados
+            await pool.request()
+                .input('idP', sql.Int, idPrestamo)
+                .input('monto', sql.Decimal(18, 2), montoEliminado)
+                .query(`
+                    UPDATE Prestamos 
+                    SET InteresesPagados = ISNULL(InteresesPagados, 0) - @monto,
+                        SaldoActual = SaldoActual + @monto,
+                        Estado = 'Activo'
+                    WHERE ID_Prestamo = @idP
+                `);
+        }
+
+        res.json({ success: true, message: "Pago eliminado correctamente" });
+    } catch (err) {
+        console.error("Error al eliminar pago:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 SERVIDOR CORRIENDO EN PUERTO ${PORT}`);

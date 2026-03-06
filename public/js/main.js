@@ -707,6 +707,7 @@ async function verHistorialFechas(id, nombre) {
                             </span>
                         </div>
                         ${idPago > 0 ? `<button onclick="abrirEditarPago(${idPago}, ${montoAbono}, '${m.FechaFormateada || ''}', '${m.Detalle || ''}', ${idPrestamo}, ${montoAbono})" class="text-indigo-400 hover:text-indigo-600 p-1" title="Editar"><i class="fas fa-edit text-xs"></i></button>` : ''}
+                        ${idPago > 0 ? `<button onclick="eliminarPago(${idPago}, ${montoAbono}, '${m.Detalle || ''}', ${idPrestamo})" class="text-rose-400 hover:text-rose-600 p-1" title="Eliminar"><i class="fas fa-trash text-xs"></i></button>` : ''}
                     </div>
                 </div>
             </div>`;
@@ -2644,7 +2645,49 @@ window.abrirEditarPago = async function(idPago, montoActual, fechaActual, detall
     }
 };
 
-// 3. Función para abrir el modal de edición de PRÉSTAMO
+// 3. Función para eliminar un pago de deuda
+window.eliminarPago = async function(idPago, monto, detalle, idPrestamo) {
+    const confirmacion = await Swal.fire({
+        title: '¿Eliminar pago?',
+        text: `Se eliminará el abono de $${Number(monto).toLocaleString()}. El saldo del préstamo se recalculará.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b'
+    });
+
+    if (confirmacion.isConfirmed) {
+        try {
+            const response = await fetch('/api/eliminar-pago-deuda', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    idPago: idPago,
+                    idPrestamo: idPrestamo,
+                    monto: monto,
+                    detalle: detalle
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                Swal.fire('¡Éxito!', 'Pago eliminado correctamente', 'success');
+                // Recargar los datos
+                if (typeof cargarTodo === 'function') cargarTodo();
+            } else {
+                Swal.fire('Error', result.error || 'No se pudo eliminar', 'error');
+            }
+        } catch (error) {
+            console.error("Error al eliminar pago:", error);
+            Swal.fire('Error', 'Error de conexión', 'error');
+        }
+    }
+};
+
+// 4. Función para abrir el modal de edición de PRÉSTAMO
 window.abrirEditarPrestamo = async function(idPrestamo, montoActual, tasaActual, fechaActual) {
     // Convertir fecha dd/MM/yyyy a yyyy-MM-dd para el input date
     let fechaFormateada = '';
