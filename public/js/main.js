@@ -1372,34 +1372,47 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
         }
     });
 
-    // 4. SECCIÓN: PRÉSTAMOS
+    // 4. SECCIÓN: PRÉSTAMOS CON DETALLE DE INTERESES
     doc.setFontSize(11);
     doc.setTextColor(37, 99, 235); // Blue 600
-    doc.text("2. ESTADO DE CRÉDITOS ACTIVOS", 14, doc.lastAutoTable.finalY + 12);
+    doc.text("2. ESTADO DE CRÉDITOS ACTIVOS (CON DETALLE DE INTERESES)", 14, doc.lastAutoTable.finalY + 12);
 
     doc.autoTable({
         startY: doc.lastAutoTable.finalY + 15,
-        head: [['REF', 'Fecha Inicio', 'Tasa', 'Capital Inicial', 'Int. Pend.', 'Saldo Hoy']],
+        head: [['REF', 'Fecha', 'Tasa', 'Capital', 'Int. Generado', 'Int. Prepagado Usado', 'Int. Prepagado Disp.', 'Int. Pagado', 'Int. Pend.', 'Saldo Total']],
         body: prestamos.map(p => {
-            const intPendiente = Number(p.InteresGenerado || 0);
+            const interesGenerado = Number(p.InteresGenerado || 0);
+            const interesAnticipadoUsado = Number(p.InteresAnticipadoUsado || 0);
+            const interesAnticipadoTotal = Number(p.InteresAnticipado || 0);
+            const interesAnticipadoDisp = Math.max(0, interesAnticipadoTotal - interesAnticipadoUsado);
+            const interesesPagados = Number(p.InteresesPagados || 0);
+            const interesPendiente = Number(p.InteresPendiente || 0);
             const capitalRestante = Number(p.MontoPrestado) - Number(p.MontoPagado || 0);
-            const saldoTotal = capitalRestante + intPendiente;
+            const saldoTotal = capitalRestante + interesPendiente;
             
             return [
                 `PR-${p.ID_Prestamo}`,
                 p.FechaInicioFormateada || 'S/F',
                 `${p.TasaInteres}%`,
                 `$ ${Number(p.MontoPrestado).toLocaleString('es-CO')}`,
-                `$ ${intPendiente.toLocaleString('es-CO')}`,
+                `$ ${interesGenerado.toLocaleString('es-CO')}`,
+                `$ ${interesAnticipadoUsado.toLocaleString('es-CO')}`,
+                `$ ${interesAnticipadoDisp.toLocaleString('es-CO')}`,
+                `$ ${interesesPagados.toLocaleString('es-CO')}`,
+                `$ ${interesPendiente.toLocaleString('es-CO')}`,
                 `$ ${Math.max(0, saldoTotal).toLocaleString('es-CO')}`
             ];
         }),
-        headStyles: { fillStyle: [59, 130, 246] },
-        styles: { fontSize: 8 },
+        headStyles: { fillStyle: [59, 130, 246], fontSize: 6 },
+        styles: { fontSize: 6 },
         columnStyles: { 
             3: { halign: 'right' }, 
-            4: { halign: 'right' }, 
-            5: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] } 
+            4: { halign: 'right' },
+            5: { halign: 'right', textColor: [5, 150, 105] },
+            6: { halign: 'right', textColor: [79, 70, 229] },
+            7: { halign: 'right', textColor: [5, 150, 105] },
+            8: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] },
+            9: { halign: 'right', fontStyle: 'bold', textColor: [185, 28, 28] } 
         }
     });
 
