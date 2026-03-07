@@ -584,11 +584,16 @@ async function verHistorialFechas(id, nombre) {
     );
     
     return prestamosOrdenados.map((m, index) => {
-        // Ahora usamos los valores que envía el servidor directamente
-        const interesGenerado = Number(m.InteresGenerado || 0);
-        const interesPendiente = Number(m.InteresPendiente || 0);
-        const interesAnticipado = Number(m.InteresAnticipado || 0);
-        const interesesPagados = Number(m.InteresesPagados || 0);
+          // Ahora usamos los valores que envía el servidor directamente
+          const interesGenerado = Number(m.InteresGenerado || 0);
+          const interesPendiente = Number(m.InteresPendiente || 0);
+          const interesAnticipado = Number(m.InteresAnticipado || 0);
+          const interesesPagados = Number(m.InteresesPagados || 0);
+          
+          // Calcular el interés prepagado que ha sido "consumido" por el interés generado
+          // El prepagado cubre primero el interés generado, luego los pagos regulares cubren el resto
+          const interesPrepagadoConsumido = Math.min(interesGenerado, interesAnticipado);
+          const interesPrepagadoRestante = Math.max(0, interesAnticipado - interesPrepagadoConsumido);
         const capitalOriginal = Number(m.MontoPrestado || 0);
         const capitalHoy = Number(m.capitalHoy || 0);
         // Usar saldoHoy que ya viene calculado del servidor
@@ -627,10 +632,16 @@ async function verHistorialFechas(id, nombre) {
                     <span class="text-slate-500">Int. Generado:</span>
                     <span class="font-medium">$${interesGenerado.toLocaleString()}</span>
                 </div>
-                ${interesAnticipado > 0 ? `
+                ${interesPrepagadoConsumido > 0 ? `
                 <div class="flex justify-between text-emerald-600">
-                    <span>- Int. Prepagado:</span>
-                    <span class="font-medium">-$${interesAnticipado.toLocaleString()}</span>
+                    <span>- Int. Prepagado Usado:</span>
+                    <span class="font-medium">-$${interesPrepagadoConsumido.toLocaleString()}</span>
+                </div>
+                ` : ''}
+                ${interesPrepagadoRestante > 0 ? `
+                <div class="flex justify-between text-indigo-600">
+                    <span>+ Int. Prepagado Disponible:</span>
+                    <span class="font-medium">+$${interesPrepagadoRestante.toLocaleString()}</span>
                 </div>
                 ` : ''}
                 ${interesesPagados > 0 ? `
