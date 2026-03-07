@@ -429,14 +429,14 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     -- (Calculado sobre el capital que se debe hoy, desde FechaUltimoAbonoCapital)
                     ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as InteresGenerado,
                     
-                    -- 2. Interés pendiente (Generado Total - Pagado Total)
-                    -- CORREGIDO: Ya NO resta InteresAnticipado aquí (se maneja en el saldo)
-                    (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) as InteresPendiente,
+                    -- 2. Interés pendiente (Generado Total - Pagado Total - Prepagado)
+                    -- El interés prepagado se resta del interés generado
+                    (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0) as InteresPendiente,
                     
-                    -- 3. Saldo total hoy (Capital Pendiente + Interés Pendiente - Interés Anticipado)
-                    -- El interés anticipado se resta del saldo total (no del pendiente)
+                    -- 3. Saldo total hoy (Capital Pendiente + Interés Pendiente)
+                    -- El interés anticipado ya está incluido en el cálculo del interés pendiente arriba
                     (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                    ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0)) - ISNULL(InteresAnticipado, 0) as saldoHoy,
+                    ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresesPagados, 0) - ISNULL(InteresAnticipado, 0)) as saldoHoy,
                     
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
                 FROM Prestamos 
@@ -654,7 +654,7 @@ app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
         // Consulta mejorada: calcula saldoPendiente igual que saldoHoy en detalle-prestamo
-        // CORREGIDO: Ahora resta InteresAnticipado cuando se ha pagado interés por adelantado
+        // Interés anticipado se resta del interés pendiente, no del capital
         const result = await pool.request().query(`
             SELECT 
                 per.ID_Persona as id, 
