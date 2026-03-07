@@ -588,12 +588,12 @@ async function verHistorialFechas(id, nombre) {
           const interesGenerado = Number(m.InteresGenerado || 0);
           const interesPendiente = Number(m.InteresPendiente || 0);
           const interesAnticipado = Number(m.InteresAnticipado || 0);
+          const interesAnticipadoUsado = Number(m.InteresAnticipadoUsado || 0);
           const interesesPagados = Number(m.InteresesPagados || 0);
           
-          // Calcular el interés prepagado que ha sido "consumido" por el interés generado
-          // El prepagado cubre primero el interés generado, luego los pagos regulares cubren el resto
-          const interesPrepagadoConsumido = Math.min(interesGenerado, interesAnticipado);
-          const interesPrepagadoRestante = Math.max(0, interesAnticipado - interesPrepagadoConsumido);
+          // El anticipado剩余 disponible es: Total Anticipado - Anticipado Usado
+          const interesPrepagadoConsumido = interesAnticipadoUsado;
+          const interesPrepagadoRestante = Math.max(0, interesAnticipado - interesAnticipadoUsado);
         const capitalOriginal = Number(m.MontoPrestado || 0);
         const capitalHoy = Number(m.capitalHoy || 0);
         // Usar saldoHoy que ya viene calculado del servidor

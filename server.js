@@ -407,6 +407,60 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
 app.get('/detalle-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
+        
+        // Primero, obtener los datos actuales del préstamo para calcular y actualizar el interés anticipado usado
+        const prestamosData = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
+                SELECT 
+                    ID_Prestamo, 
+                    MontoPrestado, 
+                    ISNULL(MontoPagado, 0) as MontoPagado, 
+                    ISNULL(InteresesPagados, 0) as InteresesPagados, 
+                    ISNULL(InteresAnticipado, 0) as InteresAnticipado,
+                    ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
+                    TasaInteres, 
+                    ISNULL(FechaInicio, Fecha) as FechaInicio,
+                    ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaUltimoAbonoCapital,
+                    DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as DiasTranscurridos
+                FROM Prestamos 
+                WHERE ID_Persona = @id AND Estado = 'Activo'
+            `);
+
+        // Procesar cada préstamo para calcular el interés anticipado consumido automáticamente
+        for (const p of prestamosData.recordset) {
+            const capitalPendiente = p.MontoPrestado - p.MontoPagado;
+            const interesGenerado = ((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * p.DiasTranscurridos;
+            
+            // Calcular cuánto del interés anticipado debe consumirse automáticamente
+            // El anticipado disponible es: InteresAnticipado - InteresAnticipadoUsado
+            const anticipadoDisponible = Math.max(0, p.InteresAnticipado - p.InteresAnticipadoUsado);
+            
+            // Cuánto interés se ha pagado (regular + lo que ya se usó del anticipado)
+            const interesesYaPagados = p.InteresesPagados + p.InteresAnticipadoUsado;
+            
+            // Cuánto interés pendiente hay actualmente
+            const interesPendiente = Math.max(0, interesGenerado - interesesYaPagados);
+            
+            // Nuevo consumo = cuánto del anticipado disponible se necesita para cubrir el interés pendiente
+            let nuevoConsumo = 0;
+            if (anticipadoDisponible > 0 && interesPendiente > 0) {
+                nuevoConsumo = Math.min(anticipadoDisponible, interesPendiente);
+            }
+            
+            // Solo actualizar si hay un nuevo consumo
+            if (nuevoConsumo > 0) {
+                const nuevoUsado = p.InteresAnticipadoUsado + nuevoConsumo;
+                await pool.request()
+                    .input('idP', sql.Int, p.ID_Prestamo)
+                    .input('usado', sql.Decimal(18, 2), nuevoUsado)
+                    .query("UPDATE Prestamos SET InteresAnticipadoUsado = @usado WHERE ID_Prestamo = @idP");
+                
+                console.log(`>>> Auto-consumo de anticipado: Préstamo #${p.ID_Prestamo}, Consumido: $${nuevoConsumo.toLocaleString()}`);
+            }
+        }
+
+        // Ahora obtener los datos actualizados para enviar al frontend
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -416,6 +470,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(MontoPagado, 0) as MontoPagado, 
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
+                    ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
                     TasaInteres, 
                     ISNULL(FechaInicio, Fecha) as FechaInicio,
                     ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaUltimoAbonoCapital,
@@ -429,19 +484,18 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     -- (Calculado sobre el capital que se debe hoy, desde FechaUltimoAbonoCapital)
                     ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as InteresGenerado,
                     
-                    -- 2. Interés pendiente = MAX(0, Juros Gerados - Juros Pré-pagos - Juros Pagos)
-                    -- Los juros pré-pagos cubren primero los gerados, depois se consideran los pagos
+                    -- 2. Interés pendiente = MAX(0, Interés Generado - Intereses Pagados - Interés Anticipado Usado)
+                    -- Aquí YA NO reste InteresAnticipado directamente, ahora reste InteresAnticipadoUsado
                     CASE 
-                        WHEN (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipado, 0) - ISNULL(InteresesPagados, 0) < 0 THEN 0
-                        ELSE (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipado, 0) - ISNULL(InteresesPagados, 0)
+                        WHEN (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0) < 0 THEN 0
+                        ELSE (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0)
                     END as InteresPendiente,
                     
                     -- 3. Saldo total hoy (Capital Pendiente + Interés Pendiente)
-                    -- Si el interés pendiente es 0 (por prepagado o pagos excesivos), el saldo es solo el capital
                     (MontoPrestado - ISNULL(MontoPagado, 0)) + 
                     CASE 
-                        WHEN (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipado, 0) - ISNULL(InteresesPagados, 0) < 0 THEN 0
-                        ELSE (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipado, 0) - ISNULL(InteresesPagados, 0)
+                        WHEN (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0) < 0 THEN 0
+                        ELSE (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0)
                     END as saldoHoy,
                     
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
@@ -660,14 +714,14 @@ app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
         // Consulta mejorada: calcula saldoPendiente igual que saldoHoy en detalle-prestamo
-        // Interés anticipado se resta del interés pendiente, no del capital
+        // Ahora usa InteresAnticipadoUsado (consumido) en lugar de InteresAnticipado
         const result = await pool.request().query(`
             SELECT 
                 per.ID_Persona as id, 
                 per.Nombre as nombre, 
                 per.Documento as documento,
                 ISNULL((
-                    -- Calcular saldo total: capital pendiente + intereses generados - intereses pagados - interes anticipado
+                    -- Calcular saldo total: capital pendiente + intereses generados - intereses pagados - interes anticipado USADO
                     SELECT SUM(
                         (ISNULL(p.MontoPrestado, 0) - ISNULL(p.MontoPagado, 0)) + 
                         -- Interés generado desde el último abono a capital
@@ -678,7 +732,7 @@ app.get('/listar-miembros', async (req, res) => {
                             ELSE 0
                         END
                         - ISNULL(p.InteresesPagados, 0)
-                        - ISNULL(p.InteresAnticipado, 0)
+                        - ISNULL(p.InteresAnticipadoUsado, 0)
                     )
                     FROM Prestamos p 
                     WHERE p.ID_Persona = per.ID_Persona AND p.Estado = 'Activo'
@@ -1137,6 +1191,13 @@ async function inicializarBaseDeDatos() {
             .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'InteresAnticipado')
             BEGIN
                 ALTER TABLE Prestamos ADD InteresAnticipado DECIMAL(18,2) DEFAULT 0
+            END`);
+
+        // Verificar si existe la columna InteresAnticipadoUsado (para rastrear cuánto se ha consumido del anticipado)
+        await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'InteresAnticipadoUsado')
+            BEGIN
+                ALTER TABLE Prestamos ADD InteresAnticipadoUsado DECIMAL(18,2) DEFAULT 0
             END`);
 
         // Verificar si existe la tabla Rifas_Info
