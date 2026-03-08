@@ -1233,6 +1233,13 @@ async function guardarRifaActual() {
     document.getElementById('rifaDate').value = fechaSeleccionada;
     document.getElementById('filtroFecha').value = fechaSeleccionada;
     
+    // Formatear la fecha para mostrar (sin pasar por Date para evitar problemas de zona horaria)
+    // Convertir YYYY-MM-DD a formato local DD/MM/YYYY
+    const partesFecha = fechaSeleccionada.split('-');
+    const fechaFormateada = partesFecha.length === 3 
+        ? `${partesFecha[2]}/${partesFecha[1]}/${partesFecha[0]}`
+        : fechaSeleccionada;
+    
     // Forzar guardado
     await guardarTodo();
     
@@ -1242,7 +1249,7 @@ async function guardarRifaActual() {
     // Mostrar mensaje de éxito
     Swal.fire({
         title: '¡Rifa Guardada!',
-        text: `La rifa ha sido guardada con fecha ${new Date(fechaSeleccionada).toLocaleDateString('es-CO')}`,
+        text: `La rifa ha sido guardada con fecha ${fechaFormateada}`,
         icon: 'success',
         timer: 2000,
         showConfirmButton: false
