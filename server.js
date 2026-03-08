@@ -47,11 +47,13 @@ app.get('/api/cargar-rifas', async (req, res) => {
         let { fecha } = req.query;
         const pool = await poolPromise;
         
+        console.log('🔍 DEBUG cargar-rifas - Fecha ORIGINAL recibida:', fecha);
+        
         // Normalizar la fecha recibida del frontend para evitar problemas de zona horaria
         if (fecha) {
             const fechaNormalizada = new Date(fecha + 'T12:00:00');
             fecha = fechaNormalizada.toISOString().split('T')[0];
-            console.log('🔍 DEBUG cargar-rifas - Fecha recibida:', req.query.fecha, '-> Fecha normalizada:', fecha);
+            console.log('🔍 DEBUG cargar-rifas - Fecha normalizada:', fecha);
         }
         
         let query;
@@ -71,10 +73,14 @@ app.get('/api/cargar-rifas', async (req, res) => {
             `;
         }
 
+        console.log('🔍 DEBUG cargar-rifas - Query a ejecutar:', query);
+        
         const result = await pool.request()
             .input('fechaBuscada', sql.Date, fecha || null)
             .query(query);
 
+        console.log('🔍 DEBUG cargar-rifas - Registros encontrados:', result.recordset.length);
+        
         if (result.recordset.length === 0) {
             res.json({ 
                 sinDatos: true, 
@@ -87,6 +93,10 @@ app.get('/api/cargar-rifas', async (req, res) => {
             });
             return;
         }
+
+        // Ver las fechas que existen en la base de datos
+        const fechasExistentes = await pool.request().query('SELECT DISTINCT TOP 5 FechaSorteo FROM Rifas_Detalle ORDER BY FechaSorteo DESC');
+        console.log('🔍 DEBUG cargar-rifas - Fechas en BD:', fechasExistentes.recordset.map(r => r.FechaSorteo));
 
         // Consultar también Rifas_Info para obtener la información de la rifa
         let infoRifa = { nombre: '', premio: '', valor: '', fecha: req.query.fecha || '', inversion: '' };
@@ -189,10 +199,11 @@ app.get('/api/cargar-rifas', async (req, res) => {
 
 // Guardar rifa en Rifas_Detalle
 app.post('/api/guardar-rifa', async (req, res) => {
-    const pool = await poolPromise;
-    const transaction = new sql.Transaction(pool);
+    let transaction;
     
     try {
+        const pool = await poolPromise;
+        transaction = new sql.Transaction(pool);
         await transaction.begin();
         
         const nuevosDatos = req.body;
@@ -201,6 +212,7 @@ app.post('/api/guardar-rifa', async (req, res) => {
         const fechaSorteo = nuevosDatos.info ? nuevosDatos.info.fecha : null;
 
         if (!fechaSorteo) {
+            if (transaction) await transaction.rollback();
             return res.status(400).json({ success: false, error: "La fecha es obligatoria" });
         }
 
@@ -209,14 +221,14 @@ app.post('/api/guardar-rifa', async (req, res) => {
         
         console.log('🔍 DEBUG - Fecha guardando rifa:', fechaParaSQL);
 
-        // Primero, eliminar TODOS los registros existentes de Rifas_Detalle para esta fecha específica
-        // Esto evita duplicados y problemas con datos antiguos
+        // Eliminar TODOS los registros existentes de Rifas_Detalle para esta fecha específica
         await transaction.request()
             .input('fecha', sql.Date, fechaParaSQL)
             .query("DELETE FROM Rifas_Detalle WHERE FechaSorteo = @fecha");
         
-        console.log('🗑️ Datos anteriores de esta fecha eliminados, inserting nuevos datos...');
+        console.log('🗑️ Datos anteriores eliminados');
         
+        // Insertar los nuevos participantes
         for (let numTabla = 1; numTabla <= 4; numTabla++) {
             const keyTabla = 'tabla' + numTabla;
             const tablaData = nuevosDatos[keyTabla];
@@ -230,8 +242,8 @@ app.post('/api/guardar-rifa', async (req, res) => {
                     
                     if (participante && participante.nombre && participante.nombre.trim() !== "") {
                         await transaction.request()
-                            .input('fecha', sql.Date, fechaParaSQL)  // Usar fecha normalizada consistente
-                            .input('tablaId', sql.BigInt, numTabla)
+                            .input('fecha', sql.Date, fechaParaSQL)
+                            .input('tablaId', sql.Int, numTabla)
                             .input('numero', sql.Char(2), numStr)
                             .input('nombre', sql.VarChar(100), participante.nombre.trim())
                             .input('pago', sql.Bit, participante.pago ? 1 : 0)
@@ -247,41 +259,42 @@ app.post('/api/guardar-rifa', async (req, res) => {
         }
 
         await transaction.commit();
-        console.log('Datos guardados correctamente en Rifas_Detalle');
+        console.log('✅ Datos guardados en Rifas_Detalle');
         
         // Guardar información de la rifa en Rifas_Info
-        try {
-            const pool = await poolPromise;
-            const info = nuevosDatos.info || {};
-            const premiosString = info.premios ? JSON.stringify(info.premios) : null;
-            
-            // Eliminar info anterior de esta fecha y insertar nueva
-            await pool.request()
-                .input('fecha', sql.Date, fechaParaSQL)  // Usar fecha normalizada consistente
-                .query("DELETE FROM Rifas_Info WHERE FechaSorteo = @fecha");
-            
-            await pool.request()
-                .input('fecha', sql.Date, fechaParaSQL)  // Usar fecha normalizada consistente
-                .input('nombre', sql.VarChar(200), info.nombre || '')
-                .input('premio', sql.VarChar(200), info.premio || '')
-                .input('valorPuesto', sql.Decimal(18,2), parseFloat(info.valor) || 0)
-                .input('costoPremio', sql.Decimal(18,2), parseFloat(info.inversion) || 0)
-                .input('premios', sql.NVARCHAR(sql.MAX), premiosString)
-                .query(`
-                    INSERT INTO Rifas_Info (FechaSorteo, NombreRifa, Premio, ValorPuesto, CostoPremio, Premios)
-                    VALUES (@fecha, @nombre, @premio, @valorPuesto, @costoPremio, @premios)
-                `);
-            
-            console.log('Información de rifa guardada en Rifas_Info');
-        } catch(errInfo) {
-            console.log('Error al guardar info de rifa:', errInfo.message);
-        }
+        const pool2 = await poolPromise;
+        const info = nuevosDatos.info || {};
+        const premiosString = info.premios ? JSON.stringify(info.premios) : null;
         
+        // Eliminar info anterior de esta fecha y insertar nueva
+        await pool2.request()
+            .input('fecha', sql.Date, fechaParaSQL)
+            .query("DELETE FROM Rifas_Info WHERE FechaSorteo = @fecha");
+        
+        await pool2.request()
+            .input('fecha', sql.Date, fechaParaSQL)
+            .input('nombre', sql.VarChar(200), info.nombre || '')
+            .input('premio', sql.VarChar(200), info.premio || '')
+            .input('valorPuesto', sql.Decimal(18,2), parseFloat(info.valor) || 0)
+            .input('costoPremio', sql.Decimal(18,2), parseFloat(info.inversion) || 0)
+            .input('premios', sql.NVARCHAR(sql.MAX), premiosString)
+            .query(`
+                INSERT INTO Rifas_Info (FechaSorteo, NombreRifa, Premio, ValorPuesto, CostoPremio, Premios)
+                VALUES (@fecha, @nombre, @premio, @valorPuesto, @costoPremio, @premios)
+            `);
+        
+        console.log('✅ Información de rifa guardada en Rifas_Info');
         res.json({ success: true, message: "Guardado correctamente" });
         
     } catch (err) {
-        if (transaction) await transaction.rollback();
-        console.error("Error al guardar:", err.message);
+        console.error("❌ Error al guardar:", err.message);
+        if (transaction) {
+            try {
+                await transaction.rollback();
+            } catch (rbError) {
+                console.error("Error en rollback:", rbError.message);
+            }
+        }
         res.status(500).json({ success: false, error: err.message });
     }
 });
