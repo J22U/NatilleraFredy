@@ -1211,8 +1211,9 @@ app.get('/api/historial-rifas', async (req, res) => {
         
         // 2. Para cada fecha, obtener los datos de la rifa
         for (const fecha of fechas) {
-            // Normalizar la fecha para evitar problemas de zona horaria
-            const fechaISO = new Date(fecha).toISOString().split('T')[0];
+            // Normalizar la fecha correctamente usando el formato YYYY-MM-DD directamente del SQL Server
+            // Agregar hora media para evitar cambios de zona horaria
+            const fechaISO = new Date(fecha + 'T12:00:00').toISOString().split('T')[0];
             
             // Obtener información de la rifa
             let infoRifa = { nombre: '', premio: '', valor: 0, costoPremio: 0 };
