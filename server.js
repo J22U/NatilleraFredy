@@ -44,17 +44,13 @@ app.post('/login', (req, res) => {
 // Obtener los datos de las rifas desde Rifas_Detalle
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
-        let { fecha } = req.query;
+        // Usar la fecha directamente del query string sin normalización problemática
+        // El frontend ya envía la fecha en formato YYYY-MM-DD
+        let fecha = req.query.fecha;
+        
         const pool = await poolPromise;
         
-        console.log('🔍 DEBUG cargar-rifas - Fecha ORIGINAL recibida:', fecha);
-        
-        // Normalizar la fecha recibida del frontend para evitar problemas de zona horaria
-        if (fecha) {
-            const fechaNormalizada = new Date(fecha + 'T12:00:00');
-            fecha = fechaNormalizada.toISOString().split('T')[0];
-            console.log('🔍 DEBUG cargar-rifas - Fecha normalizada:', fecha);
-        }
+        console.log('🔍 DEBUG cargar-rifas - Fecha recibida del frontend:', fecha);
         
         let query;
         
@@ -62,21 +58,21 @@ app.get('/api/cargar-rifas', async (req, res) => {
             query = `
                 SELECT Id, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
                 FROM Rifas_Detalle 
-                WHERE FechaSorteo = @fechaBuscada
-                ORDER BY Id, Numero
+                WHERE CONVERT(VARCHAR(10), FechaSorteo, 120) = @fechaBuscada
+                ORDER BY TablaId, Numero
             `;
         } else {
             query = `
                 SELECT Id, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
                 FROM Rifas_Detalle 
-                ORDER BY Id DESC
+                ORDER BY FechaSorteo DESC, TablaId, Numero
             `;
         }
 
         console.log('🔍 DEBUG cargar-rifas - Query a ejecutar:', query);
         
         const result = await pool.request()
-            .input('fechaBuscada', sql.Date, fecha || null)
+            .input('fechaBuscada', sql.VarChar(10), fecha || null)
             .query(query);
 
         console.log('🔍 DEBUG cargar-rifas - Registros encontrados:', result.recordset.length);

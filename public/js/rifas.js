@@ -360,14 +360,21 @@ async function cargarRifas() {
     const rifaDate = document.getElementById('rifaDate');
     let fechaParaCargar = filtroFecha?.value || rifaDate?.value || new Date().toISOString().split('T')[0];
 
+    // 🔍 DEBUG: Verificar que la fecha es correcta antes de hacer la petición
+    console.log('🔍 DEBUG frontend - Fecha seleccionada para cargar:', fechaParaCargar);
+    console.log('🔍 DEBUG frontend - Valor de filtroFecha input:', filtroFecha?.value);
+    console.log('🔍 DEBUG frontend - Valor de rifaDate input:', rifaDate?.value);
+
     // Declarar datos aquí para que esté disponible en todo el ámbito de la función
     let datos = { info: {} };
 
     try {
         // 2. Intentamos pedir los datos al servidor
-        console.log('🔍 DEBUG frontend - Intentando cargar fecha:', fechaParaCargar);
+        // IMPORTANTE: Asegurarse de que la fecha se pasa correctamente en la URL
+        const url = `/api/cargar-rifas?fecha=${encodeURIComponent(fechaParaCargar)}`;
+        console.log('🔍 DEBUG frontend - URL de la petición:', url);
         
-        const response = await fetch(`/api/cargar-rifas?fecha=${fechaParaCargar}`); 
+        const response = await fetch(url);
         
         if (!response.ok) {
             throw new Error(`Error servidor: ${response.status}`);
