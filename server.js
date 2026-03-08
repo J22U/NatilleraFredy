@@ -1198,6 +1198,103 @@ app.get('/api/fechas-rifas', async (req, res) => {
     }
 });
 
+// Obtener historial completo de rifas (todas las rifas guardadas con sus datos)
+app.get('/api/historial-rifas', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // 1. Obtener todas las fechas únicas de rifas guardadas
+        const fechasResult = await pool.request()
+            .query(`SELECT DISTINCT FechaSorteo FROM Rifas_Detalle ORDER BY FechaSorteo DESC`);
+        
+        const fechas = fechasResult.recordset.map(row => row.FechaSorteo);
+        
+        if (fechas.length === 0) {
+            res.json([]);
+            return;
+        }
+        
+        const historial = [];
+        
+        // 2. Para cada fecha, obtener los datos de la rifa
+        for (const fecha of fechas) {
+            // Normalizar la fecha para evitar problemas de zona horaria
+            const fechaISO = new Date(fecha).toISOString().split('T')[0];
+            
+            // Obtener información de la rifa
+            let infoRifa = { nombre: '', premio: '', valor: 0, costoPremio: 0 };
+            try {
+                const infoResult = await pool.request()
+                    .input('fechaBuscada', sql.Date, fechaISO)
+                    .query("SELECT NombreRifa, Premio, ValorPuesto, CostoPremio FROM Rifas_Info WHERE FechaSorteo = @fechaBuscada");
+                
+                if (infoResult.recordset.length > 0) {
+                    const r = infoResult.recordset[0];
+                    infoRifa = {
+                        nombre: r.NombreRifa || '',
+                        premio: r.Premio || '',
+                        valor: parseFloat(r.ValorPuesto) || 0,
+                        costoPremio: parseFloat(r.CostoPremio) || 0
+                    };
+                }
+            } catch(err) {
+                console.log("Error al cargar info de rifa:", err.message);
+            }
+            
+            // Obtener datos de participantes para calcular totals
+            const participantesResult = await pool.request()
+                .input('fechaBuscada', sql.Date, fechaISO)
+                .query("SELECT COUNT(*) as totalParticipantes, SUM(CAST(EstadoPago AS INT)) as totalPagados FROM Rifas_Detalle WHERE FechaSorteo = @fechaBuscada AND NombreParticipante IS NOT NULL AND NombreParticipante != ''");
+            
+            const totalParticipantes = participantesResult.recordset[0]?.totalParticipantes || 0;
+            const totalPagados = participantesResult.recordset[0]?.totalPagados || 0;
+            
+            // Calcular totales
+            const valorPuesto = infoRifa.valor;
+            const totalRecaudado = totalPagados * valorPuesto;
+            const costoPremio = infoRifa.costoPremio;
+            const gananciaNeta = totalRecaudado - costoPremio;
+            
+            // Obtener ganancias guardadas (si existen)
+            let gananciasGuardadas = { TotalRecaudado: 0, CostoPremios: 0, GananciaNeta: 0 };
+            try {
+                const gananciasResult = await pool.request()
+                    .input('fechaBuscada', sql.Date, fechaISO)
+                    .query("SELECT TotalRecaudado, CostoPremios, GananciaNeta FROM Rifas_Ganancias WHERE FechaSorteo = @fechaBuscada");
+                
+                if (gananciasResult.recordset.length > 0) {
+                    gananciasGuardadas = gananciasResult.recordset[0];
+                }
+            } catch(err) {
+                console.log("Error al cargar ganancias:", err.message);
+            }
+            
+            // Usar los valores calculados o los guardados
+            const recaudoFinal = totalRecaudado > 0 ? totalRecaudado : (parseFloat(gananciasGuardadas.TotalRecaudado) || 0);
+            const costoFinal = costoPremio > 0 ? costoPremio : (parseFloat(gananciasGuardadas.CostoPremios) || 0);
+            const gananciaFinal = gananciaNeta !== 0 ? gananciaNeta : (parseFloat(gananciasGuardadas.GananciaNeta) || 0);
+            
+            historial.push({
+                fechaSorteo: fechaISO,
+                nombre: infoRifa.nombre || 'Rifa del ' + new Date(fechaISO).toLocaleDateString('es-CO'),
+                premio: infoRifa.premio || 'No definido',
+                valorPuesto: valorPuesto,
+                costoPremio: costoPremio,
+                totalParticipantes: totalParticipantes,
+                totalPagados: totalPagados,
+                totalRecaudado: recaudoFinal,
+                costoPremios: costoFinal,
+                gananciaNeta: gananciaFinal
+            });
+        }
+        
+        res.json(historial);
+    } catch (err) {
+        console.error("Error al obtener historial de rifas:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Obtener todas las ganancias de rifas (historial)
 app.get('/api/ganancias-rifas', async (req, res) => {
     try {

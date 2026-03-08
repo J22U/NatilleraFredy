@@ -1255,7 +1255,8 @@ async function cargarHistorialGanancias() {
     if (!tbody) return;
     
     try {
-        const response = await fetch('/api/ganancias-rifas');
+        // Usar el nuevo endpoint que combina las rifas guardadas con sus ganancias
+        const response = await fetch('/api/historial-rifas');
         const datos = await response.json();
         
         if (!datos || datos.length === 0) {
@@ -1275,15 +1276,15 @@ async function cargarHistorialGanancias() {
         
         let html = '';
         datos.forEach(rifa => {
-            const fecha = rifa.FechaSorteo ? new Date(rifa.FechaSorteo).toLocaleDateString('es-CO') : 'N/A';
-            const ganancia = parseFloat(rifa.GananciaNeta) || 0;
+            const fecha = rifa.fechaSorteo ? new Date(rifa.fechaSorteo).toLocaleDateString('es-CO') : 'N/A';
+            const ganancia = parseFloat(rifa.gananciaNeta) || 0;
             const colorGanancia = ganancia >= 0 ? '#00b894' : '#e74c3c';
             
             html += `
                 <tr style="border-bottom: 1px solid #f1f2f6;">
                     <td style="padding: 12px; font-weight: 600;">📅 ${fecha}</td>
-                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.TotalRecaudado || 0)}</td>
-                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.CostoPremios || 0)}</td>
+                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.totalRecaudado || 0)}</td>
+                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.costoPremios || rifa.costoPremio || 0)}</td>
                     <td style="padding: 12px; text-align: right; font-weight: 700; color: ${colorGanancia};">${formato.format(ganancia)}</td>
                 </tr>
             `;
@@ -1292,7 +1293,7 @@ async function cargarHistorialGanancias() {
         tbody.innerHTML = html;
         
         // Actualizar el total acumulado
-        const totalAcumulado = datos.reduce((sum, r) => sum + (parseFloat(r.GananciaNeta) || 0), 0);
+        const totalAcumulado = datos.reduce((sum, r) => sum + (parseFloat(r.gananciaNeta) || 0), 0);
         const elementoTotal = document.getElementById('stats-ganancia-acumulada-total');
         if (elementoTotal) {
             elementoTotal.textContent = formato.format(totalAcumulado);
