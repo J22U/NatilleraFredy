@@ -1,27 +1,46 @@
-# TODO - Sistema de Rifas Completado
+# TODO - Implementación de Fechas Independientes y Dashboard de Ganancias
 
-## Cambios realizados
+## Análisis del Problema
+- Las rifas actualmente se guardan por fecha en la base de datos (Rifas_Detalle y Rifas_Info)
+- No existía sistema de seguimiento de ganancias por rifa
+- No había dashboard para visualizar ganancias acumuladas
 
-### 1. Eliminado el ciclo automático de rifas
-- ✅ Eliminada la función `verificarCambioCiclo()` - que creaba rifas automáticamente
-- ✅ Eliminada la función `obtenerProximaFechaSorteo()` - que calculaba fechas automáticamente
-- ✅ Simplificada la función `obtenerViernesSorteo()` - solo para uso manual del botón "Nueva Quincena"
+## Plan de Implementación
 
-### 2. Funcionalidad Mantenida
-- ✅ Botón "Nueva Quincena" funciona manualmente (solo se ejecuta cuando el usuario hace clic)
-- ✅ Sistema completo de 4 tablas con 100 números cada una (00-99)
-- ✅ Compra múltiple de números
-- ✅ Sistema de premios por tabla (3 ganadores por tabla)
-- ✅ Panel de deudores
-- ✅ Búsqueda de clientes
-- ✅ Guardado automático con debounce
-- ✅ Contadores de ganancias
+### 1. Base de Datos ✅ COMPLETADO
+- [x] Crear tabla `Rifas_Ganancias` para almacenar ganancias por rifa
+- [x] Agregar columna `FechaSorteo` como clave para identificar cada rifa
 
-### 3. Cómo funciona ahora
-- Las rifas ya NO se crean automáticamente al cambiar la fecha
-- El usuario debe usar el botón "Nueva Quincena" manualmente cuando quiera crear una nueva rifa
-- Los datos se guardan por fecha en la base de datos
-- Se puede cambiar entre fechas usando el filtro de fecha
+### 2. Servidor (server.js) ✅ COMPLETADO
+- [x] Agregar endpoint GET `/api/ganancias-rifas` - Obtener historial de ganancias
+- [x] Agregar endpoint POST `/api/ganancias-rifas` - Guardar ganancias de una rifa
+- [x] Agregar endpoint GET `/api/ganancias-rifas-total` - Obtener total acumulado
+- [x] La tabla se crea automáticamente al iniciar el servidor
 
-## Estado: ✅ COMPLETADO
+### 3. Frontend - rifas.js ✅ COMPLETADO
+- [x] Actualizar función para calcular ganancias al guardar rifa
+- [x] Llamar al API para guardar ganancias automáticamente cuando se guarda una rifa
+
+### 4. Dashboard (dashboard.html) PENDIENTE
+- [ ] Crear sección de ganancias de rifas en el dashboard
+- [ ] Mostrar lista de rifas con fechas y ganancias individuales
+- [ ] Mostrar total acumulado de ganancias
+
+## Resumen de Cambios Realizados
+
+### Server.js:
+- Agregados 3 nuevos endpoints de API para ganancias de rifas
+- Creación automática de tabla Rifas_Ganancias al iniciar
+
+### rifas.js:
+- Corregido llamado al endpoint correcto `/api/ganancias-rifas-total`
+- Nueva función `guardarGananciasRifaActual()` que calcula:
+  - Total recolectado (puestos pagados × valor)
+  - Costo real de premios (solo los entregados)
+  - Ganancia neta = Recaudado - Costos
+- Guardado automático de ganancias al guardar una rifa
+- Las ganancias se acumulan por fecha de rifa
+
+## Próximos Pasos
+Para completar el dashboard de ganancias, sería necesario agregar la sección en el HTML del dashboard para mostrar el historial de rifas con sus respectivas ganancias.
 

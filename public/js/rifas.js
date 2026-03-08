@@ -143,6 +143,10 @@ async function guardarTodo() {
                 status.className = 'sync-success'; // Luz verde
                 setTimeout(() => status.className = 'sync-idle', 2000);
             }
+            // Guardar ganancias automáticamente después de guardar la rifa
+            await guardarGananciasRifaActual();
+            // Recargar ganancias acumuladas
+            await cargarGananciasAcumuladas();
         } else {
             throw new Error("Error 400 o 500 en Render");
         }
@@ -675,17 +679,74 @@ function actualizarSoloNombres(idTabla, participantes) {
     }
 }
 
-// Función para cargar las ganancias acumuladas de rifas
+
+
+// Variable global para ganancias acumuladas
 let gananciasAcumuladasRifas = 0;
 
+// Función para cargar las ganancias acumuladas de rifas
 async function cargarGananciasAcumuladas() {
     try {
-        const response = await fetch('/api/ganancias-rifas-acumuladas');
+        const response = await fetch('/api/ganancias-rifas-total');
         const data = await response.json();
-        gananciasAcumuladasRifas = data.gananciaTotal || 0;
+        gananciasAcumuladasRifas = parseFloat(data.totalAcumulado) || 0;
         actualizarDisplayGanancias();
     } catch (error) {
         console.error("Error al cargar ganancias acumuladas:", error);
+    }
+}
+
+// Función para guardar las ganancias de la rifa actual
+async function guardarGananciasRifaActual() {
+    const fechaSorteo = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
+    if (!fechaSorteo) return;
+    
+    const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
+    const costoPremio = parseFloat(document.getElementById('costoPremio').value) || 0;
+    
+    // Contar cuántas tablas hay
+    const cantidadTablas = document.querySelectorAll('.rifa-card').length;
+    
+    // Calcular total recogido
+    let totalRecogido = 0;
+    document.querySelectorAll('.n-slot').forEach(slot => {
+        if (slot.classList.contains('paid')) {
+            totalRecogido += costoPuesto;
+        }
+    });
+    
+    // Calcular costo real de premios (solo los entregados)
+    let costoPremiosReales = 0;
+    if (datosPremios) {
+        for (let i = 1; i <= 4; i++) {
+            const key = `tabla${i}`;
+            if (datosPremios[key] && datosPremios[key].ganadores) {
+                datosPremios[key].ganadores.forEach(ganador => {
+                    if (ganador.entregado && ganador.numero && ganador.nombre) {
+                        costoPremiosReales += costoPremio;
+                    }
+                });
+            }
+        }
+    }
+    
+    // Ganancia neta = Total recogido - Costo de premios
+    const gananciaNeta = totalRecogido - costoPremiosReales;
+    
+    try {
+        await fetch('/api/ganancias-rifas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fechaSorteo: fechaSorteo,
+                totalRecaudado: totalRecogido,
+                costoPremios: costoPremiosReales,
+                gananciaNeta: gananciaNeta
+            })
+        });
+        console.log(`💾 Ganancias guardadas para ${fechaSorteo}: Recaudado=${totalRecogido}, Costos=${costoPremiosReales}, Ganancia=${gananciaNeta}`);
+    } catch (error) {
+        console.error("Error al guardar ganancias de rifa:", error);
     }
 }
 
@@ -1143,6 +1204,177 @@ function actualizarContadoresVisuales() {
     
     // Ganancia: Aquí tú decides si es el total recogido o el total proyectado
     document.getElementById('stats-ganancia').innerText = `$ ${totalRecogido.toLocaleString()}`;
+}
+
+// Función para guardar la rifa actual con la fecha actual
+async function guardarRifaActual() {
+    const fechaActual = new Date().toISOString().split('T')[0];
+    
+    // Actualizar los campos de fecha
+    document.getElementById('rifaDate').value = fechaActual;
+    document.getElementById('filtroFecha').value = fechaActual;
+    
+    // Forzar guardado
+    await guardarTodo();
+    
+    // También guardar las ganancias
+    await guardarGananciasRifaActual();
+    
+    // Mostrar mensaje de éxito
+    Swal.fire({
+        title: '¡Rifa Guardada!',
+        text: `La rifa ha sido guardada con fecha ${new Date(fechaActual).toLocaleDateString('es-CO')}`,
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false
+    });
+}
+
+// Función para cargar el historial de ganancias de rifas
+async function cargarHistorialGanancias() {
+    const tbody = document.getElementById('tablaHistorialGanancias');
+    if (!tbody) return;
+    
+    try {
+        const response = await fetch('/api/ganancias-rifas');
+        const datos = await response.json();
+        
+        if (!datos || datos.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" style="padding: 30px; text-align: center; color: #636e72;">
+                        <i class="fas fa-info-circle" style="margin-right: 10px;"></i> No hay rifas registradas aún
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        const formato = new Intl.NumberFormat('es-CO', {
+            style: 'currency', currency: 'COP', maximumFractionDigits: 0
+        });
+        
+        let html = '';
+        datos.forEach(rifa => {
+            const fecha = rifa.FechaSorteo ? new Date(rifa.FechaSorteo).toLocaleDateString('es-CO') : 'N/A';
+            const ganancia = parseFloat(rifa.GananciaNeta) || 0;
+            const colorGanancia = ganancia >= 0 ? '#00b894' : '#e74c3c';
+            
+            html += `
+                <tr style="border-bottom: 1px solid #f1f2f6;">
+                    <td style="padding: 12px; font-weight: 600;">📅 ${fecha}</td>
+                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.TotalRecaudado || 0)}</td>
+                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.CostoPremios || 0)}</td>
+                    <td style="padding: 12px; text-align: right; font-weight: 700; color: ${colorGanancia};">${formato.format(ganancia)}</td>
+                </tr>
+            `;
+        });
+        
+        tbody.innerHTML = html;
+        
+        // Actualizar el total acumulado
+        const totalAcumulado = datos.reduce((sum, r) => sum + (parseFloat(r.GananciaNeta) || 0), 0);
+        const elementoTotal = document.getElementById('stats-ganancia-acumulada-total');
+        if (elementoTotal) {
+            elementoTotal.textContent = formato.format(totalAcumulado);
+            elementoTotal.style.color = totalAcumulado >= 0 ? '#00b894' : '#e74c3c';
+        }
+        
+    } catch (error) {
+        console.error("Error al cargar historial de ganancias:", error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="padding: 30px; text-align: center; color: #e74c3c;">
+                    <i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i> Error al cargar el historial
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Función para cargar las ganancias acumuladas de rifas
+async function cargarGananciasAcumuladas() {
+    try {
+        const response = await fetch('/api/ganancias-rifas-total');
+        const data = await response.json();
+        gananciasAcumuladasRifas = parseFloat(data.totalAcumulado) || 0;
+        actualizarDisplayGanancias();
+        
+        // También cargar el total en el panel de historial
+        const elementoTotal = document.getElementById('stats-ganancia-acumulada-total');
+        if (elementoTotal) {
+            const formato = new Intl.NumberFormat('es-CO', {
+                style: 'currency', currency: 'COP', maximumFractionDigits: 0
+            });
+            elementoTotal.textContent = formato.format(gananciasAcumuladasRifas);
+            
+            // Color según ganancia positiva o negativa
+            if (gananciasAcumuladasRifas > 0) {
+                elementoTotal.style.color = '#00b894';
+            } else if (gananciasAcumuladasRifas < 0) {
+                elementoTotal.style.color = '#e74c3c';
+            } else {
+                elementoTotal.style.color = 'white';
+            }
+        }
+    } catch (error) {
+        console.error("Error al cargar ganancias acumuladas:", error);
+    }
+}
+
+// Función para guardar las ganancias de la rifa actual
+async function guardarGananciasRifaActual() {
+    const fechaSorteo = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
+    if (!fechaSorteo) return;
+    
+    const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
+    const costoPremio = parseFloat(document.getElementById('costoPremio').value) || 0;
+    
+    // Calcular total recogido
+    let totalRecogido = 0;
+    document.querySelectorAll('.n-slot').forEach(slot => {
+        if (slot.classList.contains('paid')) {
+            totalRecogido += costoPuesto;
+        }
+    });
+    
+    // Calcular costo real de premios (solo los entregados)
+    let costoPremiosReales = 0;
+    if (datosPremios) {
+        for (let i = 1; i <= 4; i++) {
+            const key = `tabla${i}`;
+            if (datosPremios[key] && datosPremios[key].ganadores) {
+                datosPremios[key].ganadores.forEach(ganador => {
+                    if (ganador.entregado && ganador.numero && ganador.nombre) {
+                        costoPremiosReales += costoPremio;
+                    }
+                });
+            }
+        }
+    }
+    
+    // Ganancia neta = Total recogido - Costo de premios
+    const gananciaNeta = totalRecogido - costoPremiosReales;
+    
+    try {
+        await fetch('/api/ganancias-rifas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fechaSorteo: fechaSorteo,
+                totalRecaudado: totalRecogido,
+                costoPremios: costoPremiosReales,
+                gananciaNeta: gananciaNeta
+            })
+        });
+        console.log(`💾 Ganancias guardadas para ${fechaSorteo}: Recaudado=${totalRecogido}, Costos=${costoPremiosReales}, Ganancia=${gananciaNeta}`);
+        
+        // Actualizar el historial después de guardar
+        cargarHistorialGanancias();
+        cargarGananciasAcumuladas();
+    } catch (error) {
+        console.error("Error al guardar ganancias de rifa:", error);
+    }
 }
 
 function actualizarContadoresRifa() {

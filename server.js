@@ -1164,6 +1164,117 @@ app.post('/api/restore-database', async (req, res) => {
     }
 });
 
+// --- RUTAS DE GANANCIAS DE RIFAS ---
+
+// Obtener todas las ganancias de rifas (historial)
+app.get('/api/ganancias-rifas', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Primero verificamos si la tabla existe
+        const tableCheck = await pool.request()
+            .query(`IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Ganancias') 
+                SELECT 1 as existe ELSE SELECT 0 as existe`);
+        
+        if (tableCheck.recordset[0].existe === 0) {
+            // La tabla no existe, crearla
+            await pool.request()
+                .query(`CREATE TABLE Rifas_Ganancias (
+                    ID INT IDENTITY(1,1) PRIMARY KEY,
+                    FechaSorteo DATE NOT NULL UNIQUE,
+                    TotalRecaudado DECIMAL(18,2) DEFAULT 0,
+                    CostoPremios DECIMAL(18,2) DEFAULT 0,
+                    GananciaNeta DECIMAL(18,2) DEFAULT 0,
+                    FechaRegistro DATETIME DEFAULT GETDATE()
+                )`);
+            res.json([]);
+            return;
+        }
+        
+        const result = await pool.request()
+            .query(`SELECT FechaSorteo, TotalRecaudado, CostoPremios, GananciaNeta, FechaRegistro 
+                    FROM Rifas_Ganancias 
+                    ORDER BY FechaSorteo DESC`);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Error al obtener ganancias de rifas:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Obtener total acumulado de ganancias de rifas
+app.get('/api/ganancias-rifas-total', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Verificar si la tabla existe
+        const tableCheck = await pool.request()
+            .query(`IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Ganancias') 
+                SELECT 1 as existe ELSE SELECT 0 as existe`);
+        
+        if (tableCheck.recordset[0].existe === 0) {
+            res.json({ totalAcumulado: 0 });
+            return;
+        }
+        
+        const result = await pool.request()
+            .query(`SELECT ISNULL(SUM(GananciaNeta), 0) as totalAcumulado FROM Rifas_Ganancias`);
+        
+        res.json({ totalAcumulado: result.recordset[0].totalAcumulado });
+    } catch (err) {
+        console.error("Error al obtener total de ganancias:", err.message);
+        res.status(500).json({ totalAcumulado: 0 });
+    }
+});
+
+// Guardar ganancias de una rifa específica
+app.post('/api/ganancias-rifas', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const { fechaSorteo, totalRecaudado, costoPremios, gananciaNeta } = req.body;
+        
+        if (!fechaSorteo) {
+            return res.status(400).json({ success: false, error: "La fecha es obligatoria" });
+        }
+        
+        // Verificar si la tabla existe
+        const tableCheck = await pool.request()
+            .query(`IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Ganancias') 
+                SELECT 1 as existe ELSE SELECT 0 as existe`);
+        
+        if (tableCheck.recordset[0].existe === 0) {
+            await pool.request()
+                .query(`CREATE TABLE Rifas_Ganancias (
+                    ID INT IDENTITY(1,1) PRIMARY KEY,
+                    FechaSorteo DATE NOT NULL UNIQUE,
+                    TotalRecaudado DECIMAL(18,2) DEFAULT 0,
+                    CostoPremios DECIMAL(18,2) DEFAULT 0,
+                    GananciaNeta DECIMAL(18,2) DEFAULT 0,
+                    FechaRegistro DATETIME DEFAULT GETDATE()
+                )`);
+        }
+        
+        // Eliminar registro existente para esta fecha y crear nuevo
+        await pool.request()
+            .input('fecha', sql.Date, fechaSorteo)
+            .query("DELETE FROM Rifas_Ganancias WHERE FechaSorteo = @fecha");
+        
+        await pool.request()
+            .input('fecha', sql.Date, fechaSorteo)
+            .input('recaudado', sql.Decimal(18,2), parseFloat(totalRecaudado) || 0)
+            .input('costoPremios', sql.Decimal(18,2), parseFloat(costoPremios) || 0)
+            .input('gananciaNeta', sql.Decimal(18,2), parseFloat(gananciaNeta) || 0)
+            .query(`INSERT INTO Rifas_Ganancias (FechaSorteo, TotalRecaudado, CostoPremios, GananciaNeta) 
+                    VALUES (@fecha, @recaudado, @costoPremios, @gananciaNeta)`);
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Error al guardar ganancias de rifa:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 
@@ -1212,6 +1323,20 @@ async function inicializarBaseDeDatos() {
                     ValorPuesto DECIMAL(18,2),
                     CostoPremio DECIMAL(18,2),
                    Premios NVARCHAR(MAX)
+                )
+            END`);
+
+        // Verificar si existe la tabla Rifas_Ganancias
+        await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Ganancias')
+            BEGIN
+                CREATE TABLE Rifas_Ganancias (
+                    ID INT IDENTITY(1,1) PRIMARY KEY,
+                    FechaSorteo DATE NOT NULL UNIQUE,
+                    TotalRecaudado DECIMAL(18,2) DEFAULT 0,
+                    CostoPremios DECIMAL(18,2) DEFAULT 0,
+                    GananciaNeta DECIMAL(18,2) DEFAULT 0,
+                    FechaRegistro DATETIME DEFAULT GETDATE()
                 )
             END`);
 
