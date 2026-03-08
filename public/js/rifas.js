@@ -358,17 +358,15 @@ async function cargarRifas() {
     // 1. Intentamos obtener la fecha de cualquiera de los dos inputs
     const filtroFecha = document.getElementById('filtroFecha');
     const rifaDate = document.getElementById('rifaDate');
-    const fechaParaCargar = filtroFecha?.value || rifaDate?.value || new Date().toISOString().split('T')[0];
-
-    // Aseguramos que ambos calendarios muestren la misma fecha
-    if (filtroFecha) filtroFecha.value = fechaParaCargar;
-    if (rifaDate) rifaDate.value = fechaParaCargar;
+    let fechaParaCargar = filtroFecha?.value || rifaDate?.value || new Date().toISOString().split('T')[0];
 
     // Declarar datos aquí para que esté disponible en todo el ámbito de la función
     let datos = { info: {} };
 
     try {
         // 2. Intentamos pedir los datos al servidor
+        console.log('🔍 DEBUG frontend - Intentando cargar fecha:', fechaParaCargar);
+        
         const response = await fetch(`/api/cargar-rifas?fecha=${fechaParaCargar}`); 
         
         if (!response.ok) {
@@ -380,7 +378,39 @@ async function cargarRifas() {
         // DEBUG: Ver qué datos llegan del servidor
         console.log("🔍 DATOS RECIBIDOS DEL SERVIDOR:", JSON.stringify(datos).substring(0, 1000));
 
-        // 3. Limpiamos el contenedor antes de dibujar
+        // 3. SI NO HAY DATOS PARA ESA FECHA, BUSCAR CUALQUIER OTRA FECHA
+        if (datos && datos.sinDatos) {
+            console.log("⚠️ No hay datos para fecha:", fechaParaCargar);
+            
+            // Intentar obtener la lista de fechas disponibles
+            try {
+                const fechasResponse = await fetch('/api/fechas-rifas');
+                const fechas = await fechasResponse.json();
+                console.log("📅 Fechas disponibles en BD:", fechas);
+                
+                // Si hay fechas guardadas, usar la más reciente
+                if (fechas && fechas.length > 0) {
+                    const fechaMasReciente = fechas[0];
+                    console.log("🔄 Cambiando a la fecha más reciente:", fechaMasReciente);
+                    
+                    // Actualizar los inputs de fecha
+                    if (filtroFecha) filtroFecha.value = fechaMasReciente;
+                    if (rifaDate) rifaDate.value = fechaMasReciente;
+                    
+                    // Recargar con la fecha correcta
+                    fechaParaCargar = fechaMasReciente;
+                    
+                    // Hacer nueva petición con la fecha correcta
+                    const response2 = await fetch(`/api/cargar-rifas?fecha=${fechaParaCargar}`);
+                    datos = await response2.json();
+                    console.log("🔍 DATOS CON FECHA CORREGIDA:", JSON.stringify(datos).substring(0, 500));
+                }
+            } catch(e) {
+                console.log("Error al obtener fechas:", e);
+            }
+        }
+
+        // 4. Limpiamos el contenedor antes de dibujar
         container.innerHTML = ''; 
 
         // Verificar si hay datos reales o no
