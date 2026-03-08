@@ -1278,6 +1278,41 @@ app.post('/api/ganancias-rifas', async (req, res) => {
 // --- INICIO DEL SERVIDOR ---
 const PORT = process.env.PORT || 3000;
 
+// Endpoint para eliminar una rifa por fecha
+app.delete('/api/eliminar-rifa', async (req, res) => {
+    try {
+        const { fecha } = req.body;
+        
+        if (!fecha) {
+            return res.status(400).json({ success: false, error: "La fecha es obligatoria" });
+        }
+        
+        const pool = await poolPromise;
+        
+        // Eliminar detalles de la rifa
+        await pool.request()
+            .input('fecha', sql.Date, fecha)
+            .query("DELETE FROM Rifas_Detalle WHERE FechaSorteo = @fecha");
+        
+        // Eliminar información de la rifa
+        await pool.request()
+            .input('fecha', sql.Date, fecha)
+            .query("DELETE FROM Rifas_Info WHERE FechaSorteo = @fecha");
+        
+        // Eliminar ganancias de la rifa
+        await pool.request()
+            .input('fecha', sql.Date, fecha)
+            .query("DELETE FROM Rifas_Ganancias WHERE FechaSorteo = @fecha");
+        
+        console.log('🗑️ Rifa eliminada:', fecha);
+        res.json({ success: true, message: "Rifa eliminada correctamente" });
+        
+    } catch (err) {
+        console.error("Error al eliminar rifa:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // Verificar y crear columnas necesarias al iniciar
 async function inicializarBaseDeDatos() {
     try {

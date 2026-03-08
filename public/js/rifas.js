@@ -2305,3 +2305,55 @@ function cerrarPanelDeudores() {
     document.getElementById('panelPremios').style.display = 'block';
     document.getElementById('rifasContainer').style.display = 'block';
 }
+
+// Función para eliminar una rifa
+async function eliminarRifa() {
+    const fechaActual = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
+    
+    if (!fechaActual) {
+        Swal.fire('Error', 'No hay fecha seleccionada', 'error');
+        return;
+    }
+    
+    // Confirmar con el usuario
+    const result = await Swal.fire({
+        title: '¿Eliminar Rifa?',
+        html: `¿Estás seguro de eliminar la rifa del <b>${new Date(fechaActual).toLocaleDateString('es-CO')}</b>?<br><br>Esta acción no se puede deshacer.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#dfe6e9',
+        confirmButtonText: '<i class="fas fa-trash"></i> Eliminar',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
+    });
+
+    if (result.isConfirmed) {
+        try {
+            const response = await fetch('/api/eliminar-rifa', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fecha: fechaActual })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                Swal.fire({
+                    title: '¡Rifa Eliminada!',
+                    text: 'La rifa ha sido eliminada correctamente.',
+                    icon: 'success',
+                    confirmButtonColor: '#0984e3'
+                });
+                
+                // Recargar las rifas (mostrará rifas vacías)
+                cargarRifas();
+            } else {
+                throw new Error(data.error || 'Error al eliminar');
+            }
+        } catch (error) {
+            console.error("Error al eliminar rifa:", error);
+            Swal.fire('Error', 'No se pudo eliminar la rifa.', 'error');
+        }
+    }
+}
