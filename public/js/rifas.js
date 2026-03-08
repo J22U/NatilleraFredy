@@ -124,11 +124,25 @@ async function guardarTodo() {
 
     const datos = recolectarDatosPantalla();
 
-    // Verificación de seguridad: Si no hay fecha, no mandamos nada para evitar el Error 400
+    // Verificación de seguridad: Si no hay fecha, usar la fecha actual
     if (!datos.info.fecha) {
-        console.warn("⚠️ Intento de guardado sin fecha abortado.");
-        if (status) status.className = 'sync-error';
-        return;
+        const fechaActual = new Date().toISOString().split('T')[0];
+        datos.info.fecha = fechaActual;
+        // También actualizar los campos de fecha en la UI
+        const filtroFecha = document.getElementById('filtroFecha');
+        const rifaDate = document.getElementById('rifaDate');
+        if (filtroFecha) filtroFecha.value = fechaActual;
+        if (rifaDate) rifaDate.value = fechaActual;
+        console.log('⚠️ No había fecha, se usó la fecha actual:', fechaActual);
+    }
+
+    // Si no hay tablas creadas, crear las 4 tablas vacías
+    if (!datos.tabla1 && !datos.tabla2 && !datos.tabla3 && !datos.tabla4) {
+        datos.tabla1 = { titulo: 'Tabla 1', participantes: {} };
+        datos.tabla2 = { titulo: 'Tabla 2', participantes: {} };
+        datos.tabla3 = { titulo: 'Tabla 3', participantes: {} };
+        datos.tabla4 = { titulo: 'Tabla 4', participantes: {} };
+        console.log('⚠️ No había tablas, se crearon tablas vacías');
     }
 
     try {
@@ -143,12 +157,21 @@ async function guardarTodo() {
                 status.className = 'sync-success'; // Luz verde
                 setTimeout(() => status.className = 'sync-idle', 2000);
             }
+            // Mostrar mensaje de éxito
+            Swal.fire({
+                title: '¡Guardado!',
+                text: 'La rifa se ha guardado correctamente.',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            });
         } else {
             throw new Error("Error 400 o 500 en Render");
         }
     } catch (error) {
         console.error("❌ Error al sincronizar:", error);
         if (status) status.className = 'sync-error'; // Luz roja
+        Swal.fire('Error', 'No se pudo guardar la rifa. Intenta de nuevo.', 'error');
     }
 }
 
