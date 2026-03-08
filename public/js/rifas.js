@@ -124,6 +124,8 @@ async function guardarTodo() {
 
     const datos = recolectarDatosPantalla();
 
+    console.log("💾 GUARDANDO DATOS:", JSON.stringify(datos).substring(0, 500));
+
     // Verificación de seguridad: Si no hay fecha, no mandamos nada para evitar el Error 400
     if (!datos.info.fecha) {
         console.warn("⚠️ Intento de guardado sin fecha abortado.");
@@ -138,21 +140,28 @@ async function guardarTodo() {
             body: JSON.stringify(datos)
         });
 
+        console.log("📬 Respuesta del servidor:", response.status, response.statusText);
+
         if (response.ok) {
             if (status) {
                 status.className = 'sync-success'; // Luz verde
                 setTimeout(() => status.className = 'sync-idle', 2000);
             }
+            console.log("✅ Datos guardados correctamente");
             // Guardar ganancias automáticamente después de guardar la rifa
             await guardarGananciasRifaActual();
             // Recargar ganancias acumuladas
             await cargarGananciasAcumuladas();
         } else {
-            throw new Error("Error 400 o 500 en Render");
+            console.error("❌ Error en la respuesta:", response.status);
+            const errorText = await response.text();
+            console.error("❌ Detalle del error:", errorText);
+            throw new Error("Error del servidor: " + response.status);
         }
     } catch (error) {
         console.error("❌ Error al sincronizar:", error);
         if (status) status.className = 'sync-error'; // Luz roja
+        alert("Error al guardar: " + error.message);
     }
 }
 

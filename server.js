@@ -44,8 +44,15 @@ app.post('/login', (req, res) => {
 // Obtener los datos de las rifas desde Rifas_Detalle
 app.get('/api/cargar-rifas', async (req, res) => {
     try {
-        const { fecha } = req.query;
+        let { fecha } = req.query;
         const pool = await poolPromise;
+        
+        // Normalizar la fecha recibida del frontend para evitar problemas de zona horaria
+        if (fecha) {
+            const fechaNormalizada = new Date(fecha + 'T12:00:00');
+            fecha = fechaNormalizada.toISOString().split('T')[0];
+            console.log('🔍 DEBUG cargar-rifas - Fecha recibida:', req.query.fecha, '-> Fecha normalizada:', fecha);
+        }
         
         let query;
         
@@ -72,7 +79,7 @@ app.get('/api/cargar-rifas', async (req, res) => {
             res.json({ 
                 sinDatos: true, 
                 mensaje: "No hay rifa guardada",
-                info: { nombre: '', premio: '', valor: '', fecha: fecha || '', inversion: '' },
+                info: { nombre: '', premio: '', valor: '', fecha: req.query.fecha || '', inversion: '' },
                 tabla1: { titulo: 'Tabla 1', participantes: {} },
                 tabla2: { titulo: 'Tabla 2', participantes: {} },
                 tabla3: { titulo: 'Tabla 3', participantes: {} },
@@ -82,7 +89,7 @@ app.get('/api/cargar-rifas', async (req, res) => {
         }
 
         // Consultar también Rifas_Info para obtener la información de la rifa
-        let infoRifa = { nombre: '', premio: '', valor: '', fecha: fecha || '', inversion: '' };
+        let infoRifa = { nombre: '', premio: '', valor: '', fecha: req.query.fecha || '', inversion: '' };
         try {
             const infoResult = await pool.request()
                 .input('fechaBuscada', sql.Date, fecha || null)
@@ -198,9 +205,12 @@ app.post('/api/guardar-rifa', async (req, res) => {
         }
 
         // Normalizar la fecha para evitar problemas de zona horaria
-        // La fecha viene como YYYY-MM-DD del frontend, la convertimos correctamente
+        // La fecha viene como YYYY-MM-DD del frontend
+        // Agregamos hora base para evitar cambios de zona horaria
         const fechaNormalizada = new Date(fechaSorteo + 'T12:00:00');
         const fechaParaSQL = fechaNormalizada.toISOString().split('T')[0];
+
+        console.log('🔍 DEBUG - Fecha original:', fechaSorteo, '-> Fecha normalizada:', fechaParaSQL);
 
         await transaction.request()
             .input('fecha', sql.Date, fechaParaSQL)
@@ -219,7 +229,7 @@ app.post('/api/guardar-rifa', async (req, res) => {
                     
                     if (participante && participante.nombre && participante.nombre.trim() !== "") {
                         await transaction.request()
-                            .input('fecha', sql.Date, fechaSorteo)
+                            .input('fecha', sql.Date, fechaParaSQL)  // Usar fecha normalizada consistente
                             .input('tablaId', sql.BigInt, numTabla)
                             .input('numero', sql.Char(2), numStr)
                             .input('nombre', sql.VarChar(100), participante.nombre.trim())
@@ -246,11 +256,11 @@ app.post('/api/guardar-rifa', async (req, res) => {
             
             // Eliminar info anterior de esta fecha y insertar nueva
             await pool.request()
-                .input('fecha', sql.Date, fechaSorteo)
+                .input('fecha', sql.Date, fechaParaSQL)  // Usar fecha normalizada consistente
                 .query("DELETE FROM Rifas_Info WHERE FechaSorteo = @fecha");
             
             await pool.request()
-                .input('fecha', sql.Date, fechaSorteo)
+                .input('fecha', sql.Date, fechaParaSQL)  // Usar fecha normalizada consistente
                 .input('nombre', sql.VarChar(200), info.nombre || '')
                 .input('premio', sql.VarChar(200), info.premio || '')
                 .input('valorPuesto', sql.Decimal(18,2), parseFloat(info.valor) || 0)
