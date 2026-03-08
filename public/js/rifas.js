@@ -1206,13 +1206,19 @@ function actualizarContadoresVisuales() {
     document.getElementById('stats-ganancia').innerText = `$ ${totalRecogido.toLocaleString()}`;
 }
 
-// Función para guardar la rifa actual con la fecha actual
+// Función para guardar la rifa actual con la fecha que está seleccionada
 async function guardarRifaActual() {
-    const fechaActual = new Date().toISOString().split('T')[0];
+    // Usar la fecha que está actualmente seleccionada en el formulario
+    const fechaSeleccionada = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
     
-    // Actualizar los campos de fecha
-    document.getElementById('rifaDate').value = fechaActual;
-    document.getElementById('filtroFecha').value = fechaActual;
+    if (!fechaSeleccionada) {
+        Swal.fire('Error', 'Por favor selecciona una fecha de sorteo', 'warning');
+        return;
+    }
+    
+    // Sincronizar ambos campos de fecha
+    document.getElementById('rifaDate').value = fechaSeleccionada;
+    document.getElementById('filtroFecha').value = fechaSeleccionada;
     
     // Forzar guardado
     await guardarTodo();
@@ -1223,7 +1229,7 @@ async function guardarRifaActual() {
     // Mostrar mensaje de éxito
     Swal.fire({
         title: '¡Rifa Guardada!',
-        text: `La rifa ha sido guardada con fecha ${new Date(fechaActual).toLocaleDateString('es-CO')}`,
+        text: `La rifa ha sido guardada con fecha ${new Date(fechaSeleccionada).toLocaleDateString('es-CO')}`,
         icon: 'success',
         timer: 2000,
         showConfirmButton: false
