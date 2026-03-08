@@ -2,6 +2,35 @@ let syncTimeout;
 let ultimaSincronizacionManual = 0;
 let timerDebounce;
 
+// --- LOCALSTORAGE PARA RESpaldo DE DATOS NO GUARDADOS ---
+
+// Guardar en localStorage cuando hay cambios
+function guardarEnLocalStorage() {
+    const datos = recolectarDatosPantalla();
+    const fecha = datos.info.fecha || new Date().toISOString().split('T')[0];
+    localStorage.setItem('rifa_backup_' + fecha, JSON.stringify(datos));
+    console.log('💾 Datos guardados en localStorage (respaldo)');
+}
+
+// Restaurar desde localStorage si existen datos sin guardar
+function restaurarDesdeLocalStorage(fecha) {
+    const backup = localStorage.getItem('rifa_backup_' + fecha);
+    if (backup) {
+        console.log('📥 Restaurando datos desde localStorage...');
+        return JSON.parse(backup);
+    }
+    return null;
+}
+
+// Limpiar localStorage después de guardar exitosamente
+function limpiarLocalStorage() {
+    const fecha = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
+    if (fecha) {
+        localStorage.removeItem('rifa_backup_' + fecha);
+        console.log('🗑️ Respaldo de localStorage eliminado');
+    }
+}
+
 // --- LÓGICA DE TABLAS ---
 
 function crearTabla(t = {}) {
@@ -157,6 +186,8 @@ async function guardarTodo() {
                 status.className = 'sync-success'; // Luz verde
                 setTimeout(() => status.className = 'sync-idle', 2000);
             }
+            // Limpiar respaldo localStorage después de guardar exitosamente
+            limpiarLocalStorage();
             // Mostrar mensaje de éxito
             Swal.fire({
                 title: '¡Guardado!',
@@ -221,6 +252,9 @@ function actualizarColor(tableId, n) {
 
     // NO guardamos automáticamente - el usuario guardará manualmente cuando quiera
     console.log("Cambio registrado, listo para guardar manualmente");
+    
+    // Respaldar en localStorage por si acaso
+    guardarEnLocalStorage();
 }
 
 // Se ejecuta al marcar el checkbox de pago
@@ -228,6 +262,9 @@ function actualizarEstado(tableId, n) {
     // Solo actualizamos los contadores, NO guardamos automáticamente
     actualizarContadoresRifa();
     console.log("Estado actualizado, listo para guardar manualmente");
+    
+    // Respaldar en localStorage por si acaso
+    guardarEnLocalStorage();
 }
 
 // --- ACTUALIZACIÓN Y COLORES ---
@@ -339,6 +376,41 @@ async function cargarRifas() {
         // Verificar si hay datos reales o no
         if (datos && datos.sinDatos) {
             console.log("⚠️ No hay datos para esta fecha:", datos.mensaje);
+            
+            // VERIFICAR SI HAY BACKUP EN LOCALSTORAGE antes de mostrar tablas vacías
+            const backupLocal = restaurarDesdeLocalStorage(fechaParaCargar);
+            if (backupLocal) {
+                console.log("📥 Se encontró respaldo en localStorage, restaurando...");
+                // Dibujar tablas con datos del backup
+                for (let i = 1; i <= 4; i++) {
+                    const key = `tabla${i}`;
+                    const datosTabla = backupLocal[key] || { participantes: {} };
+                    crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: datosTabla.participantes || {} });
+                }
+                // Llenar info del backup
+                if (backupLocal.info) {
+                    if(document.getElementById('rifaName')) document.getElementById('rifaName').value = backupLocal.info.nombre || '';
+                    if(document.getElementById('rifaPrize')) document.getElementById('rifaPrize').value = backupLocal.info.premio || '';
+                    if(document.getElementById('rifaCost')) document.getElementById('rifaCost').value = backupLocal.info.valor || '';
+                    if(document.getElementById('costoPremio')) document.getElementById('costoPremio').value = backupLocal.info.inversion || '';
+                }
+                // Cargar premios del backup
+                if (backupLocal.info && backupLocal.info.premios) {
+                    datosPremios = backupLocal.info.premios;
+                }
+                actualizarContadoresRifa();
+                cargarPremios(backupLocal);
+                // Mostrar notificación de que se restauró desde backup
+                Swal.fire({
+                    title: '📥 Datos restaurados',
+                    text: 'Se restauraron los datos que no se habían guardado desde el respaldo local.',
+                    icon: 'info',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+                return;
+            }
+            
             // Mostrar mensaje de que no hay datos
             container.innerHTML = `<div style="text-align:center; padding: 50px; color: #636e72;">
                 <i class="fas fa-info-circle" style="font-size: 3rem; color: #0984e3;"></i>
