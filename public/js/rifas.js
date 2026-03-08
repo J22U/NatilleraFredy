@@ -219,15 +219,15 @@ function actualizarColor(tableId, n) {
     if (pago) slot.classList.add('paid');
     else if (nombre !== '') slot.classList.add('reserved');
 
-    // Iniciamos la espera inteligente (Debounce)
-    guardarProgresoDebounce();
+    // NO guardamos automáticamente - el usuario guardará manualmente cuando quiera
+    console.log("Cambio registrado, listo para guardar manualmente");
 }
 
 // Se ejecuta al marcar el checkbox de pago
 function actualizarEstado(tableId, n) {
-    // Al ser un cambio de estado (pago), podemos ser más directos
+    // Solo actualizamos los contadores, NO guardamos automáticamente
     actualizarContadoresRifa();
-    guardarTodo(); 
+    console.log("Estado actualizado, listo para guardar manualmente");
 }
 
 // --- ACTUALIZACIÓN Y COLORES ---
@@ -873,13 +873,12 @@ function inicializarRifa() {
     // Renderizar el panel de premios aunque no haya datos cargados
     renderizarPanelPremios();
     
-    // Agregar listeners a los campos de información
+    // Agregar listeners a los campos de información - SOLO actualizar contadores, NO guardar automáticamente
     ['rifaName', 'rifaPrize', 'rifaCost', 'rifaDate', 'costoPremio'].forEach(id => {
         const el = document.getElementById(id);
         if(el) {
-            // Usar 'change' para inputs y selects, 'input' para cambios en tiempo real
-            el.addEventListener('change', () => {
-                guardarTodo();
+            // Solo actualizar contadores, NO guardar automáticamente
+            el.addEventListener('input', () => {
                 actualizarContadoresRifa();
             });
         }
@@ -1215,11 +1214,8 @@ async function confirmarCompra() {
 
     cerrarModal();
 
-    // Sincronizamos con el servidor
-    setTimeout(async () => {
-        actualizarContadoresRifa();
-        await guardarTodo();
-    }, 500);
+    // NO guardamos automáticamente - el usuario guardará manualmente cuando quiera
+    console.log("Cambio registrado en modal, listo para guardar manualmente");
 }
 
 function actualizarContadoresVisuales() {
@@ -1735,9 +1731,8 @@ function actualizarPremio(numeroTabla, posicionGanador, campo, valor) {
     // Actualizar estilos visuales
     renderizarPanelPremios();
 
-    // Guardar en el servidor
-    console.log('📤 Llamando a guardarPremiosEnRifa...');
-    guardarPremiosEnRifa();
+    // NO guardamos automáticamente - el usuario guardará manualmente cuando quiera
+    console.log("Premio actualizado, listo para guardar manualmente");
 }
 
 // Función para guardar los premios en la rifa actual
