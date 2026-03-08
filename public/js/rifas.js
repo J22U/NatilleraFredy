@@ -2177,14 +2177,20 @@ async function mostrarPanelDeudores() {
     const panel = document.getElementById('panelDeudores');
     const lista = document.getElementById('listaDeudores');
     
-    // Ocultar otros paneles y mostrar el de deudores
-    document.getElementById('panelCompraMultiple').style.display = 'none';
-    document.getElementById('panelPremios').style.display = 'none';
-    document.getElementById('rifasContainer').style.display = 'none';
-    panel.style.display = 'block';
+    // Ocultar otros paneles y mostrar el de deudores (con verificación de existencia)
+    const panelCompraMultiple = document.getElementById('panelCompraMultiple');
+    const panelPremios = document.getElementById('panelPremios');
+    const rifasContainer = document.getElementById('rifasContainer');
+    
+    if (panelCompraMultiple) panelCompraMultiple.style.display = 'none';
+    if (panelPremios) panelPremios.style.display = 'none';
+    if (rifasContainer) rifasContainer.style.display = 'none';
+    if (panel) panel.style.display = 'block';
     
     // Mostrar loading
-    lista.innerHTML = '<div style="text-align: center; padding: 30px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #0984e3;"></i><p>Cargando deudores...</p></div>';
+    if (lista) {
+        lista.innerHTML = '<div style="text-align: center; padding: 30px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #0984e3;"></i><p>Cargando deudores...</p></div>';
+    }
     
     try {
         // Obtener datos de la rifa actual
@@ -2301,12 +2307,16 @@ async function mostrarPanelDeudores() {
 // Función para cerrar el panel de deudores
 function cerrarPanelDeudores() {
     const panel = document.getElementById('panelDeudores');
-    panel.style.display = 'none';
+    if (panel) panel.style.display = 'none';
     
-    // Mostrar los otros paneles de nuevo
-    document.getElementById('panelCompraMultiple').style.display = 'block';
-    document.getElementById('panelPremios').style.display = 'block';
-    document.getElementById('rifasContainer').style.display = 'block';
+    // Mostrar los otros paneles de nuevo (con verificación de existencia)
+    const panelCompraMultiple = document.getElementById('panelCompraMultiple');
+    const panelPremios = document.getElementById('panelPremios');
+    const rifasContainer = document.getElementById('rifasContainer');
+    
+    if (panelCompraMultiple) panelCompraMultiple.style.display = 'block';
+    if (panelPremios) panelPremios.style.display = 'block';
+    if (rifasContainer) rifasContainer.style.display = 'block';
 }
 
 // Función para eliminar una rifa
@@ -2359,4 +2369,267 @@ async function eliminarRifa() {
             Swal.fire('Error', 'No se pudo eliminar la rifa.', 'error');
         }
     }
+}
+
+// ==================== SISTEMA DE BACKUP Y RESTAURACIÓN ====================
+
+// Función para crear un backup local
+function crearBackup() {
+    // Recolectar todos los datos actuales
+    const datos = recolectarDatosPantalla();
+    
+    // Obtener la fecha actual
+    const fecha = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
+    const nombreRifa = document.getElementById('rifaName')?.value || 'Rifa';
+    
+    // Crear objeto de backup con marca de tiempo
+    const backup = {
+        id: 'backup_' + Date.now(),
+        fecha: new Date().toISOString(),
+        fechaRifa: fecha,
+        nombreRifa: nombreRifa,
+        datos: datos
+    };
+    
+    // Obtener backups existentes
+    let backups = JSON.parse(localStorage.getItem('rifas_backups') || '[]');
+    
+    // Agregar el nuevo backup al inicio
+    backups.unshift(backup);
+    
+    // Limitar a los últimos 20 backups para no saturar el almacenamiento
+    if (backups.length > 20) {
+        backups = backups.slice(0, 20);
+    }
+    
+    // Guardar en localStorage
+    localStorage.setItem('rifas_backups', JSON.stringify(backups));
+    
+    // Mostrar mensaje de éxito
+    Swal.fire({
+        title: '¡Backup Creado!',
+        html: `Backup guardado exitosamente.<br><br>
+               <b>Fecha:</b> ${new Date(backup.fecha).toLocaleString('es-CO')}<br>
+               <b>Rifa:</b> ${nombreRifa}<br>
+               <b>ID:</b> ${backup.id}`,
+        icon: 'success',
+        confirmButtonColor: '#0984e3',
+        confirmButtonText: 'Aceptar'
+    });
+    
+    console.log('💾 Backup creado:', backup);
+}
+
+// Función para mostrar y restaurar un backup
+async function restaurarBackup() {
+    // Obtener backups del localStorage
+    const backups = JSON.parse(localStorage.getItem('rifas_backups') || '[]');
+    
+    if (backups.length === 0) {
+        Swal.fire({
+            title: 'No hay Backups',
+            html: 'No se han encontrado backups guardados.<br><br>Crea un backup primero usando el botón "Backup".',
+            icon: 'info',
+            confirmButtonColor: '#0984e3'
+        });
+        return;
+    }
+    
+    // Crear HTML para la lista de backups
+    let htmlBackups = '<div style="max-height: 300px; overflow-y: auto;">';
+    
+    backups.forEach((backup, index) => {
+        const fechaBackup = new Date(backup.fecha).toLocaleString('es-CO');
+        const fechaRifa = backup.fechaRifa || 'N/A';
+        
+        // Contar participantes
+        let totalParticipantes = 0;
+        for (let i = 1; i <= 4; i++) {
+            const key = `tabla${i}`;
+            if (backup.datos[key] && backup.datos[key].participantes) {
+                totalParticipantes += Object.keys(backup.datos[key].participantes).length;
+            }
+        }
+        
+        htmlBackups += `
+            <div style="border: 2px solid #dfe6e9; border-radius: 10px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s;"
+                 onclick="seleccionarBackup(${index})"
+                 id="backup-item-${index}"
+                 style="border-color: #0984e3; background: #f0f8ff;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-weight: 700; font-size: 1rem; color: #2d3436;">${backup.nombreRifa || 'Rifa'}</span>
+                        <br>
+                        <span style="font-size: 0.85rem; color: #636e72;">📅 Rifa: ${fechaRifa}</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 0.8rem; color: #636e72;">${fechaBackup}</span>
+                        <br>
+                        <span style="font-size: 0.8rem; color: #00b894; font-weight: 600;">${totalParticipantes} participantes</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    htmlBackups += '</div>';
+    
+    // Mostrar modal con los backups
+    const result = await Swal.fire({
+        title: 'Restaurar Backup',
+        html: 'Selecciona un backup para restaurar:<br><br>' + htmlBackups,
+        icon: 'question',
+        showCancelButton: true,
+        cancelButtonText: 'Cancelar',
+        confirmButtonText: 'Cerrar',
+        width: '600px'
+    });
+}
+
+// Variable global para almacenar el backup seleccionado
+window.backupSeleccionado = null;
+
+// Función para seleccionar y restaurar un backup específico
+async function seleccionarBackup(index) {
+    const backups = JSON.parse(localStorage.getItem('rifas_backups') || '[]');
+    const backup = backups[index];
+    
+    if (!backup) return;
+    
+    window.backupSeleccionado = backup;
+    
+    // Confirmar la restauración
+    const result = await Swal.fire({
+        title: '¿Confirmar Restauración?',
+        html: `¿Estás seguro de restaurar este backup?<br><br>
+               <b>Rifa:</b> ${backup.nombreRifa || 'Rifa'}<br>
+               <b>Fecha:</b> ${backup.fechaRifa || 'N/A'}<br>
+               <b>Backup:</b> ${new Date(backup.fecha).toLocaleString('es-CO')}<br><br>
+               <span style="color: #e74c3c;">⚠️ Esta acción sobrescribirá los datos actuales de la rifa.</span>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#00b894',
+        cancelButtonColor: '#dfe6e9',
+        confirmButtonText: '<i class="fas fa-download"></i> Restaurar',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
+    });
+    
+    if (result.isConfirmed) {
+        try {
+            // Restaurar los datos del backup
+            await restaurarDatosBackup(backup.datos);
+            
+            Swal.fire({
+                title: '¡Restaurado!',
+                text: 'El backup ha sido restaurado correctamente.',
+                icon: 'success',
+                confirmButtonColor: '#0984e3'
+            });
+            
+            // Recargar las rifas para mostrar los datos restaurados
+            cargarRifas();
+            
+        } catch (error) {
+            console.error("Error al restaurar backup:", error);
+            Swal.fire({
+                title: 'Error',
+                text: 'No se pudo restaurar el backup. Intenta de nuevo.',
+                icon: 'error',
+                confirmButtonColor: '#0984e3'
+            });
+        }
+    }
+}
+
+// Función para restaurar los datos del backup en la interfaz
+async function restaurarDatosBackup(datos) {
+    // 1. Restaurar información de la rifa
+    if (datos.info) {
+        if (document.getElementById('rifaName')) document.getElementById('rifaName').value = datos.info.nombre || '';
+        if (document.getElementById('rifaPrize')) document.getElementById('rifaPrize').value = datos.info.premio || '';
+        if (document.getElementById('rifaCost')) document.getElementById('rifaCost').value = datos.info.valor || '';
+        if (document.getElementById('costoPremio')) document.getElementById('costoPremio').value = datos.info.inversion || '';
+        
+        if (datos.info.fecha) {
+            if (document.getElementById('rifaDate')) document.getElementById('rifaDate').value = datos.info.fecha;
+            if (document.getElementById('filtroFecha')) document.getElementById('filtroFecha').value = datos.info.fecha;
+        }
+        
+        // Restaurar premios
+        if (datos.info.premios) {
+            datosPremios = datos.info.premios;
+        }
+    }
+    
+    // 2. Guardar en el servidor
+    await fetch('/api/guardar-rifa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datos)
+    });
+    
+    // 3. Actualizar la visualización de las tablas
+    const container = document.getElementById('rifasContainer');
+    container.innerHTML = '';
+    
+    for (let i = 1; i <= 4; i++) {
+        const key = `tabla${i}`;
+        const tablaData = datos[key] || { nombre: `Tabla ${i}`, participantes: {} };
+        tablaData.idTabla = i;
+        
+        if (!tablaData.nombre) tablaData.nombre = `Tabla ${i}`;
+        if (!tablaData.participantes || typeof tablaData.participantes !== 'object') {
+            tablaData.participantes = {};
+        }
+        
+        crearTabla(tablaData);
+    }
+    
+    // 4. Actualizar contadores
+    actualizarContadoresRifa();
+    
+    // 5. Renderizar premios
+    renderizarPanelPremios();
+    
+    console.log('✅ Datos del backup restaurados correctamente');
+}
+
+// Función para ver los detalles de un backup sin restaurar
+function verDetalleBackup(index) {
+    const backups = JSON.parse(localStorage.getItem('rifas_backups') || '[]');
+    const backup = backups[index];
+    
+    if (!backup) return;
+    
+    // Crear detalle
+    let detalle = `<div style="text-align: left; max-height: 300px; overflow-y: auto;">`;
+    
+    // Info de la rifa
+    detalle += `<h4 style="color: #0984e3; margin: 10px 0;">📋 Información</h4>`;
+    detalle += `<p><b>Nombre:</b> ${backup.datos.info?.nombre || 'N/A'}</p>`;
+    detalle += `<p><b>Premio:</b> ${backup.datos.info?.premio || 'N/A'}</p>`;
+    detalle += `<p><b>Valor Puesto:</b> $${backup.datos.info?.valor || '0'}</p>`;
+    detalle += `<p><b>Fecha:</b> ${backup.fechaRifa || 'N/A'}</p>`;
+    
+    // Participantes por tabla
+    for (let i = 1; i <= 4; i++) {
+        const key = `tabla${i}`;
+        if (backup.datos[key] && backup.datos[key].participantes) {
+            const participantes = backup.datos[key].participantes;
+            const count = Object.keys(participantes).length;
+            if (count > 0) {
+                detalle += `<p><b>Tabla ${i}:</b> ${count} participantes</p>`;
+            }
+        }
+    }
+    
+    detalle += `</div>`;
+    
+    Swal.fire({
+        title: 'Detalle del Backup',
+        html: detalle,
+        icon: 'info',
+        confirmButtonColor: '#0984e3'
+    });
 }

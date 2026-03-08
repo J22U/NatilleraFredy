@@ -204,17 +204,10 @@ app.post('/api/guardar-rifa', async (req, res) => {
             return res.status(400).json({ success: false, error: "La fecha es obligatoria" });
         }
 
-        // Normalizar la fecha para evitar problemas de zona horaria
-        // La fecha viene como YYYY-MM-DD del frontend
-        // Agregamos hora base para evitar cambios de zona horaria
-        const fechaNormalizada = new Date(fechaSorteo + 'T12:00:00');
-        const fechaParaSQL = fechaNormalizada.toISOString().split('T')[0];
-
-        console.log('🔍 DEBUG - Fecha original:', fechaSorteo, '-> Fecha normalizada:', fechaParaSQL);
-
-        await transaction.request()
-            .input('fecha', sql.Date, fechaParaSQL)
-            .query("DELETE FROM Rifas_Detalle WHERE FechaSorteo = @fecha");
+        // Usar la fecha directamente para evitar problemas de zona horaria
+        const fechaParaSQL = fechaSorteo;
+        
+        console.log('🔍 DEBUG - Fecha guardando rifa:', fechaParaSQL);
 
         for (let numTabla = 1; numTabla <= 4; numTabla++) {
             const keyTabla = 'tabla' + numTabla;
