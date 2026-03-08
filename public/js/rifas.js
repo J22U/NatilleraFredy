@@ -826,6 +826,7 @@ async function acumularGananciaRifa() {
 function inicializarRifa() {
     cargarRifas();
     cargarGananciasAcumuladas();
+    cargarHistorialGanancias(); // Cargar historial de ganancias automáticamente
     
     // Renderizar el panel de premios aunque no haya datos cargados
     renderizarPanelPremios();
