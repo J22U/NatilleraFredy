@@ -2070,11 +2070,15 @@ async function mostrarPanelDeudores() {
     const panel = document.getElementById('panelDeudores');
     const lista = document.getElementById('listaDeudores');
     
-    // Ocultar otros paneles y mostrar el de deudores
-    document.getElementById('panelCompraMultiple').style.display = 'none';
-    document.getElementById('panelPremios').style.display = 'none';
-    document.getElementById('rifasContainer').style.display = 'none';
-    panel.style.display = 'block';
+    // Ocultar otros paneles y mostrar el de deudores (con verificación de existencia)
+    const panelCompraMultiple = document.getElementById('panelCompraMultiple');
+    const panelPremios = document.getElementById('panelPremios');
+    const rifasContainer = document.getElementById('rifasContainer');
+    
+    if (panelCompraMultiple) panelCompraMultiple.style.display = 'none';
+    if (panelPremios) panelPremios.style.display = 'none';
+    if (rifasContainer) rifasContainer.style.display = 'none';
+    if (panel) panel.style.display = 'block';
     
     // Mostrar loading
     lista.innerHTML = '<div style="text-align: center; padding: 30px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #0984e3;"></i><p>Cargando deudores...</p></div>';
@@ -2194,10 +2198,14 @@ async function mostrarPanelDeudores() {
 // Función para cerrar el panel de deudores
 function cerrarPanelDeudores() {
     const panel = document.getElementById('panelDeudores');
-    panel.style.display = 'none';
+    if (panel) panel.style.display = 'none';
     
-    // Mostrar los otros paneles de nuevo
-    document.getElementById('panelCompraMultiple').style.display = 'block';
-    document.getElementById('panelPremios').style.display = 'block';
-    document.getElementById('rifasContainer').style.display = 'block';
+    // Mostrar los otros paneles de nuevo (con verificación de existencia)
+    const panelCompraMultiple = document.getElementById('panelCompraMultiple');
+    const panelPremios = document.getElementById('panelPremios');
+    const rifasContainer = document.getElementById('rifasContainer');
+    
+    if (panelCompraMultiple) panelCompraMultiple.style.display = 'block';
+    if (panelPremios) panelPremios.style.display = 'block';
+    if (rifasContainer) rifasContainer.style.display = 'block';
 }
