@@ -197,8 +197,13 @@ app.post('/api/guardar-rifa', async (req, res) => {
             return res.status(400).json({ success: false, error: "La fecha es obligatoria" });
         }
 
+        // Normalizar la fecha para evitar problemas de zona horaria
+        // La fecha viene como YYYY-MM-DD del frontend, la convertimos correctamente
+        const fechaNormalizada = new Date(fechaSorteo + 'T12:00:00');
+        const fechaParaSQL = fechaNormalizada.toISOString().split('T')[0];
+
         await transaction.request()
-            .input('fecha', sql.Date, fechaSorteo)
+            .input('fecha', sql.Date, fechaParaSQL)
             .query("DELETE FROM Rifas_Detalle WHERE FechaSorteo = @fecha");
 
         for (let numTabla = 1; numTabla <= 4; numTabla++) {
@@ -1165,6 +1170,23 @@ app.post('/api/restore-database', async (req, res) => {
 });
 
 // --- RUTAS DE GANANCIAS DE RIFAS ---
+
+// Obtener todas las fechas de rifas guardadas
+app.get('/api/fechas-rifas', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Obtener fechas únicas de Rifas_Detalle
+        const result = await pool.request()
+            .query(`SELECT DISTINCT FechaSorteo FROM Rifas_Detalle ORDER BY FechaSorteo DESC`);
+        
+        const fechas = result.recordset.map(row => row.FechaSorteo);
+        res.json(fechas);
+    } catch (err) {
+        console.error("Error al obtener fechas de rifas:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Obtener todas las ganancias de rifas (historial)
 app.get('/api/ganancias-rifas', async (req, res) => {
