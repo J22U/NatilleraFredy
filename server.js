@@ -209,6 +209,11 @@ app.post('/api/guardar-rifa', async (req, res) => {
         
         console.log('🔍 DEBUG - Fecha guardando rifa:', fechaParaSQL);
 
+        // *** CORRECCIÓN: Eliminar datos anteriores de esta fecha antes de guardar los nuevos ***
+        await transaction.request()
+            .input('fecha', sql.Date, fechaParaSQL)
+            .query("DELETE FROM Rifas_Detalle WHERE FechaSorteo = @fecha");
+        
         for (let numTabla = 1; numTabla <= 4; numTabla++) {
             const keyTabla = 'tabla' + numTabla;
             const tablaData = nuevosDatos[keyTabla];
