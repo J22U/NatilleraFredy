@@ -678,6 +678,7 @@ function actualizarSoloNombres(idTabla, participantes) {
 // Función para cargar las ganancias acumuladas de rifas
 let gananciasAcumuladasRifas = 0;
 
+
 async function cargarGananciasAcumuladas() {
     try {
         const response = await fetch('/api/ganancias-rifas-acumuladas');
@@ -686,6 +687,69 @@ async function cargarGananciasAcumuladas() {
         actualizarDisplayGanancias();
     } catch (error) {
         console.error("Error al cargar ganancias acumuladas:", error);
+    }
+}
+
+// Función para cargar el historial de ganancias de rifas
+async function cargarHistorialGanancias() {
+    const tbody = document.getElementById('tablaHistorialGanancias');
+    if (!tbody) return;
+    
+    try {
+        // Usar el nuevo endpoint que combina las rifas guardadas con sus ganancias
+        const response = await fetch('/api/historial-rifas');
+        const datos = await response.json();
+        
+        if (!datos || datos.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" style="padding: 30px; text-align: center; color: #636e72;">
+                        <i class="fas fa-info-circle" style="margin-right: 10px;"></i> No hay rifas registradas aún
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        const formato = new Intl.NumberFormat('es-CO', {
+            style: 'currency', currency: 'COP', maximumFractionDigits: 0
+        });
+        
+        let html = '';
+        datos.forEach(rifa => {
+            const fecha = rifa.fechaSorteo ? new Date(rifa.fechaSorteo).toLocaleDateString('es-CO') : 'N/A';
+            const ganancia = parseFloat(rifa.gananciaNeta) || 0;
+            const colorGanancia = ganancia >= 0 ? '#00b894' : '#e74c3c';
+            
+            html += `
+                <tr style="border-bottom: 1px solid #f1f2f6;">
+                    <td style="padding: 12px; font-weight: 600;">📅 ${fecha}</td>
+                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.totalRecaudado || 0)}</td>
+                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.costoPremios || rifa.costoPremio || 0)}</td>
+                    <td style="padding: 12px; text-align: right; font-weight: 700; color: ${colorGanancia};">${formato.format(ganancia)}</td>
+                </tr>
+            `;
+        });
+        
+        tbody.innerHTML = html;
+        
+        // Actualizar el total acumulado
+        const totalAcumulado = datos.reduce((sum, r) => sum + (parseFloat(r.gananciaNeta) || 0), 0);
+        const elementoTotal = document.getElementById('stats-ganancia-acumulada-total');
+        if (elementoTotal) {
+            elementoTotal.textContent = formato.format(totalAcumulado);
+            elementoTotal.style.color = totalAcumulado >= 0 ? '#00b894' : '#e74c3c';
+        }
+        
+    } catch (error) {
+        console.error("Error al cargar historial de ganancias:", error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="padding: 30px; text-align: center; color: #e74c3c;">
+                    <i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i> Error al cargar el historial
+                </td>
+            </tr>
+        `;
     }
 }
 
