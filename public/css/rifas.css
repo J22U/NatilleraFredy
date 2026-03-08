@@ -529,3 +529,37 @@ body {
     color: #00b894;
     font-weight: 800;
 }
+
+/* Responsive para estadísticas y historial en móvil */
+@media (max-width: 600px) {
+    /* Estadísticas más compactas */
+    .stats-grid {
+        gap: 8px !important;
+    }
+    
+    /* Historial de ganancias - tabla responsive */
+    #contenidoHistorialGanancias table {
+        font-size: 0.75rem !important;
+    }
+    
+    #contenidoHistorialGanancias th,
+    #contenidoHistorialGanancias td {
+        padding: 8px 4px !important;
+    }
+    
+    #contenidoHistorialGanancias th:nth-child(3),
+    #contenidoHistorialGanancias td:nth-child(3) {
+        display: none; /* Ocultar columna Costo Premios en móvil */
+    }
+    
+    /* Total acumulado más pequeño en móvil */
+    #stats-ganancia-acumulada-total {
+        font-size: 1.5rem !important;
+    }
+    
+    /* Contenedor del historial con overflow horizontal */
+    #contenidoHistorialGanancias > div:last-child {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}

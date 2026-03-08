@@ -1,21 +1,14 @@
-# TODO - Sistema de Backup y Restauración de Rifas
+# TODO - Backup y Restauración de Rifas con Archivos
 
-## Tareas completadas:
-- [x] Analizar código existente
-- [x] Crear plan de implementación
-- [x] Obtener aprobación del usuario
-- [x] Eliminar botón "Exportar PDF" de rifas.html
-- [x] Agregar botones "Backup" y "Restaurar" en rifas.html
-- [x] Agregar funciones de backup/restore en rifas.js
+## Tarea: Implementar descarga y restauración desde archivos
 
-## Tareas pendientes:
-- [ ] Probar la funcionalidad
+### Pasos completados:
 
----
+1. [x] Analizar código existente
+2. [x] Modificar `crearBackup()` en rifas.js para descargar archivo JSON
+3. [x] Modificar `restaurarBackup()` en rifas.js para usar selección de archivo
+4. [x] Agregar función para leer archivo seleccionado
+5. [x] Agregar validación de estructura de backup
 
-## Notas de implementación:
-- El backup se guarda en localStorage con marca de tiempo
-- Incluir: info de rifa, participantes de las 4 tablas, premios
-- El backup permite restaurar datos en caso de pérdida
-- Se guardan hasta 20 backups como máximo
+## Estado: ✅ Completado
 

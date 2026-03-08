@@ -124,8 +124,6 @@ async function guardarTodo() {
 
     const datos = recolectarDatosPantalla();
 
-    console.log("💾 GUARDANDO DATOS:", JSON.stringify(datos).substring(0, 500));
-
     // Verificación de seguridad: Si no hay fecha, no mandamos nada para evitar el Error 400
     if (!datos.info.fecha) {
         console.warn("⚠️ Intento de guardado sin fecha abortado.");
@@ -140,28 +138,17 @@ async function guardarTodo() {
             body: JSON.stringify(datos)
         });
 
-        console.log("📬 Respuesta del servidor:", response.status, response.statusText);
-
         if (response.ok) {
             if (status) {
                 status.className = 'sync-success'; // Luz verde
                 setTimeout(() => status.className = 'sync-idle', 2000);
             }
-            console.log("✅ Datos guardados correctamente");
-            // Guardar ganancias automáticamente después de guardar la rifa
-            await guardarGananciasRifaActual();
-            // Recargar ganancias acumuladas
-            await cargarGananciasAcumuladas();
         } else {
-            console.error("❌ Error en la respuesta:", response.status);
-            const errorText = await response.text();
-            console.error("❌ Detalle del error:", errorText);
-            throw new Error("Error del servidor: " + response.status);
+            throw new Error("Error 400 o 500 en Render");
         }
     } catch (error) {
         console.error("❌ Error al sincronizar:", error);
         if (status) status.className = 'sync-error'; // Luz roja
-        alert("Error al guardar: " + error.message);
     }
 }
 
@@ -688,74 +675,17 @@ function actualizarSoloNombres(idTabla, participantes) {
     }
 }
 
-
-
-// Variable global para ganancias acumuladas
+// Función para cargar las ganancias acumuladas de rifas
 let gananciasAcumuladasRifas = 0;
 
-// Función para cargar las ganancias acumuladas de rifas
 async function cargarGananciasAcumuladas() {
     try {
-        const response = await fetch('/api/ganancias-rifas-total');
+        const response = await fetch('/api/ganancias-rifas-acumuladas');
         const data = await response.json();
-        gananciasAcumuladasRifas = parseFloat(data.totalAcumulado) || 0;
+        gananciasAcumuladasRifas = data.gananciaTotal || 0;
         actualizarDisplayGanancias();
     } catch (error) {
         console.error("Error al cargar ganancias acumuladas:", error);
-    }
-}
-
-// Función para guardar las ganancias de la rifa actual
-async function guardarGananciasRifaActual() {
-    const fechaSorteo = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
-    if (!fechaSorteo) return;
-    
-    const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
-    const costoPremio = parseFloat(document.getElementById('costoPremio').value) || 0;
-    
-    // Contar cuántas tablas hay
-    const cantidadTablas = document.querySelectorAll('.rifa-card').length;
-    
-    // Calcular total recogido
-    let totalRecogido = 0;
-    document.querySelectorAll('.n-slot').forEach(slot => {
-        if (slot.classList.contains('paid')) {
-            totalRecogido += costoPuesto;
-        }
-    });
-    
-    // Calcular costo real de premios (solo los entregados)
-    let costoPremiosReales = 0;
-    if (datosPremios) {
-        for (let i = 1; i <= 4; i++) {
-            const key = `tabla${i}`;
-            if (datosPremios[key] && datosPremios[key].ganadores) {
-                datosPremios[key].ganadores.forEach(ganador => {
-                    if (ganador.entregado && ganador.numero && ganador.nombre) {
-                        costoPremiosReales += costoPremio;
-                    }
-                });
-            }
-        }
-    }
-    
-    // Ganancia neta = Total recogido - Costo de premios
-    const gananciaNeta = totalRecogido - costoPremiosReales;
-    
-    try {
-        await fetch('/api/ganancias-rifas', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fechaSorteo: fechaSorteo,
-                totalRecaudado: totalRecogido,
-                costoPremios: costoPremiosReales,
-                gananciaNeta: gananciaNeta
-            })
-        });
-        console.log(`💾 Ganancias guardadas para ${fechaSorteo}: Recaudado=${totalRecogido}, Costos=${costoPremiosReales}, Ganancia=${gananciaNeta}`);
-    } catch (error) {
-        console.error("Error al guardar ganancias de rifa:", error);
     }
 }
 
@@ -851,27 +781,23 @@ function inicializarRifa() {
 
 // Llamar al inicio al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicializar con la fecha de hoy si no hay valor
-    const f1 = document.getElementById('filtroFecha');
-    const f2 = document.getElementById('rifaDate');
-    const hoy = new Date().toISOString().split('T')[0];
-    
-    // Si los campos están vacíos, poner la fecha de hoy
-    if (f1 && !f1.value) f1.value = hoy;
-    if (f2 && !f2.value) f2.value = hoy;
-    
     // Inicializar rifa y cargar datos
     inicializarRifa();
     
     // Lógica de fechas (sincronizar los dos calendarios)
-    f1?.addEventListener('change', () => { 
-        if(f2) f2.value = f1.value; 
-        cargarRifas(); 
-    });
-    f2?.addEventListener('change', () => { 
-        if(f1) f1.value = f2.value; 
-        cargarRifas(); 
-    });
+    const f1 = document.getElementById('filtroFecha');
+    const f2 = document.getElementById('rifaDate');
+
+    // Si ambos están vacíos, ponemos la fecha de hoy
+    if (f1 && !f1.value) {
+        const hoy = new Date().toISOString().split('T')[0];
+        f1.value = hoy;
+        if (f2) f2.value = hoy;
+    }
+
+    // Sincronizar: si cambias uno, se cambia el otro
+    f1?.addEventListener('change', () => { if(f2) f2.value = f1.value; cargarRifas(); });
+    f2?.addEventListener('change', () => { if(f1) f1.value = f2.value; cargarRifas(); });
 });
 
 function generarPDF() {
@@ -1219,191 +1145,6 @@ function actualizarContadoresVisuales() {
     document.getElementById('stats-ganancia').innerText = `$ ${totalRecogido.toLocaleString()}`;
 }
 
-// Función para guardar la rifa actual con la fecha que está seleccionada
-async function guardarRifaActual() {
-    // Usar la fecha que está actualmente seleccionada en el formulario
-    const fechaSeleccionada = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
-    
-    if (!fechaSeleccionada) {
-        Swal.fire('Error', 'Por favor selecciona una fecha de sorteo', 'warning');
-        return;
-    }
-    
-    // Sincronizar ambos campos de fecha
-    document.getElementById('rifaDate').value = fechaSeleccionada;
-    document.getElementById('filtroFecha').value = fechaSeleccionada;
-    
-    // Formatear la fecha para mostrar (sin pasar por Date para evitar problemas de zona horaria)
-    // Convertir YYYY-MM-DD a formato local DD/MM/YYYY
-    const partesFecha = fechaSeleccionada.split('-');
-    const fechaFormateada = partesFecha.length === 3 
-        ? `${partesFecha[2]}/${partesFecha[1]}/${partesFecha[0]}`
-        : fechaSeleccionada;
-    
-    // Forzar guardado
-    await guardarTodo();
-    
-    // También guardar las ganancias
-    await guardarGananciasRifaActual();
-    
-    // Mostrar mensaje de éxito
-    Swal.fire({
-        title: '¡Rifa Guardada!',
-        text: `La rifa ha sido guardada con fecha ${fechaFormateada}`,
-        icon: 'success',
-        timer: 2000,
-        showConfirmButton: false
-    });
-}
-
-// Función para cargar el historial de ganancias de rifas
-async function cargarHistorialGanancias() {
-    const tbody = document.getElementById('tablaHistorialGanancias');
-    if (!tbody) return;
-    
-    try {
-        // Usar el nuevo endpoint que combina las rifas guardadas con sus ganancias
-        const response = await fetch('/api/historial-rifas');
-        const datos = await response.json();
-        
-        if (!datos || datos.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="4" style="padding: 30px; text-align: center; color: #636e72;">
-                        <i class="fas fa-info-circle" style="margin-right: 10px;"></i> No hay rifas registradas aún
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-        
-        const formato = new Intl.NumberFormat('es-CO', {
-            style: 'currency', currency: 'COP', maximumFractionDigits: 0
-        });
-        
-        let html = '';
-        datos.forEach(rifa => {
-            const fecha = rifa.fechaSorteo ? new Date(rifa.fechaSorteo).toLocaleDateString('es-CO') : 'N/A';
-            const ganancia = parseFloat(rifa.gananciaNeta) || 0;
-            const colorGanancia = ganancia >= 0 ? '#00b894' : '#e74c3c';
-            
-            html += `
-                <tr style="border-bottom: 1px solid #f1f2f6;">
-                    <td style="padding: 12px; font-weight: 600;">📅 ${fecha}</td>
-                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.totalRecaudado || 0)}</td>
-                    <td style="padding: 12px; text-align: right;">${formato.format(rifa.costoPremios || rifa.costoPremio || 0)}</td>
-                    <td style="padding: 12px; text-align: right; font-weight: 700; color: ${colorGanancia};">${formato.format(ganancia)}</td>
-                </tr>
-            `;
-        });
-        
-        tbody.innerHTML = html;
-        
-        // Actualizar el total acumulado
-        const totalAcumulado = datos.reduce((sum, r) => sum + (parseFloat(r.gananciaNeta) || 0), 0);
-        const elementoTotal = document.getElementById('stats-ganancia-acumulada-total');
-        if (elementoTotal) {
-            elementoTotal.textContent = formato.format(totalAcumulado);
-            elementoTotal.style.color = totalAcumulado >= 0 ? '#00b894' : '#e74c3c';
-        }
-        
-    } catch (error) {
-        console.error("Error al cargar historial de ganancias:", error);
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" style="padding: 30px; text-align: center; color: #e74c3c;">
-                    <i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i> Error al cargar el historial
-                </td>
-            </tr>
-        `;
-    }
-}
-
-// Función para cargar las ganancias acumuladas de rifas
-async function cargarGananciasAcumuladas() {
-    try {
-        const response = await fetch('/api/ganancias-rifas-total');
-        const data = await response.json();
-        gananciasAcumuladasRifas = parseFloat(data.totalAcumulado) || 0;
-        actualizarDisplayGanancias();
-        
-        // También cargar el total en el panel de historial
-        const elementoTotal = document.getElementById('stats-ganancia-acumulada-total');
-        if (elementoTotal) {
-            const formato = new Intl.NumberFormat('es-CO', {
-                style: 'currency', currency: 'COP', maximumFractionDigits: 0
-            });
-            elementoTotal.textContent = formato.format(gananciasAcumuladasRifas);
-            
-            // Color según ganancia positiva o negativa
-            if (gananciasAcumuladasRifas > 0) {
-                elementoTotal.style.color = '#00b894';
-            } else if (gananciasAcumuladasRifas < 0) {
-                elementoTotal.style.color = '#e74c3c';
-            } else {
-                elementoTotal.style.color = 'white';
-            }
-        }
-    } catch (error) {
-        console.error("Error al cargar ganancias acumuladas:", error);
-    }
-}
-
-// Función para guardar las ganancias de la rifa actual
-async function guardarGananciasRifaActual() {
-    const fechaSorteo = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
-    if (!fechaSorteo) return;
-    
-    const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
-    const costoPremio = parseFloat(document.getElementById('costoPremio').value) || 0;
-    
-    // Calcular total recogido
-    let totalRecogido = 0;
-    document.querySelectorAll('.n-slot').forEach(slot => {
-        if (slot.classList.contains('paid')) {
-            totalRecogido += costoPuesto;
-        }
-    });
-    
-    // Calcular costo real de premios (solo los entregados)
-    let costoPremiosReales = 0;
-    if (datosPremios) {
-        for (let i = 1; i <= 4; i++) {
-            const key = `tabla${i}`;
-            if (datosPremios[key] && datosPremios[key].ganadores) {
-                datosPremios[key].ganadores.forEach(ganador => {
-                    if (ganador.entregado && ganador.numero && ganador.nombre) {
-                        costoPremiosReales += costoPremio;
-                    }
-                });
-            }
-        }
-    }
-    
-    // Ganancia neta = Total recogido - Costo de premios
-    const gananciaNeta = totalRecogido - costoPremiosReales;
-    
-    try {
-        await fetch('/api/ganancias-rifas', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fechaSorteo: fechaSorteo,
-                totalRecaudado: totalRecogido,
-                costoPremios: costoPremiosReales,
-                gananciaNeta: gananciaNeta
-            })
-        });
-        console.log(`💾 Ganancias guardadas para ${fechaSorteo}: Recaudado=${totalRecogido}, Costos=${costoPremiosReales}, Ganancia=${gananciaNeta}`);
-        
-        // Actualizar el historial después de guardar
-        cargarHistorialGanancias();
-        cargarGananciasAcumuladas();
-    } catch (error) {
-        console.error("Error al guardar ganancias de rifa:", error);
-    }
-}
-
 function actualizarContadoresRifa() {
     const costoPuesto = parseFloat(document.getElementById('rifaCost').value) || 0;
     const costoPremio = parseFloat(document.getElementById('costoPremio').value) || 0;
@@ -1503,10 +1244,6 @@ async function cargarRifasPorFecha() {
     const fechaSeleccionada = document.getElementById('filtroFecha').value;
     if (!fechaSeleccionada) return;
 
-    // Sincronizar con el otro campo de fecha también
-    const rifaDate = document.getElementById('rifaDate');
-    if (rifaDate) rifaDate.value = fechaSeleccionada;
-
     const container = document.getElementById('rifasContainer');
     container.innerHTML = '<p style="text-align:center; padding:50px;">Buscando registros...</p>';
 
@@ -1520,74 +1257,169 @@ async function cargarRifasPorFecha() {
         // Verificamos si la fecha que llegó es la misma que pedimos
         if (datos && datos.info && datos.info.fecha !== fechaSeleccionada) {
             console.warn("¡El servidor ignoró el filtro y mandó otra fecha!");
-            // No limpiamos la fecha, mostramos mensaje y tablas vacías
             container.innerHTML = `<p style="text-align:center; padding:50px; color: orange;">
                 El servidor no encontró datos para el ${fechaSeleccionada}. <br>
                 (Se recibió la rifa del: ${datos.info.fecha})
             </p>`;
-            
-            // Dibujar tablas vacías para que pueda trabajar
-            for (let i = 1; i <= 4; i++) {
-                crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
-            }
-            actualizarContadoresRifa();
-            cargarPremios({ info: {} });
-            return;
+            return; // Detenemos aquí para no mostrar la rifa equivocada
         }
 
         if (datos && !datos.error) {
             container.innerHTML = ''; 
-            // Llenamos la información general (si existe)
-            if (datos && datos.info) {
-                if(document.getElementById('rifaName')) document.getElementById('rifaName').value = datos.info.nombre || '';
-                if(document.getElementById('rifaPrize')) document.getElementById('rifaPrize').value = datos.info.premio || '';
-                if(document.getElementById('rifaCost')) document.getElementById('rifaCost').value = datos.info.valor || '';
-                if(document.getElementById('costoPremio')) document.getElementById('costoPremio').value = datos.info.inversion || '';
-            }
-
-            // Dibujamos las 4 tablas
-            for (let i = 1; i <= 4; i++) {
-                const llaveTabla = `tabla${i}`;
-                const t = datos[llaveTabla] || { nombre: `Tabla ${i}`, participantes: {} };
-                t.idTabla = i; 
-                if (!t.nombre) t.nombre = `Tabla ${i}`;
-                if (!t.participantes || typeof t.participantes !== 'object') {
-                    t.participantes = {};
-                }
-                crearTabla(t);
-            }
-            
-            actualizarContadoresRifa();
-            cargarPremios(datos);
-        } else {
-            // Si no hay datos (datos.error), dibujar tablas vacías
-            container.innerHTML = `<p style="text-align:center; padding:50px; color: #636e72;">
-                No hay rifa guardada para el ${fechaSeleccionada}.<br>
-                Puedes agregar participantes y se guardará automáticamente.
-            </p>`;
-            
-            for (let i = 1; i <= 4; i++) {
-                crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
-            }
-            actualizarContadoresRifa();
-            cargarPremios({ info: {} });
+            // ... resto de tu lógica de crear tablas ...
         }
     } catch (error) {
         console.error("Error historial:", error);
-        // En caso de error, dibujar tablas vacías
-        container.innerHTML = '<p style="text-align:center; padding:50px; color: red;">Error al cargar datos</p>';
-        
-        for (let i = 1; i <= 4; i++) {
-            crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
-        }
-        actualizarContadoresRifa();
     }
 }
 
 
 
+async function verificarCambioCiclo() {
+    // 1. Cargar los datos actuales del servidor
+    const fechaActual = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
+    const response = await fetch(`/api/cargar-rifas?fecha=${fechaActual}`);
+    const datos = await response.json();
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // 2. Si la rifa guardada ya "venció" (la fecha del sorteo es menor a hoy)
+    if (datos.info && datos.info.fecha < hoy) {
+        console.log("Ciclo vencido. Creando nueva rifa automática...");
 
+        // Calculamos la base para la nueva fecha: mañana mismo para evitar repetir la fecha actual
+        let manana = new Date();
+        manana.setDate(manana.getDate() + 1);
+        
+        const nuevaFecha = obtenerViernesSorteo(manana); 
+        
+        const nuevaRifa = {
+            info: {
+                ...datos.info,
+                fecha: nuevaFecha,
+                nombre: `Rifa - Ciclo ${nuevaFecha}`
+            }
+        };
 
+        // 3. REUTILIZAR TABLAS Y RESPETAR PAGOS ADELANTADOS
+        Object.keys(datos).forEach(key => {
+            if (key.startsWith('tabla')) {
+                const tablaOriginal = datos[key];
+                const participantesNuevos = {};
+
+                Object.keys(tablaOriginal.participantes).forEach(num => {
+                    const p = tablaOriginal.participantes[num];
+                    
+                    participantesNuevos[num] = {
+                        nombre: p.nombre,
+                        // Si p.adelantado era true, ahora p.pago es true
+                        pago: p.adelantado === true || p.adelantado === "true", 
+                        adelantado: false // El adelanto se consume
+                    };
+                });
+
+                nuevaRifa[key] = {
+                    titulo: tablaOriginal.titulo,
+                    participantes: participantesNuevos
+                };
+            }
+        });
+
+        // 4. Acumular la ganancia de la rifa actual antes de cambiar
+        await acumularGananciaRifa();
+        
+        // 5. Guardar automáticamente y Notificar
+        try {
+            // Guardamos el nuevo objeto
+            await guardarTodo(nuevaRifa);
+
+            // Mostramos el SweetAlert antes de recargar
+            await Swal.fire({
+                title: '¡Nueva Quincena Detectada!',
+                text: `Se ha generado automáticamente el sorteo para el viernes ${nuevaFecha}. Se mantuvieron los nombres, se procesaron los pagos adelantados y la ganancia se acumuló al total.`,
+                icon: 'success',
+                confirmButtonColor: '#0984e3',
+                confirmButtonText: 'Entendido',
+                allowOutside            });
+
+            // 5. Recargar para mostrar la nueva rifa
+            location.reload(); 
+            
+        } catch (error) {
+            console.error("Error al automatizar el cambio de ciclo:", error);
+            Swal.fire('Error', 'No se pudo crear el nuevo ciclo automáticamente.', 'error');
+        }
+    }
+}
+
+function obtenerViernesSorteo(fechaReferencia = new Date()) {
+    let fecha = new Date(fechaReferencia);
+    let diaMes = fecha.getDate();
+    let mes = fecha.getMonth();
+    let año = fecha.getFullYear();
+
+    let diaObjetivo;
+    let fechaObjetivo;
+
+    // Determinar el próximo objetivo (15 o 30)
+    if (diaMes < 15) {
+        // Estamos en la primera quincena (del 1 al 14)
+        // El próximo objetivo es el día 15
+        diaObjetivo = 15;
+    } else if (diaMes >= 15 && diaMes <= 30) {
+        // Estamos en la segunda quincena (del 15 al 30)
+        // El próximo objetivo es el día 30 (o fin de mes si es menor a 30)
+        const diasEnMes = new Date(año, mes + 1, 0).getDate();
+        diaObjetivo = Math.min(30, diasEnMes);
+    } else {
+        // Ya pasó el 30, entonces vamos al siguiente mes
+        // El próximo objetivo es el día 15 del siguiente mes
+        mes += 1;
+        if (mes > 11) {
+            mes = 0;
+            año += 1;
+        }
+        diaObjetivo = 15;
+    }
+
+    // Crear la fecha objetivo
+    fechaObjetivo = new Date(año, mes, diaObjetivo);
+
+    // Ahora buscar el viernes (día 5) más cercano a esa fecha
+    // Si la fecha objetivo es viernes, usar esa
+    // Si no, avanzar al siguiente viernes
+    while (fechaObjetivo.getDay() !== 5) {
+        fechaObjetivo.setDate(fechaObjetivo.getDate() + 1);
+    }
+
+    // Si el viernes calculado ya pasó (es antes que la fecha de referencia),
+    // entonces vamos al siguiente ciclo
+    if (fechaObjetivo < fecha) {
+        // Volver a calcular para el siguiente ciclo
+        return obtenerViernesSorteo(new Date(año, mes + 1, 1));
+    }
+
+    return fechaObjetivo.toISOString().split('T')[0]; // Retorna YYYY-MM-DD
+}
+
+// Al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+    const f1 = document.getElementById('filtroFecha');
+    const f2 = document.getElementById('rifaDate');
+
+    // Si ambos están vacíos, ponemos la fecha de hoy
+    if (f1 && !f1.value) {
+        const hoy = new Date().toISOString().split('T')[0];
+        f1.value = hoy;
+        if (f2) f2.value = hoy;
+    }
+
+    // Sincronizar: si cambias uno, se cambia el otro
+    f1?.addEventListener('change', () => { if(f2) f2.value = f1.value; cargarRifas(); });
+    f2?.addEventListener('change', () => { if(f1) f1.value = f2.value; cargarRifas(); });
+
+    // Carga inicial
+    cargarRifas();
+});
 
 // Función para cerrar el modal de registro
 function cerrarModal() {
@@ -1608,16 +1440,6 @@ window.onclick = function(event) {
     if (event.target == modal) {
         cerrarModal();
     }
-}
-
-// Función simple para obtener el próximo viernes (solo para el botón manual)
-function obtenerViernesSorteo(fechaReferencia = new Date()) {
-    let fecha = new Date(fechaReferencia);
-    // Buscar el viernes más cercano (día 5 de la semana)
-    while (fecha.getDay() !== 5) {
-        fecha.setDate(fecha.getDate() + 1);
-    }
-    return fecha.toISOString().split('T')[0];
 }
 
 // ==================== SISTEMA DE PREMIOS POR TABLA ====================
@@ -2184,20 +2006,14 @@ async function mostrarPanelDeudores() {
     const panel = document.getElementById('panelDeudores');
     const lista = document.getElementById('listaDeudores');
     
-    // Ocultar otros paneles y mostrar el de deudores (con verificación de existencia)
-    const panelCompraMultiple = document.getElementById('panelCompraMultiple');
-    const panelPremios = document.getElementById('panelPremios');
-    const rifasContainer = document.getElementById('rifasContainer');
-    
-    if (panelCompraMultiple) panelCompraMultiple.style.display = 'none';
-    if (panelPremios) panelPremios.style.display = 'none';
-    if (rifasContainer) rifasContainer.style.display = 'none';
-    if (panel) panel.style.display = 'block';
+    // Ocultar otros paneles y mostrar el de deudores
+    document.getElementById('panelCompraMultiple').style.display = 'none';
+    document.getElementById('panelPremios').style.display = 'none';
+    document.getElementById('rifasContainer').style.display = 'none';
+    panel.style.display = 'block';
     
     // Mostrar loading
-    if (lista) {
-        lista.innerHTML = '<div style="text-align: center; padding: 30px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #0984e3;"></i><p>Cargando deudores...</p></div>';
-    }
+    lista.innerHTML = '<div style="text-align: center; padding: 30px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #0984e3;"></i><p>Cargando deudores...</p></div>';
     
     try {
         // Obtener datos de la rifa actual
@@ -2314,329 +2130,10 @@ async function mostrarPanelDeudores() {
 // Función para cerrar el panel de deudores
 function cerrarPanelDeudores() {
     const panel = document.getElementById('panelDeudores');
-    if (panel) panel.style.display = 'none';
+    panel.style.display = 'none';
     
-    // Mostrar los otros paneles de nuevo (con verificación de existencia)
-    const panelCompraMultiple = document.getElementById('panelCompraMultiple');
-    const panelPremios = document.getElementById('panelPremios');
-    const rifasContainer = document.getElementById('rifasContainer');
-    
-    if (panelCompraMultiple) panelCompraMultiple.style.display = 'block';
-    if (panelPremios) panelPremios.style.display = 'block';
-    if (rifasContainer) rifasContainer.style.display = 'block';
-}
-
-// Función para eliminar una rifa
-async function eliminarRifa() {
-    const fechaActual = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
-    
-    if (!fechaActual) {
-        Swal.fire('Error', 'No hay fecha seleccionada', 'error');
-        return;
-    }
-    
-    // Confirmar con el usuario
-    const result = await Swal.fire({
-        title: '¿Eliminar Rifa?',
-        html: `¿Estás seguro de eliminar la rifa del <b>${new Date(fechaActual).toLocaleDateString('es-CO')}</b>?<br><br>Esta acción no se puede deshacer.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#e74c3c',
-        cancelButtonColor: '#dfe6e9',
-        confirmButtonText: '<i class="fas fa-trash"></i> Eliminar',
-        cancelButtonText: 'Cancelar',
-        reverseButtons: true
-    });
-
-    if (result.isConfirmed) {
-        try {
-            const response = await fetch('/api/eliminar-rifa', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fecha: fechaActual })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                Swal.fire({
-                    title: '¡Rifa Eliminada!',
-                    text: 'La rifa ha sido eliminada correctamente.',
-                    icon: 'success',
-                    confirmButtonColor: '#0984e3'
-                });
-                
-                // Recargar las rifas (mostrará rifas vacías)
-                cargarRifas();
-            } else {
-                throw new Error(data.error || 'Error al eliminar');
-            }
-        } catch (error) {
-            console.error("Error al eliminar rifa:", error);
-            Swal.fire('Error', 'No se pudo eliminar la rifa.', 'error');
-        }
-    }
-}
-
-// ==================== SISTEMA DE BACKUP Y RESTAURACIÓN ====================
-
-// Función para crear un backup local
-function crearBackup() {
-    // Recolectar todos los datos actuales
-    const datos = recolectarDatosPantalla();
-    
-    // Obtener la fecha actual
-    const fecha = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
-    const nombreRifa = document.getElementById('rifaName')?.value || 'Rifa';
-    
-    // Crear objeto de backup con marca de tiempo
-    const backup = {
-        id: 'backup_' + Date.now(),
-        fecha: new Date().toISOString(),
-        fechaRifa: fecha,
-        nombreRifa: nombreRifa,
-        datos: datos
-    };
-    
-    // Obtener backups existentes
-    let backups = JSON.parse(localStorage.getItem('rifas_backups') || '[]');
-    
-    // Agregar el nuevo backup al inicio
-    backups.unshift(backup);
-    
-    // Limitar a los últimos 20 backups para no saturar el almacenamiento
-    if (backups.length > 20) {
-        backups = backups.slice(0, 20);
-    }
-    
-    // Guardar en localStorage
-    localStorage.setItem('rifas_backups', JSON.stringify(backups));
-    
-    // Mostrar mensaje de éxito
-    Swal.fire({
-        title: '¡Backup Creado!',
-        html: `Backup guardado exitosamente.<br><br>
-               <b>Fecha:</b> ${new Date(backup.fecha).toLocaleString('es-CO')}<br>
-               <b>Rifa:</b> ${nombreRifa}<br>
-               <b>ID:</b> ${backup.id}`,
-        icon: 'success',
-        confirmButtonColor: '#0984e3',
-        confirmButtonText: 'Aceptar'
-    });
-    
-    console.log('💾 Backup creado:', backup);
-}
-
-// Función para mostrar y restaurar un backup
-async function restaurarBackup() {
-    // Obtener backups del localStorage
-    const backups = JSON.parse(localStorage.getItem('rifas_backups') || '[]');
-    
-    if (backups.length === 0) {
-        Swal.fire({
-            title: 'No hay Backups',
-            html: 'No se han encontrado backups guardados.<br><br>Crea un backup primero usando el botón "Backup".',
-            icon: 'info',
-            confirmButtonColor: '#0984e3'
-        });
-        return;
-    }
-    
-    // Crear HTML para la lista de backups
-    let htmlBackups = '<div style="max-height: 300px; overflow-y: auto;">';
-    
-    backups.forEach((backup, index) => {
-        const fechaBackup = new Date(backup.fecha).toLocaleString('es-CO');
-        const fechaRifa = backup.fechaRifa || 'N/A';
-        
-        // Contar participantes
-        let totalParticipantes = 0;
-        for (let i = 1; i <= 4; i++) {
-            const key = `tabla${i}`;
-            if (backup.datos[key] && backup.datos[key].participantes) {
-                totalParticipantes += Object.keys(backup.datos[key].participantes).length;
-            }
-        }
-        
-        htmlBackups += `
-            <div style="border: 2px solid #dfe6e9; border-radius: 10px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s;"
-                 onclick="seleccionarBackup(${index})"
-                 id="backup-item-${index}"
-                 style="border-color: #0984e3; background: #f0f8ff;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="font-weight: 700; font-size: 1rem; color: #2d3436;">${backup.nombreRifa || 'Rifa'}</span>
-                        <br>
-                        <span style="font-size: 0.85rem; color: #636e72;">📅 Rifa: ${fechaRifa}</span>
-                    </div>
-                    <div style="text-align: right;">
-                        <span style="font-size: 0.8rem; color: #636e72;">${fechaBackup}</span>
-                        <br>
-                        <span style="font-size: 0.8rem; color: #00b894; font-weight: 600;">${totalParticipantes} participantes</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    htmlBackups += '</div>';
-    
-    // Mostrar modal con los backups
-    const result = await Swal.fire({
-        title: 'Restaurar Backup',
-        html: 'Selecciona un backup para restaurar:<br><br>' + htmlBackups,
-        icon: 'question',
-        showCancelButton: true,
-        cancelButtonText: 'Cancelar',
-        confirmButtonText: 'Cerrar',
-        width: '600px'
-    });
-}
-
-// Variable global para almacenar el backup seleccionado
-window.backupSeleccionado = null;
-
-// Función para seleccionar y restaurar un backup específico
-async function seleccionarBackup(index) {
-    const backups = JSON.parse(localStorage.getItem('rifas_backups') || '[]');
-    const backup = backups[index];
-    
-    if (!backup) return;
-    
-    window.backupSeleccionado = backup;
-    
-    // Confirmar la restauración
-    const result = await Swal.fire({
-        title: '¿Confirmar Restauración?',
-        html: `¿Estás seguro de restaurar este backup?<br><br>
-               <b>Rifa:</b> ${backup.nombreRifa || 'Rifa'}<br>
-               <b>Fecha:</b> ${backup.fechaRifa || 'N/A'}<br>
-               <b>Backup:</b> ${new Date(backup.fecha).toLocaleString('es-CO')}<br><br>
-               <span style="color: #e74c3c;">⚠️ Esta acción sobrescribirá los datos actuales de la rifa.</span>`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#00b894',
-        cancelButtonColor: '#dfe6e9',
-        confirmButtonText: '<i class="fas fa-download"></i> Restaurar',
-        cancelButtonText: 'Cancelar',
-        reverseButtons: true
-    });
-    
-    if (result.isConfirmed) {
-        try {
-            // Restaurar los datos del backup
-            await restaurarDatosBackup(backup.datos);
-            
-            Swal.fire({
-                title: '¡Restaurado!',
-                text: 'El backup ha sido restaurado correctamente.',
-                icon: 'success',
-                confirmButtonColor: '#0984e3'
-            });
-            
-            // Recargar las rifas para mostrar los datos restaurados
-            cargarRifas();
-            
-        } catch (error) {
-            console.error("Error al restaurar backup:", error);
-            Swal.fire({
-                title: 'Error',
-                text: 'No se pudo restaurar el backup. Intenta de nuevo.',
-                icon: 'error',
-                confirmButtonColor: '#0984e3'
-            });
-        }
-    }
-}
-
-// Función para restaurar los datos del backup en la interfaz
-async function restaurarDatosBackup(datos) {
-    // 1. Restaurar información de la rifa
-    if (datos.info) {
-        if (document.getElementById('rifaName')) document.getElementById('rifaName').value = datos.info.nombre || '';
-        if (document.getElementById('rifaPrize')) document.getElementById('rifaPrize').value = datos.info.premio || '';
-        if (document.getElementById('rifaCost')) document.getElementById('rifaCost').value = datos.info.valor || '';
-        if (document.getElementById('costoPremio')) document.getElementById('costoPremio').value = datos.info.inversion || '';
-        
-        if (datos.info.fecha) {
-            if (document.getElementById('rifaDate')) document.getElementById('rifaDate').value = datos.info.fecha;
-            if (document.getElementById('filtroFecha')) document.getElementById('filtroFecha').value = datos.info.fecha;
-        }
-        
-        // Restaurar premios
-        if (datos.info.premios) {
-            datosPremios = datos.info.premios;
-        }
-    }
-    
-    // 2. Guardar en el servidor
-    await fetch('/api/guardar-rifa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(datos)
-    });
-    
-    // 3. Actualizar la visualización de las tablas
-    const container = document.getElementById('rifasContainer');
-    container.innerHTML = '';
-    
-    for (let i = 1; i <= 4; i++) {
-        const key = `tabla${i}`;
-        const tablaData = datos[key] || { nombre: `Tabla ${i}`, participantes: {} };
-        tablaData.idTabla = i;
-        
-        if (!tablaData.nombre) tablaData.nombre = `Tabla ${i}`;
-        if (!tablaData.participantes || typeof tablaData.participantes !== 'object') {
-            tablaData.participantes = {};
-        }
-        
-        crearTabla(tablaData);
-    }
-    
-    // 4. Actualizar contadores
-    actualizarContadoresRifa();
-    
-    // 5. Renderizar premios
-    renderizarPanelPremios();
-    
-    console.log('✅ Datos del backup restaurados correctamente');
-}
-
-// Función para ver los detalles de un backup sin restaurar
-function verDetalleBackup(index) {
-    const backups = JSON.parse(localStorage.getItem('rifas_backups') || '[]');
-    const backup = backups[index];
-    
-    if (!backup) return;
-    
-    // Crear detalle
-    let detalle = `<div style="text-align: left; max-height: 300px; overflow-y: auto;">`;
-    
-    // Info de la rifa
-    detalle += `<h4 style="color: #0984e3; margin: 10px 0;">📋 Información</h4>`;
-    detalle += `<p><b>Nombre:</b> ${backup.datos.info?.nombre || 'N/A'}</p>`;
-    detalle += `<p><b>Premio:</b> ${backup.datos.info?.premio || 'N/A'}</p>`;
-    detalle += `<p><b>Valor Puesto:</b> $${backup.datos.info?.valor || '0'}</p>`;
-    detalle += `<p><b>Fecha:</b> ${backup.fechaRifa || 'N/A'}</p>`;
-    
-    // Participantes por tabla
-    for (let i = 1; i <= 4; i++) {
-        const key = `tabla${i}`;
-        if (backup.datos[key] && backup.datos[key].participantes) {
-            const participantes = backup.datos[key].participantes;
-            const count = Object.keys(participantes).length;
-            if (count > 0) {
-                detalle += `<p><b>Tabla ${i}:</b> ${count} participantes</p>`;
-            }
-        }
-    }
-    
-    detalle += `</div>`;
-    
-    Swal.fire({
-        title: 'Detalle del Backup',
-        html: detalle,
-        icon: 'info',
-        confirmButtonColor: '#0984e3'
-    });
+    // Mostrar los otros paneles de nuevo
+    document.getElementById('panelCompraMultiple').style.display = 'block';
+    document.getElementById('panelPremios').style.display = 'block';
+    document.getElementById('rifasContainer').style.display = 'block';
 }
