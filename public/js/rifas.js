@@ -2284,3 +2284,8 @@ async function eliminarRifa() {
         Swal.fire('Error', 'No se pudo eliminar la rifa. Intenta de nuevo.', 'error');
     }
 }
+
+// Función para guardar la rifa actual (alias para compatibilidad)
+async function guardarRifaActual() {
+    await guardarTodo();
+}
