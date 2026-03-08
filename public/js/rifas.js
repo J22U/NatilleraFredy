@@ -174,12 +174,18 @@ async function guardarTodo() {
         console.log('⚠️ No había tablas, se crearon tablas vacías');
     }
 
+    console.log('📤 Enviando datos al servidor:', JSON.stringify(datos).substring(0, 500));
+
     try {
         const response = await fetch('/api/guardar-rifa', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify(datos)
         });
+
+        console.log('📬 Respuesta del servidor:', response.status, response.statusText);
 
         if (response.ok) {
             if (status) {
@@ -196,13 +202,17 @@ async function guardarTodo() {
                 timer: 1500,
                 showConfirmButton: false
             });
+            console.log('✅ Rifa guardada correctamente');
         } else {
-            throw new Error("Error 400 o 500 en Render");
+            const errorText = await response.text();
+            console.error('❌ Error del servidor:', response.status, errorText);
+            if (status) status.className = 'sync-error';
+            Swal.fire('Error', 'No se pudo guardar la rifa: ' + errorText, 'error');
         }
     } catch (error) {
-        console.error("❌ Error al sincronizar:", error);
+        console.error("❌ Error de red:", error);
         if (status) status.className = 'sync-error'; // Luz roja
-        Swal.fire('Error', 'No se pudo guardar la rifa. Intenta de nuevo.', 'error');
+        Swal.fire('Error', 'No se pudo guardar la rifa. Verifica tu conexión.', 'error');
     }
 }
 
