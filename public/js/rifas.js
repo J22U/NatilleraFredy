@@ -2229,3 +2229,58 @@ function cerrarPanelDeudores() {
     if (panelPremios) panelPremios.style.display = 'block';
     if (rifasContainer) rifasContainer.style.display = 'block';
 }
+
+// Función para eliminar una rifa por fecha
+async function eliminarRifa() {
+    // Obtener la fecha actual del campo de fecha
+    const fecha = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value;
+    
+    if (!fecha) {
+        Swal.fire('Error', 'No se pudo determinar la fecha de la rifa', 'error');
+        return;
+    }
+    
+    try {
+        // Confirmar con el usuario
+        const result = await Swal.fire({
+            title: '¿Eliminar Rifa?',
+            html: `¿Estás seguro de eliminar la rifa del <b>${fecha}</b>?<br>Esta acción no se puede deshacer.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#c0392b',
+            cancelButtonColor: '#dfe6e9',
+            confirmButtonText: '<i class="fas fa-trash"></i> Eliminar',
+            cancelButtonText: 'Cancelar',
+            reverseButtons: true
+        });
+
+        if (!result.isConfirmed) return;
+
+        // Llamar al endpoint para eliminar
+        const response = await fetch('/api/eliminar-rifa', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fecha: fecha })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            Swal.fire({
+                title: '¡Eliminada!',
+                text: 'La rifa ha sido eliminada correctamente.',
+                icon: 'success',
+                confirmButtonColor: '#0984e3'
+            });
+
+            // Recargar el historial
+            cargarHistorialGanancias();
+        } else {
+            throw new Error(data.error || 'Error al eliminar');
+        }
+
+    } catch (error) {
+        console.error("Error al eliminar rifa:", error);
+        Swal.fire('Error', 'No se pudo eliminar la rifa. Intenta de nuevo.', 'error');
+    }
+}
