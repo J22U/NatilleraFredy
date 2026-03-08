@@ -11,265 +11,259 @@
 </head>
 <body>
     <div class="app-container">
-        <header class="main-header">
-            <div class="header-top">
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <button onclick="window.location.href='dashboard.html'" class="btn-add btn-back">
-                        <i class="fas fa-chevron-left"></i> <span>Atrás</span>
+        
+        <!-- ==================== CABECERA ==================== -->
+        <header class="main-header" style="background: linear-gradient(135deg, #0984e3 0%, #00cec9 100%); padding: 20px; border-radius: 0 0 20px 20px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                
+                <!-- Izquierda: Volver + Fecha -->
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button onclick="window.location.href='dashboard.html'" class="btn-add" style="background: rgba(255,255,255,0.2); border: none; color: white;">
+                        <i class="fas fa-arrow-left"></i> Volver
                     </button>
                     
-                    <div class="history-filter" style="display: flex; align-items: center; gap: 8px; background: #f1f2f6; padding: 8px 15px; border-radius: 50px; border: 1px solid #dfe6e9;">
-                        <i class="fas fa-history" style="color: #636e72; font-size: 0.9rem;"></i>
-                        <label style="font-size: 0.65rem; font-weight: 800; color: #636e72; text-transform: uppercase; letter-spacing: 0.5px;">Sorteo:</label>
-                        <input type="date" id="filtroFecha" onchange="cargarRifasPorFecha()" style="border: none; background: transparent; font-family: 'Inter'; font-weight: 700; color: #2d3436; outline: none; cursor: pointer;" value="">
+                    <div style="background: white; padding: 10px 20px; border-radius: 50px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-calendar-alt" style="color: #0984e3;"></i>
+                        <input type="date" id="filtroFecha" onchange="cargarRifasPorFecha()" style="border: none; font-weight: 700; color: #2d3436; outline: none;">
                     </div>
                 </div>
                 
-                <div class="title-group">
-                    <i class="fas fa-ticket-alt logo-icon"></i>
-                    <h1>Control de Rifas</h1>
-                    <div id="sync-container" style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
-                        <div id="sync-status" class="sync-idle" title="Estado de sincronización"></div>
-                        <div id="security-pause-loader" style="display: none; align-items: center; gap: 5px;">
-                            <i class="fas fa-circle-notch fa-spin" style="color: #0984e3; font-size: 0.8rem;"></i>
-                            <span style="font-size: 0.7rem; color: #636e72; font-weight: bold;">Estabilizando...</span>
-                        </div>
-                    </div>
+                <!-- Centro: Título -->
+                <div style="text-align: center;">
+                    <h1 style="margin: 0; color: white; font-size: 1.8rem;">
+                        <i class="fas fa-ticket-alt"></i> Control de Rifas
+                    </h1>
+                    <div id="sync-status" class="sync-idle" style="display: inline-block; margin-left: 10px;"></div>
                 </div>
-
-<div class="header-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button onclick="prepararNuevaQuincena()" class="btn-add" style="background-color: #f1c40f; color: #2d3436; border: none;">
-                        <i class="fas fa-forward"></i> <span>Nueva Quincena</span>
+                
+                <!-- Derecha: Acciones -->
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="guardarRifaActual()" class="btn-add" style="background: #00b894; color: white; border: none;">
+                        <i class="fas fa-save"></i> Guardar
                     </button>
-
-                    <button onclick="guardarRifaActual()" class="btn-add" style="background-color: #6c5ce7; color: white; border: none;" title="Guardar esta rifa con la fecha actual">
-                        <i class="fas fa-save"></i> <span>Guardar Rifa</span>
+                    <button onclick="actualizarManual()" class="btn-add" style="background: white; color: #0984e3; border: none;">
+                        <i class="fas fa-sync-alt" id="sync-icon-manual"></i>
                     </button>
-
-                    <button onclick="acumularGananciaRifa()" class="btn-add" style="background-color: #00b894; color: white; border: none;" title="Acumular ganancia de esta rifa al total">
-                        <i class="fas fa-plus-circle"></i> <span>Acumular Ganancia</span>
-                    </button>
-
-                    <button onclick="actualizarManual()" class="btn-add" style="background-color: #0984e3; border: none;">
-                        <i id="sync-icon-manual" class="fas fa-sync-alt"></i> <span>Actualizar</span>
-                    </button>
-
-                    <button class="btn-add" onclick="mostrarPanelDeudores()" style="background-color: #e74c3c; border: none;">
-                        <i class="fas fa-user-clock"></i> <span>Ver Deudores</span>
-                    </button>
-
-                    <button onclick="eliminarRifa()" class="btn-add" style="background-color: #c0392b; color: white; border: none;" title="Eliminar esta rifa">
-                        <i class="fas fa-trash-alt"></i> <span>Eliminar Rifa</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="rifa-info-banner">
-                <div class="info-main-row">
-                    <div class="info-field title-field">
-                        <label>Nombre de la Rifa</label>
-                        <input type="text" id="rifaName" placeholder="Ej: Gran Rifa Pro-Fondos">
-                    </div>
-
-                    <div class="search-container">
-                        <div class="search-box">
-                            <i class="fas fa-search search-icon"></i>
-                            <input type="text" id="searchInput" placeholder="Buscar cliente..." oninput="buscarCliente()">
-                        </div>
-                        <div id="searchResults" class="search-results-panel" style="display: none;"></div>
-                    </div>
-                </div>
-
-                <div class="info-details" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px;">
-                    <div class="info-field">
-                        <label>Premio Principal</label>
-                        <input type="text" id="rifaPrize" placeholder="¿Qué se gana?">
-                    </div>
-                    <div class="info-field">
-                        <label>Costo Premio (Por Tabla)</label>
-                        <input type="number" id="costoPremio" placeholder="0" oninput="actualizarContadoresRifa()">
-                    </div>
-                    <div class="info-field">
-                        <label>Valor Puesto</label>
-                        <input type="number" id="rifaCost" placeholder="0" oninput="actualizarContadoresRifa()">
-                    </div>
-                    <div class="info-field">
-                        <label>Fecha Sorteo</label>
-                        <input type="date" id="rifaDate" value="">
-                    </div>
                 </div>
             </div>
         </header>
 
-<div class="stats-rifas-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 25px auto; max-width: 1200px; padding: 0 20px;">
-            <div class="stat-card card-total">
-                <div class="stat-icon-wrapper">
-                    <i class="fas fa-money-bill-wave"></i>
-                </div>
-                <div class="stat-info">
-                    <span class="stat-label">Valor Total Rifa</span>
-                    <h2 id="stats-total-debe">$ 0</h2>
-                </div>
-            </div>
-
-            <div class="stat-card card-recogido">
-                <div class="stat-icon-wrapper">
-                    <i class="fas fa-hand-holding-usd"></i>
-                </div>
-                <div class="stat-info">
-                    <span class="stat-label">Total Recogido</span>
-                    <h2 id="stats-total-pago">$ 0</h2>
-                </div>
-            </div>
-
-            <div class="stat-card card-ganancia">
-                <div class="stat-icon-wrapper">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <div class="stat-info">
-                    <span class="stat-label">Ganancia Neta</span>
-                    <h2 id="stats-ganancia">$ 0</h2>
+        <!-- ==================== INFORMACIÓN DE LA RIFA ==================== -->
+        <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
+            <div style="background: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
+                    
+                    <div>
+                        <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
+                            <i class="fas fa-tag"></i> Nombre de la Rifa
+                        </label>
+                        <input type="text" id="rifaName" placeholder="Ej: Rifa Navidad" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem; font-weight: 600;">
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
+                            <i class="fas fa-gift"></i> Premio
+                        </label>
+                        <input type="text" id="rifaPrize" placeholder="¿Qué se gana?" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 8px;">
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
+                            <i class="fas fa-dollar-sign"></i> Valor Puesto
+                        </label>
+                        <input type="number" id="rifaCost" placeholder="0" oninput="actualizarContadoresRifa()" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 8px;">
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
+                            <i class="fas fa-trophy"></i> Costo Premio
+                        </label>
+                        <input type="number" id="costoPremio" placeholder="0" oninput="actualizarContadoresRifa()" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 8px;">
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
+                            <i class="fas fa-calendar"></i> Fecha Sorteo
+                        </label>
+                        <input type="date" id="rifaDate" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 8px; font-weight: 600;">
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Panel de Historial de Ganancias de Rifas -->
-        <div id="panelHistorialGanancias" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 20px auto; max-width: 1200px; padding: 20px; border-radius: 15px; color: white;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid rgba(255,255,255,0.2); padding-bottom: 15px;">
-                <h3 style="margin: 0; font-size: 1.3rem;">
-                    <i class="fas fa-history" style="margin-right: 10px;"></i>Historial de Ganancias de Rifas
-                </h3>
-                <button onclick="cargarHistorialGanancias()" style="padding: 8px 15px; background: rgba(255,255,255,0.2); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 600;">
-                    <i class="fas fa-sync-alt"></i> Actualizar
+        <!-- ==================== ESTADÍSTICAS ==================== -->
+        <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                <div style="background: linear-gradient(135deg, #fdcb6e 0%, #f39c12 100%); padding: 20px; border-radius: 15px; color: white; text-align: center;">
+                    <i class="fas fa-calculator" style="font-size: 2rem; opacity: 0.8;"></i>
+                    <p style="margin: 10px 0 5px; font-size: 0.85rem; opacity: 0.9;">VALOR TOTAL</p>
+                    <h2 style="margin: 0; font-size: 1.8rem;" id="stats-total-debe">$ 0</h2>
+                </div>
+                <div style="background: linear-gradient(135deg, #00b894 0%, #00cec9 100%); padding: 20px; border-radius: 15px; color: white; text-align: center;">
+                    <i class="fas fa-hand-holding-usd" style="font-size: 2rem; opacity: 0.8;"></i>
+                    <p style="margin: 10px 0 5px; font-size: 0.85rem; opacity: 0.9;">TOTAL RECOGIDO</p>
+                    <h2 style="margin: 0; font-size: 1.8rem;" id="stats-total-pago">$ 0</h2>
+                </div>
+                <div style="background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); padding: 20px; border-radius: 15px; color: white; text-align: center;">
+                    <i class="fas fa-chart-line" style="font-size: 2rem; opacity: 0.8;"></i>
+                    <p style="margin: 10px 0 5px; font-size: 0.85rem; opacity: 0.9;">GANANCIA NETA</p>
+                    <h2 style="margin: 0; font-size: 1.8rem;" id="stats-ganancia">$ 0</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== BOTONES DE ACCIÓN ==================== -->
+        <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
+            <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                <button onclick="prepararNuevaQuincena()" style="padding: 12px 20px; background: #f1c40f; color: #2d3436; border: none; border-radius: 10px; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-forward"></i> Nueva Quincena
+                </button>
+                <button onclick="acumularGananciaRifa()" style="padding: 12px 20px; background: #00b894; color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-plus-circle"></i> Acumular Ganancia
+                </button>
+                <button onclick="generarPDF()" style="padding: 12px 20px; background: #e84393; color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-file-pdf"></i> Exportar PDF
+                </button>
+                <button onclick="mostrarPanelDeudores()" style="padding: 12px 20px; background: #e74c3c; color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-user-clock"></i> Ver Deudores
+                </button>
+                <button onclick="eliminarRifa()" style="padding: 12px 20px; background: #c0392b; color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-trash"></i> Eliminar
                 </button>
             </div>
-            
-            <!-- Total Acumulado -->
-            <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
-                <span style="font-size: 0.9rem; opacity: 0.9;">TOTAL ACUMULADO DE TODAS LAS RIFAS</span>
-                <h2 id="stats-ganancia-acumulada-total" style="margin: 10px 0 0 0; font-size: 2.5rem; font-weight: 800;">$ 0</h2>
-            </div>
-            
-            <!-- Tabla de historial -->
-            <div style="background: white; border-radius: 12px; overflow: hidden;">
-                <table style="width: 100%; border-collapse: collapse; color: #2d3436; font-size: 0.9rem;">
-                    <thead style="background: #f1f2f6;">
-                        <tr>
-                            <th style="padding: 12px; text-align: left; font-weight: 700;">📅 Fecha</th>
-                            <th style="padding: 12px; text-align: right; font-weight: 700;">💰 Recaudado</th>
-                            <th style="padding: 12px; text-align: right; font-weight: 700;">🏆 Costo Premios</th>
-                            <th style="padding: 12px; text-align: right; font-weight: 700;">💚 Ganancia Neta</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tablaHistorialGanancias">
-                        <tr>
-                            <td colspan="4" style="padding: 30px; text-align: center; color: #636e72;">
-                                <i class="fas fa-spinner fa-spin" style="margin-right: 10px;"></i> Cargando historial...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+        </div>
+
+        <!-- ==================== BUSCADOR ==================== -->
+        <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
+            <div style="position: relative;">
+                <input type="text" id="searchInput" placeholder="🔍 Buscar cliente en todas las tablas..." 
+                    oninput="buscarCliente()"
+                    style="width: 100%; padding: 15px 20px; border: 2px solid #dfe6e9; border-radius: 50px; font-size: 1rem; outline: none;">
+                <div id="searchResults" class="search-results-panel" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); z-index: 100; max-height: 400px; overflow-y: auto;"></div>
             </div>
         </div>
 
-        <!-- Panel de Compra Múltiple -->
-        <div id="panelCompraMultiple" style="background: white; margin: 20px auto; max-width: 1200px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f2f6; padding-bottom: 15px;">
-                <h3 style="margin: 0; color: #2d3436; font-size: 1.2rem;">
+        <!-- ==================== COMPRA MÚLTIPLE ==================== -->
+        <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
+            <div style="background: white; padding: 25px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 20px; color: #2d3436; font-size: 1.2rem; border-bottom: 2px solid #f1f2f6; padding-bottom: 10px;">
                     <i class="fas fa-users" style="color: #0984e3; margin-right: 10px;"></i>Compra Múltiple de Números
                 </h3>
+                
+                <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                    <div style="min-width: 100px;">
+                        <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">Tabla</label>
+                        <select id="tablaClienteMultiple" style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px;">
+                            <option value="1">Tabla 1</option>
+                            <option value="2">Tabla 2</option>
+                            <option value="3">Tabla 3</option>
+                            <option value="4">Tabla 4</option>
+                        </select>
+                    </div>
+                    
+                    <div style="flex: 1; min-width: 150px;">
+                        <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">Cliente</label>
+                        <input type="text" id="nombreClienteMultiple" placeholder="Nombre del cliente" style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px;">
+                    </div>
+                    
+                    <div style="flex: 2; min-width: 200px;">
+                        <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">Números</label>
+                        <input type="text" id="numerosClienteMultiple" placeholder="05, 12, 25, 30..." style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px;">
+                    </div>
+                    
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                        <input type="checkbox" id="pagadoClienteMultiple"><span style="font-weight: 600;">Pagado</span>
+                    </label>
+                    
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; background: #fff3cd; padding: 8px 12px; border-radius: 8px;">
+                        <input type="checkbox" id="adelantadoClienteMultiple"><span style="font-weight: 600; color: #856404;">Adelantado</span>
+                    </label>
+                    
+                    <button onclick="asignarNumerosMultiples()" style="padding: 10px 20px; background: #0984e3; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">
+                        <i class="fas fa-check"></i> Asignar
+                    </button>
+                </div>
+                <div id="resultadoAsignacion" style="margin-top: 15px; display: none;"></div>
             </div>
-            
-<div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
-                <div style="flex: 0 0 auto; min-width: 120px;">
-                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
-                        Tabla
-                    </label>
-                    <select id="tablaClienteMultiple" style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem; background: white;">
-                        <option value="1">Tabla 1</option>
-                        <option value="2">Tabla 2</option>
-                        <option value="3">Tabla 3</option>
-                        <option value="4">Tabla 4</option>
-                    </select>
-                </div>
-                
-                <div style="flex: 1; min-width: 150px;">
-                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
-                        Nombre del Cliente
-                    </label>
-                    <input type="text" id="nombreClienteMultiple" placeholder="Ej: JUAN PÉREZ" 
-                        style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem;">
-                </div>
-                
-                <div style="flex: 2; min-width: 200px;">
-                    <label style="display: block; font-size: 0.7rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 5px;">
-                        Números a comprar (separados por coma o espacio)
-                    </label>
-                    <input type="text" id="numerosClienteMultiple" placeholder="Ej: 05, 12, 25, 30, 45, 50" 
-                        style="width: 100%; padding: 10px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 1rem;">
-                </div>
-                
-                <div>
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" id="pagadoClienteMultiple" style="width: 18px; height: 18px;">
-                        <span style="font-size: 0.9rem; font-weight: 600;">¿Pagado?</span>
-                    </label>
-                </div>
-                
-                <div>
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; background: #fff3cd; padding: 8px 12px; border-radius: 8px; border: 1px solid #ffeeba;">
-                        <input type="checkbox" id="adelantadoClienteMultiple" style="width: 18px; height: 18px;">
-                        <span style="font-size: 0.85rem; font-weight: 600; color: #856404;">¿Paga Adelantado?</span>
-                    </label>
-                </div>
-                
-                <button onclick="asignarNumerosMultiples()"
-                    style="padding: 10px 20px; background: #0984e3; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">
-                    <i class="fas fa-check"></i> Asignar Números
-                </button>
-            </div>
-            
-            <div id="resultadoAsignacion" style="margin-top: 15px; display: none;"></div>
         </div>
 
-        <!-- Panel de Control de Premios -->
-        <div id="panelPremios" style="background: white; margin: 20px auto; max-width: 1200px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f2f6; padding-bottom: 15px;">
-                <h3 style="margin: 0; color: #2d3436; font-size: 1.2rem;">
+        <!-- ==================== TABLAS DE RIFAS ==================== -->
+        <main id="rifasContainer" style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;"></main>
+
+        <!-- ==================== PREMIOS POR TABLA ==================== -->
+        <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
+            <div style="background: white; padding: 25px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 20px; color: #2d3436; font-size: 1.2rem; border-bottom: 2px solid #f1f2f6; padding-bottom: 10px;">
                     <i class="fas fa-trophy" style="color: #f1c40f; margin-right: 10px;"></i>Control de Premios por Tabla
                 </h3>
-            </div>
-            
-            <div id="listaPremios" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
-                <!-- Aquí se generarán las cards de premios por tabla -->
+                <div id="listaPremios" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;"></div>
             </div>
         </div>
 
-        <main id="rifasContainer"></main>
+        <!-- ==================== HISTORIAL DE GANANCIAS ==================== -->
+        <div style="max-width: 1200px; margin: 0 auto 40px; padding: 0 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 15px; color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0; font-size: 1.3rem;">
+                        <i class="fas fa-history" style="margin-right: 10px;"></i>Historial de Ganancias
+                    </h3>
+                    <button onclick="cargarHistorialGanancias()" style="padding: 8px 15px; background: rgba(255,255,255,0.2); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 600;">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                </div>
+                
+                <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
+                    <span style="font-size: 0.9rem; opacity: 0.9;">TOTAL ACUMULADO DE TODAS LAS RIFAS</span>
+                    <h2 id="stats-ganancia-acumulada-total" style="margin: 10px 0 0; font-size: 2.5rem; font-weight: 800;">$ 0</h2>
+                </div>
+                
+                <div style="background: white; border-radius: 12px; overflow: hidden;">
+                    <table style="width: 100%; border-collapse: collapse; color: #2d3436; font-size: 0.9rem;">
+                        <thead style="background: #f1f2f6;">
+                            <tr>
+                                <th style="padding: 12px; text-align: left; font-weight: 700;">Fecha</th>
+                                <th style="padding: 12px; text-align: right; font-weight: 700;">Recaudado</th>
+                                <th style="padding: 12px; text-align: right; font-weight: 700;">Costo Premios</th>
+                                <th style="padding: 12px; text-align: right; font-weight: 700;">Ganancia Neta</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaHistorialGanancias">
+                            <tr>
+                                <td colspan="4" style="padding: 30px; text-align: center; color: #636e72;">
+                                    <i class="fas fa-spinner fa-spin" style="margin-right: 10px;"></i> Cargando...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
 
+    <!-- ==================== MODAL COMPRA ==================== -->
     <div id="modalCompra" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
-        <div style="background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 400px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); font-family: 'Inter', sans-serif;">
-            <h2 style="margin-top: 0; color: #2d3436; font-size: 1.4rem; font-weight: 800; border-bottom: 2px solid #f1f2f6; padding-bottom: 10px; margin-bottom: 20px;">
+        <div style="background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 400px; box-shadow: 0 15px 35px rgba(0,0,0,0.3);">
+            <h2 style="margin-top: 0; color: #2d3436; font-size: 1.4rem; border-bottom: 2px solid #f1f2f6; padding-bottom: 10px;">
                 <i class="fas fa-user-edit" style="color: #0984e3; margin-right: 10px;"></i>Registrar Puesto
             </h2>
             
             <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 11px; font-weight: 800; color: #636e72; text-transform: uppercase; margin-bottom: 8px;">Nombre del Cliente</label>
-                <input type="text" id="modalNombre" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; font-size: 1rem;" placeholder="Ej: JUAN PÉREZ">
+                <label style="display: block; font-size: 11px; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 8px;">Nombre del Cliente</label>
+                <input type="text" id="modalNombre" style="width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none;">
             </div>
 
             <div style="margin-bottom: 15px;">
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; background: #f9f9f9; padding: 12px; border-radius: 10px;">
                     <input type="checkbox" id="modalPago" style="width: 20px; height: 20px;">
-                    <span style="font-size: 14px; font-weight: 700; color: #2d3436;">¿Pagó este sorteo?</span>
+                    <span style="font-weight: 700;">¿Pagó?</span>
                 </label>
             </div>
 
             <div style="margin-bottom: 25px;">
                 <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; background: #fff3cd; padding: 12px; border-radius: 10px; border: 1px solid #ffeeba;">
                     <input type="checkbox" id="modalAdelantado" style="width: 20px; height: 20px;">
-                    <span style="font-size: 13px; font-weight: 700; color: #856404;">¿Paga quincena adelantada?</span>
+                    <span style="font-weight: 700; color: #856404;">¿Paga Adelantado?</span>
                 </label>
             </div>
 
@@ -280,19 +274,18 @@
         </div>
     </div>
 
-    <!-- Panel de Deudores -->
-    <div id="panelDeudores" style="display: none; background: white; margin: 20px auto; max-width: 1200px; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f1f2f6; padding-bottom: 15px;">
-            <h3 style="margin: 0; color: #2d3436; font-size: 1.2rem;">
-                <i class="fas fa-user-clock" style="color: #e74c3c; margin-right: 10px;"></i>Personas con Deudas en Rifas
-            </h3>
-            <button onclick="cerrarPanelDeudores()" style="padding: 8px 15px; background: #dfe6e9; border: none; border-radius: 8px; cursor: pointer; font-weight: 700;">
-                <i class="fas fa-times"></i> Cerrar
-            </button>
-        </div>
-        
-        <div id="listaDeudores" style="display: grid; gap: 15px;">
-            <!-- Aquí se cargarán los deudores -->
+    <!-- ==================== PANEL DE DEUDORES ==================== -->
+    <div id="panelDeudores" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div style="background: white; margin: 20px; padding: 30px; border-radius: 20px; width: 90%; max-width: 800px; max-height: 80vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: #2d3436; font-size: 1.3rem;">
+                    <i class="fas fa-user-clock" style="color: #e74c3c; margin-right: 10px;"></i>Personas con Deudas
+                </h3>
+                <button onclick="cerrarPanelDeudores()" style="padding: 10px 20px; background: #dfe6e9; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+            </div>
+            <div id="listaDeudores" style="display: grid; gap: 15px;"></div>
         </div>
     </div>
 
