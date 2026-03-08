@@ -704,9 +704,9 @@ let gananciasAcumuladasRifas = 0;
 
 async function cargarGananciasAcumuladas() {
     try {
-        const response = await fetch('/api/ganancias-rifas-acumuladas');
+        const response = await fetch('/api/ganancias-rifas-total');
         const data = await response.json();
-        gananciasAcumuladasRifas = data.gananciaTotal || 0;
+        gananciasAcumuladasRifas = data.totalAcumulado || 0;
         actualizarDisplayGanancias();
     } catch (error) {
         console.error("Error al cargar ganancias acumuladas:", error);
@@ -817,7 +817,7 @@ function actualizarDisplayGanancias() {
 // Función para guardar las ganancias acumuladas
 async function guardarGananciasAcumuladas() {
     try {
-        await fetch('/api/ganancias-rifas-acumuladas', {
+        await fetch('/api/ganancias-rifas', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ gananciaAcumulada: gananciasAcumuladasRifas })
