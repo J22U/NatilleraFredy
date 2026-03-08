@@ -698,7 +698,26 @@ async function cargarHistorialGanancias() {
     try {
         // Usar el nuevo endpoint que combina las rifas guardadas con sus ganancias
         const response = await fetch('/api/historial-rifas');
+        
+        // Verificar si la respuesta es exitosa
+        if (!response.ok) {
+            throw new Error(`Error del servidor: ${response.status}`);
+        }
+        
         const datos = await response.json();
+        
+        // Verificar que datos sea un array
+        if (!Array.isArray(datos)) {
+            console.error("El servidor devolvió:", datos);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" style="padding: 30px; text-align: center; color: #636e72;">
+                        <i class="fas fa-info-circle" style="margin-right: 10px;"></i> No hay rifas registradas aún
+                    </td>
+                </tr>
+            `;
+            return;
+        }
         
         if (!datos || datos.length === 0) {
             tbody.innerHTML = `

@@ -1213,7 +1213,13 @@ app.get('/api/historial-rifas', async (req, res) => {
         for (const fecha of fechas) {
             // Normalizar la fecha correctamente usando el formato YYYY-MM-DD directamente del SQL Server
             // Agregar hora media para evitar cambios de zona horaria
-            const fechaISO = new Date(fecha + 'T12:00:00').toISOString().split('T')[0];
+            let fechaISO;
+            try {
+                fechaISO = new Date(fecha + 'T12:00:00').toISOString().split('T')[0];
+            } catch (e) {
+                // Si falla la conversión, usar la fecha directamente
+                fechaISO = fecha;
+            }
             
             // Obtener información de la rifa
             let infoRifa = { nombre: '', premio: '', valor: 0, costoPremio: 0 };
