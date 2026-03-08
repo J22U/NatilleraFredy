@@ -842,23 +842,27 @@ function inicializarRifa() {
 
 // Llamar al inicio al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar con la fecha de hoy si no hay valor
+    const f1 = document.getElementById('filtroFecha');
+    const f2 = document.getElementById('rifaDate');
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // Si los campos están vacíos, poner la fecha de hoy
+    if (f1 && !f1.value) f1.value = hoy;
+    if (f2 && !f2.value) f2.value = hoy;
+    
     // Inicializar rifa y cargar datos
     inicializarRifa();
     
     // Lógica de fechas (sincronizar los dos calendarios)
-    const f1 = document.getElementById('filtroFecha');
-    const f2 = document.getElementById('rifaDate');
-
-    // Si ambos están vacíos, ponemos la fecha de hoy
-    if (f1 && !f1.value) {
-        const hoy = new Date().toISOString().split('T')[0];
-        f1.value = hoy;
-        if (f2) f2.value = hoy;
-    }
-
-    // Sincronizar: si cambias uno, se cambia el otro
-    f1?.addEventListener('change', () => { if(f2) f2.value = f1.value; cargarRifas(); });
-    f2?.addEventListener('change', () => { if(f1) f1.value = f2.value; cargarRifas(); });
+    f1?.addEventListener('change', () => { 
+        if(f2) f2.value = f1.value; 
+        cargarRifas(); 
+    });
+    f2?.addEventListener('change', () => { 
+        if(f1) f1.value = f2.value; 
+        cargarRifas(); 
+    });
 });
 
 function generarPDF() {
@@ -1565,25 +1569,8 @@ async function cargarRifasPorFecha() {
 
 
 
-// Al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
-    const f1 = document.getElementById('filtroFecha');
-    const f2 = document.getElementById('rifaDate');
 
-    // Si ambos están vacíos, ponemos la fecha de hoy
-    if (f1 && !f1.value) {
-        const hoy = new Date().toISOString().split('T')[0];
-        f1.value = hoy;
-        if (f2) f2.value = hoy;
-    }
 
-    // Sincronizar: si cambias uno, se cambia el otro
-    f1?.addEventListener('change', () => { if(f2) f2.value = f1.value; cargarRifas(); });
-    f2?.addEventListener('change', () => { if(f1) f1.value = f2.value; cargarRifas(); });
-
-    // Carga inicial
-    cargarRifas();
-});
 
 // Función para cerrar el modal de registro
 function cerrarModal() {
