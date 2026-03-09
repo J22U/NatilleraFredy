@@ -1257,6 +1257,29 @@ function inicializarRifa() {
             });
         }
     });
+    
+    // === SINCRONIZAR NOMBRE DE RIFA CON FECHA DE SORTEO ===
+    // Cuando se escribe en "Nombre de la Rifa", automáticamente se copia al campo "Fecha Sorteo"
+    const rifaNameInput = document.getElementById('rifaName');
+    const rifaDateInput = document.getElementById('rifaDate');
+    if (rifaNameInput && rifaDateInput) {
+        rifaNameInput.addEventListener('input', function() {
+            const nombreRifa = this.value.trim();
+            // Solo actualizar si el nombre no está vacío y la fecha está vacía o es igual a la fecha anterior del nombre
+            if (nombreRifa) {
+                // Copiar el nombre al campo de fecha
+                rifaDateInput.value = nombreRifa;
+                
+                // También sincronizar con filtroFecha si existe
+                const filtroFecha = document.getElementById('filtroFecha');
+                if (filtroFecha) {
+                    filtroFecha.value = nombreRifa;
+                }
+                
+                console.log('📅 Nombre de rifa copiado a fecha:', nombreRifa);
+            }
+        });
+    }
 }
 
 // Llamar al inicio al cargar la página
