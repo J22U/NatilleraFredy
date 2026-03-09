@@ -17,7 +17,7 @@
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 
                 <!-- Izquierda: Volver + Selector de Rifa -->
-                <div class="header-left" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap; order: 1;">
+                <div class="header-left" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
                     <button onclick="window.location.href='dashboard.html'" class="btn-add" style="background: rgba(255,255,255,0.2); border: none; color: white;">
                         <i class="fas fa-arrow-left"></i> Volver
                     </button>
@@ -31,115 +31,11 @@
                         <button onclick="crearNuevaRifa()" title="Crear nueva rifa" style="background: #00b894; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer;">
                             <i class="fas fa-plus"></i>
                         </button>
-        </div>
-
-        <!-- ==================== PREMIOS PENDIENTES POR ENTREGAR ==================== -->
-        <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
-            <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); border-radius: 15px; color: white; overflow: hidden;">
-                
-                <!-- Cabecera clickeable para desplegar -->
-                <div onclick="togglePremiosPendientes()" style="padding: 20px 25px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="margin: 0; font-size: 1.3rem;">
-                        <i class="fas fa-gift" style="margin-right: 10px;"></i>Premios Pendientes por Entregar
-                        <span id="badgePremiosPendientes" style="background: white; color: #e74c3c; padding: 2px 10px; border-radius: 20px; font-size: 0.8rem; margin-left: 10px;">0</span>
-                    </h3>
-                    <div style="display: flex; align-items: center; gap: 15px;">
-                        <button onclick="event.stopPropagation(); cargarPremiosPendientes()" style="padding: 8px 15px; background: rgba(255,255,255,0.2); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 600;">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                        <i id="iconTogglePremiosPendientes" class="fas fa-chevron-down" style="transition: transform 0.3s;"></i>
                     </div>
                 </div>
-                
-                <!-- Contenido colapsable -->
-                <div id="contenidoPremiosPendientes" style="display: none; padding: 0 25px 25px;">
-                    <div id="listaPremiosPendientes" style="background: white; border-radius: 12px; padding: 15px; color: #2d3436; max-height: 400px; overflow-y: auto;">
-                        <div style="text-align: center; padding: 30px; color: #636e72;">
-                            <i class="fas fa-spinner fa-spin" style="margin-right: 10px;"></i> Cargando...
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <script>
-        // Función para toggle de premios pendientes
-        function togglePremiosPendientes() {
-            const contenido = document.getElementById('contenidoPremiosPendientes');
-            const icono = document.getElementById('iconTogglePremiosPendientes');
-            
-            if (contenido.style.display === 'none') {
-                contenido.style.display = 'block';
-                icono.style.transform = 'rotate(180deg)';
-            } else {
-                contenido.style.display = 'none';
-                icono.style.transform = 'rotate(0deg)';
-            }
-        }
-        
-        // Función para cargar premios pendientes
-        async function cargarPremiosPendientes() {
-            const lista = document.getElementById('listaPremiosPendientes');
-            lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #636e72;"><i class="fas fa-spinner fa-spin" style="margin-right: 10px;"></i> Cargando...</div>';
-            
-            try {
-                const response = await fetch('/api/premios-pendientes');
-                const premios = await response.json();
-                
-                if (!premios || premios.length === 0) {
-                    lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #00b894;"><i class="fas fa-check-circle" style="font-size: 2rem; margin-right: 10px;"></i>¡No hay premios pendientes! Todos están entregados.</div>';
-                    document.getElementById('badgePremiosPendientes').textContent = '0';
-                    return;
-                }
-                
-                // Actualizar badge
-                document.getElementById('badgePremiosPendientes').textContent = premios.length;
-                
-                // Generar HTML
-                let html = '';
-                premios.forEach(p => {
-                    const posicionTexto = p.posicion === 1 ? '1er Premio' : (p.posicion === 2 ? '2do Premio' : '3er Premio');
-                    const iconoPremio = p.posicion === 1 ? '🥇' : (p.posicion === 2 ? '🥈' : '🥉');
-                    
-                    html += `
-                        <div style="border: 2px solid #e74c3c; border-radius: 10px; padding: 15px; margin-bottom: 10px; background: #fff5f5;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <span style="font-weight: 700; color: #2d3436;">${iconoPremio} ${posicionTexto}</span>
-                                    <span style="background: #0984e3; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 8px;">Tabla ${p.tabla}</span>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div style="font-weight: 700; font-size: 1.2rem; color: #e74c3c;">#${p.numero}</div>
-                                    <div style="font-size: 0.9rem; color: #636e72;">${p.nombreGanador}</div>
-                                </div>
-                            </div>
-                            <div style="margin-top: 10px; font-size: 0.8rem; color: #636e72; border-top: 1px solid #f1f2f6; padding-top: 8px;">
-                                <i class="fas fa-calendar"></i> ${p.fechaSorteo} - <strong>${p.nombreRifa}</strong>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                lista.innerHTML = html;
-                
-            } catch (error) {
-                console.error("Error al cargar premios pendientes:", error);
-                lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #e74c3c;"><i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i>Error al cargar los premios pendientes</div>';
-            }
-        }
-        
-        // Auto-refresco cada 30 segundos
-        setInterval(() => {
-            if (document.getElementById('contenidoPremiosPendientes').style.display !== 'none') {
-                cargarPremiosPendientes();
-            }
-        }, 30000);
-        </script>
-
-    </div>
                 
                 <!-- Centro: Título -->
-                <div class="header-center" style="text-align: center; order: 2; flex-basis: 100%;">
+                <div class="header-center" style="text-align: center; flex-basis: 100%; margin-top: 15px;">
                     <h1 style="margin: 0; color: white; font-size: 1.8rem;">
                         <i class="fas fa-ticket-alt"></i> Control de Rifas
                     </h1>
@@ -147,7 +43,7 @@
                 </div>
                 
                 <!-- Derecha: Acciones -->
-                <div class="header-right" style="display: flex; gap: 10px; order: 3; flex-wrap: wrap;">
+                <div class="header-right" style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button onclick="guardarRifaActual()" class="btn-add" style="background: #00b894; color: white; border: none;">
                         <i class="fas fa-save"></i> Guardar
                     </button>
@@ -203,7 +99,7 @@
 
         <!-- ==================== ESTADÍSTICAS ==================== -->
         <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
-            <div class="stats-grid" style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+            <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                 <div style="background: linear-gradient(135deg, #fdcb6e 0%, #f39c12 100%); padding: 15px; border-radius: 15px; color: white; text-align: center;">
                     <i class="fas fa-calculator" style="font-size: 1.5rem; opacity: 0.8;"></i>
                     <p style="margin: 8px 0 5px; font-size: 0.7rem; opacity: 0.9;">VALOR TOTAL</p>
@@ -218,6 +114,35 @@
                     <i class="fas fa-chart-line" style="font-size: 1.5rem; opacity: 0.8;"></i>
                     <p style="margin: 8px 0 5px; font-size: 0.7rem; opacity: 0.9;">GANANCIA NETA</p>
                     <h2 style="margin: 0; font-size: 1.2rem;" id="stats-ganancia">$ 0</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== PREMIOS PENDIENTES POR ENTREGAR ==================== -->
+        <div style="max-width: 1200px; margin: 0 auto 20px; padding: 0 20px;">
+            <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); border-radius: 15px; color: white; overflow: hidden;">
+                
+                <!-- Cabecera clickeable para desplegar -->
+                <div onclick="togglePremiosPendientes()" style="padding: 20px 25px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; font-size: 1.3rem;">
+                        <i class="fas fa-gift" style="margin-right: 10px;"></i>Premios Pendientes por Entregar
+                        <span id="badgePremiosPendientes" style="background: white; color: #e74c3c; padding: 2px 10px; border-radius: 20px; font-size: 0.8rem; margin-left: 10px;">0</span>
+                    </h3>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <button onclick="event.stopPropagation(); cargarPremiosPendientes()" style="padding: 8px 15px; background: rgba(255,255,255,0.2); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 600;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <i id="iconTogglePremiosPendientes" class="fas fa-chevron-down" style="transition: transform 0.3s;"></i>
+                    </div>
+                </div>
+                
+                <!-- Contenido colapsable -->
+                <div id="contenidoPremiosPendientes" style="display: none; padding: 0 25px 25px;">
+                    <div id="listaPremiosPendientes" style="background: white; border-radius: 12px; padding: 15px; color: #2d3436; max-height: 400px; overflow-y: auto;">
+                        <div style="text-align: center; padding: 30px; color: #636e72;">
+                            <i class="fas fa-spinner fa-spin" style="margin-right: 10px;"></i> Cargando...
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -357,22 +282,6 @@
             </div>
         </div>
 
-        <script>
-        // Función para toggle del historial de ganancias
-        function toggleHistorialGanancias() {
-            const contenido = document.getElementById('contenidoHistorialGanancias');
-            const icono = document.getElementById('iconToggleHistorial');
-            
-            if (contenido.style.display === 'none') {
-                contenido.style.display = 'block';
-                icono.style.transform = 'rotate(180deg)';
-            } else {
-                contenido.style.display = 'none';
-                icono.style.transform = 'rotate(0deg)';
-            }
-        }
-        </script>
-
     </div>
 
     <!-- ==================== MODAL COMPRA ==================== -->
@@ -423,7 +332,103 @@
         </div>
     </div>
 
+    <!-- ==================== SCRIPTS ==================== -->
+    <script>
+    // Función para toggle de premios pendientes
+    function togglePremiosPendientes() {
+        const contenido = document.getElementById('contenidoPremiosPendientes');
+        const icono = document.getElementById('iconTogglePremiosPendientes');
+        
+        if (contenido.style.display === 'none') {
+            contenido.style.display = 'block';
+            icono.style.transform = 'rotate(180deg)';
+        } else {
+            contenido.style.display = 'none';
+            icono.style.transform = 'rotate(0deg)';
+        }
+    }
+    
+    // Función para cargar premios pendientes
+    async function cargarPremiosPendientes() {
+        const lista = document.getElementById('listaPremiosPendientes');
+        lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #636e72;"><i class="fas fa-spinner fa-spin" style="margin-right: 10px;"></i> Cargando...</div>';
+        
+        try {
+            const response = await fetch('/api/premios-pendientes');
+            const premios = await response.json();
+            
+            if (!premios || premios.length === 0) {
+                lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #00b894;"><i class="fas fa-check-circle" style="font-size: 2rem; margin-right: 10px;"></i>¡No hay premios pendientes! Todos están entregados.</div>';
+                document.getElementById('badgePremiosPendientes').textContent = '0';
+                return;
+            }
+            
+            // Actualizar badge
+            document.getElementById('badgePremiosPendientes').textContent = premios.length;
+            
+            // Generar HTML
+            let html = '';
+            premios.forEach(p => {
+                const posicionTexto = p.posicion === 1 ? '1er Premio' : (p.posicion === 2 ? '2do Premio' : '3er Premio');
+                const iconoPremio = p.posicion === 1 ? '🥇' : (p.posicion === 2 ? '🥈' : '🥉');
+                
+                html += `
+                    <div style="border: 2px solid #e74c3c; border-radius: 10px; padding: 15px; margin-bottom: 10px; background: #fff5f5;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span style="font-weight: 700; color: #2d3436;">${iconoPremio} ${posicionTexto}</span>
+                                <span style="background: #0984e3; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 8px;">Tabla ${p.tabla}</span>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 700; font-size: 1.2rem; color: #e74c3c;">#${p.numero}</div>
+                                <div style="font-size: 0.9rem; color: #636e72;">${p.nombreGanador}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px; font-size: 0.8rem; color: #636e72; border-top: 1px solid #f1f2f6; padding-top: 8px;">
+                            <i class="fas fa-calendar"></i> ${p.fechaSorteo} - <strong>${p.nombreRifa}</strong>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            lista.innerHTML = html;
+            
+        } catch (error) {
+            console.error("Error al cargar premios pendientes:", error);
+            lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #e74c3c;"><i class="fas fa-exclamation-triangle" style="margin-right: 10px;"></i>Error al cargar los premios pendientes</div>';
+        }
+    }
+    
+    // Función para toggle del historial de ganancias
+    function toggleHistorialGanancias() {
+        const contenido = document.getElementById('contenidoHistorialGanancias');
+        const icono = document.getElementById('iconToggleHistorial');
+        
+        if (contenido.style.display === 'none') {
+            contenido.style.display = 'block';
+            icono.style.transform = 'rotate(180deg)';
+        } else {
+            contenido.style.display = 'none';
+            icono.style.transform = 'rotate(0deg)';
+        }
+    }
+    
+    // Auto-refresco cada 30 segundos
+    setInterval(() => {
+        if (document.getElementById('contenidoPremiosPendientes') && document.getElementById('contenidoPremiosPendientes').style.display !== 'none') {
+            cargarPremiosPendientes();
+        }
+    }, 30000);
+
+    // Cargar premios pendientes automáticamente al iniciar
+    document.addEventListener('DOMContentLoaded', function() {
+        // Cargar premios pendientes al inicio
+        cargarPremiosPendientes();
+    });
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="js/rifas.js"></script>
 </body>
 </html>
+
