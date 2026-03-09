@@ -815,6 +815,97 @@ app.get('/api/ganancias-disponibles', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Endpoint para ejecutar el reparto masivo de intereses
+app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
+    try {
+        const { sociosAptos } = req.body;
+        
+        if (!sociosAptos || !Array.isArray(sociosAptos) || sociosAptos.length === 0) {
+            return res.status(400).json({ success: false, error: "No hay socios para distribuir" });
+        }
+
+        const pool = await poolPromise;
+        let insertados = 0;
+        
+        for (const socio of sociosAptos) {
+            if (socio.interes && socio.interes > 0) {
+                await pool.request()
+                    .input('id', sql.Int, socio.id)
+                    .input('monto', sql.Decimal(18, 2), socio.interes)
+                    .input('detalle', sql.VarChar, `REPARTO DE GANANCIAS - ${new Date().getFullYear()}`)
+                    .query("INSERT INTO Ahorros (ID_Persona, Monto, Fecha, MesesCorrespondientes) VALUES (@id, @monto, GETDATE(), @detalle)");
+                insertados++;
+            }
+        }
+
+        res.json({ success: true, message: `Intereses distribuidos a ${insertados} socios` });
+    } catch (err) {
+        console.error("Error en reparto masivo:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Endpoint para obtener datos del reparto para PDF
+app.get('/api/datos-reparto', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Obtener ganancias disponibles
+        const resultGanancias = await pool.request().query("SELECT ISNULL(SUM(InteresesPagados), 0) as saldo FROM Prestamos");
+        const gananciasDisponibles = parseFloat(resultGanancias.recordset[0].saldo || 0);
+        
+        // Obtener socios con esfuerzo
+        const resultSocios = await pool.request().query(`
+            SELECT 
+                P.ID_Persona as id, 
+                P.Nombre as nombre, 
+                ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
+                CASE 
+                    WHEN ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) > 0 THEN
+                        ISNULL(DATEDIFF(MONTH, (SELECT MIN(Fecha) FROM Ahorros WHERE ID_Persona = P.ID_Persona), GETDATE()), 0) * 10 + 
+                        ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) / 1000
+                    ELSE 0
+                END as puntosEsfuerzo
+            FROM Personas P 
+            WHERE P.Estado = 'Activo' AND P.EsSocio = 1
+        `);
+        
+        const socios = resultSocios.recordset;
+        const totalPuntosNatillera = socios.reduce((acc, s) => acc + parseFloat(s.puntosEsfuerzo || 0), 0);
+        
+        let sociosConReparto = [];
+        const valorPunto = totalPuntosNatillera > 0 ? gananciasDisponibles / totalPuntosNatillera : 0;
+        
+        socios.forEach(socio => {
+            const puntosSocio = parseFloat(socio.puntosEsfuerzo || 0);
+            const saldoReal = parseFloat(socio.totalAhorrado || 0);
+            
+            if (puntosSocio > 0) {
+                const interesJusto = Math.floor(puntosSocio * valorPunto);
+                sociosConReparto.push({
+                    id: socio.id,
+                    nombre: socio.nombre,
+                    ahorroActual: saldoReal,
+                    puntos: puntosSocio,
+                    interes: interesJusto,
+                    nuevoSaldo: saldoReal + interesJusto
+                });
+            }
+        });
+        
+        res.json({
+            totalGanancias: gananciasDisponibles,
+            totalPuntos: totalPuntosNatillera,
+            valorPunto: valorPunto,
+            socios: sociosConReparto,
+            totalRepartido: sociosConReparto.reduce((acc, s) => acc + s.interes, 0)
+        });
+    } catch (err) {
+        console.error("Error en /api/datos-reparto:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/caja-disponible', async (req, res) => {
     try {
         const pool = await poolPromise;

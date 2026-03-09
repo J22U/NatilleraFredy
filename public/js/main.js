@@ -2208,7 +2208,7 @@ async function distribuirInteresesMasivos() {
                 </div>
             </div>`;
 
-        const { isConfirmed } = await Swal.fire({
+        const { isConfirmed, dismiss } = await Swal.fire({
             title: 'Reparto Proporcional de Utilidades',
             html: listaHTML,
             width: '550px',
@@ -2217,6 +2217,22 @@ async function distribuirInteresesMasivos() {
             cancelButtonText: 'Cerrar',
             confirmButtonColor: '#059669',
         });
+
+        // Si el usuario cerró el modal sin confirmar pero quiere descargar PDF
+        if (dismiss === Swal.DismissReason.cancel && sociosAptos.length > 0) {
+            // Descargar PDF
+            try {
+                const respPDF = await fetch('/api/datos-reparto');
+                const dataPDF = await respPDF.json();
+                
+                if (dataPDF && dataPDF.socios && dataPDF.socios.length > 0) {
+                    generarPDFReparto(dataPDF);
+                }
+            } catch (err) {
+                console.error("Error al generar PDF:", err);
+            }
+            return;
+        }
 
         if (!isConfirmed || sociosAptos.length === 0) return;
 
@@ -2245,41 +2261,85 @@ async function distribuirInteresesMasivos() {
 }
 
 // --- FUNCIÓN PARA GENERAR EL PDF DEL REPARTO ---
-function generarPDFVistaPreviaIntereses() {
-    const data = window.datosRepartoTemporal;
-    if (!data) return;
-
+function generarPDFReparto(data) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const fecha = new Date().toLocaleDateString();
+    const fecha = new Date().toLocaleDateString('es-CO');
+    const añoActual = new Date().getFullYear();
 
-    doc.setFontSize(18);
-    doc.text("REPORTE DE DISTRIBUCIÓN DE INTERESES", 14, 22);
-    
+    // Encabezado
+    doc.setFillColor(5, 150, 105); // Emerald
+    doc.rect(0, 0, 210, 35, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("REPARTO GLOBAL DE INTERESES A SOCIOS", 14, 18);
     doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Natillera - Ciclo Fiscal ${new Date().getFullYear()}`, 14, 30);
-    doc.text(`Fecha de generación: ${fecha}`, 14, 35);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Natillera - Ciclo Fiscal ${añoActual}`, 14, 26);
+    doc.text(`Fecha de generación: ${fecha}`, 14, 32);
 
-    const columnas = ["SOCIO", "AHORRO BASE", "INTERÉS (10%)", "NUEVO SALDO"];
+    // Resumen
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(11);
+    doc.text("RESUMEN DEL REPARTO", 14, 45);
+
+    doc.autoTable({
+        startY: 48,
+        head: [['CONCEPTO', 'VALOR']],
+        body: [
+            ['Total Ganancias Disponibles', `$ ${Number(data.totalGanancias || 0).toLocaleString('es-CO')}`],
+            ['Total Puntos Natillera', `${Number(data.totalPuntos || 0).toLocaleString('es-CO')}`],
+            ['Valor por Punto', `$ ${Number(data.valorPunto || 0).toLocaleString('es-CO')}`],
+            ['Total Repartido', `$ ${Number(data.totalRepartido || 0).toLocaleString('es-CO')}`],
+            ['Socios Beneficiados', `${data.socios ? data.socios.length : 0}`]
+        ],
+        theme: 'striped',
+        headStyles: { fillStyle: [5, 150, 105], halign: 'center' },
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+    });
+
+    // Detalle por Socio
+    doc.setFontSize(11);
+    doc.text("DETALLE POR SOCIO", 14, doc.lastAutoTable.finalY + 12);
+
     const filas = data.socios.map(s => [
         s.nombre,
-        `$${s.saldoAnterior.toLocaleString()}`,
-        `$${s.interes.toLocaleString()}`,
-        `$${(s.saldoAnterior + s.interes).toLocaleString()}`
+        s.id,
+        `$${Number(s.ahorroActual || 0).toLocaleString('es-CO')}`,
+        s.puntos ? s.puntos.toFixed(2) : '0',
+        `$${Number(s.interes || 0).toLocaleString('es-CO')}`,
+        `$${Number(s.nuevoSaldo || 0).toLocaleString('es-CO')}`
     ]);
 
     doc.autoTable({
-        startY: 45,
-        head: [columnas],
+        startY: doc.lastAutoTable.finalY + 15,
+        head: [['SOCIO', 'ID', 'AHORRO ACTUAL', 'PUNTOS', 'INTERÉS', 'NUEVO SALDO']],
         body: filas,
         theme: 'striped',
-        headStyles: { fillColor: [5, 150, 105] }, // Color verde emerald
-        foot: [["TOTALES", "", `$${data.total.toLocaleString()}`, ""]],
-        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+        headStyles: { fillStyle: [79, 70, 229], halign: 'center', fontSize: 8 },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+            0: { cellWidth: 50 },
+            2: { halign: 'right' },
+            3: { halign: 'center' },
+            4: { halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] },
+            5: { halign: 'right' }
+        }
     });
 
-    doc.save(`Reparto_Intereses_${new Date().getFullYear()}.pdf`);
+    // Pie de página
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(100);
+        doc.text(`Documento generado automáticamente por el sistema Natillera.`, 14, 285);
+        doc.text(`Página ${i} de ${totalPages}`, 185, 285, { align: 'right' });
+    }
+
+    doc.save(`Reparto_Intereses_${añoActual}.pdf`);
 }
 
 // --- 3. FUNCIÓN PUENTE (ENVÍO AL SERVIDOR) ---
