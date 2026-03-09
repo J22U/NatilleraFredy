@@ -87,6 +87,94 @@ app.get('/api/lista-rifas', async (req, res) => {
     }
 });
 
+// Cargar rifa - Puede recibir una fecha específica o retorna la más reciente
+app.get('/api/cargar-rifas', async (req, res) => {
+    try {
+        const { fecha } = req.query;
+        const pool = await poolPromise;
+        
+        // Verificar si la tabla Rifas_Datos existe
+        const tableCheck = await pool.request()
+            .query(`IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Datos') 
+                SELECT 1 as existe ELSE SELECT 0 as existe`);
+        
+        if (tableCheck.recordset[0].existe === 0) {
+            // La tabla no existe, crear estructura vacía
+            res.json({ 
+                sinDatos: true, 
+                mensaje: "No hay rifas guardadas",
+                info: { nombre: '', premio: '', valor: '', fecha: '', inversion: '', premios: {} },
+                tabla1: { titulo: 'Tabla 1', participantes: {} },
+                tabla2: { titulo: 'Tabla 2', participantes: {} },
+                tabla3: { titulo: 'Tabla 3', participantes: {} },
+                tabla4: { titulo: 'Tabla 4', participantes: {} }
+            });
+            return;
+        }
+        
+        let result;
+        
+        if (fecha) {
+            // Buscar rifa por fecha específica
+            result = await pool.request()
+                .query("SELECT TOP 1 ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+            
+            // Filtrar manualmente por fecha si hay datos
+            let rifaEncontrada = null;
+            for (const row of result.recordset) {
+                try {
+                    const datos = JSON.parse(row.Datos);
+                    if (datos.info && datos.info.fecha === fecha) {
+                        rifaEncontrada = { id: row.ID, datos };
+                        break;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            if (rifaEncontrada) {
+                rifaEncontrada.datos.idRifa = rifaEncontrada.id;
+                res.json(rifaEncontrada.datos);
+                return;
+            } else {
+                // No se encontró rifa para esa fecha, buscar la más reciente
+                result = await pool.request()
+                    .query("SELECT TOP 1 ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+            }
+        } else {
+            // Sin fecha: cargar la rifa más reciente
+            result = await pool.request()
+                .query("SELECT TOP 1 ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+        }
+        
+        if (result.recordset.length === 0 || !result.recordset[0].Datos) {
+            res.json({ 
+                sinDatos: true, 
+                mensaje: "No hay rifas guardadas",
+                info: { nombre: '', premio: '', valor: '', fecha: '', inversion: '', premios: {} },
+                tabla1: { titulo: 'Tabla 1', participantes: {} },
+                tabla2: { titulo: 'Tabla 2', participantes: {} },
+                tabla3: { titulo: 'Tabla 3', participantes: {} },
+                tabla4: { titulo: 'Tabla 4', participantes: {} }
+            });
+            return;
+        }
+        
+        try {
+            const datos = JSON.parse(result.recordset[0].Datos);
+            datos.idRifa = result.recordset[0].ID;
+            res.json(datos);
+        } catch (parseError) {
+            console.error("Error al parsear datos de rifa:", parseError);
+            res.status(500).json({ error: "Error al leer los datos de la rifa" });
+        }
+    } catch (err) {
+        console.error("Error al cargar rifa:", err.message);
+        res.status(500).json({ error: "Error: " + err.message });
+    }
+});
+
 // Obtener rifa por ID
 app.get('/api/cargar-rifa-id', async (req, res) => {
     try {
