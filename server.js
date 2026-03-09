@@ -1171,12 +1171,43 @@ app.get('/api/backup-database', async (req, res) => {
         const ahorros = await pool.request().query("SELECT * FROM Ahorros");
         const historialPagos = await pool.request().query("SELECT * FROM HistorialPagos");
         
+        // Obtener todas las rifas guardadas
+        let rifas = [];
+        const tableCheck = await pool.request()
+            .query(`IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Datos') 
+                SELECT 1 as existe ELSE SELECT 0 as existe`);
+        
+        if (tableCheck.recordset[0].existe === 1) {
+            const rifasResult = await pool.request()
+                .query("SELECT ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+            
+            rifas = rifasResult.recordset.map(row => {
+                try {
+                    const datos = JSON.parse(row.Datos);
+                    return {
+                        id: row.ID,
+                        nombre: datos.info?.nombre || 'Rifa #' + row.ID,
+                        fecha: datos.info?.fecha || '',
+                        premio: datos.info?.premio || '',
+                        datos: datos
+                    };
+                } catch (e) {
+                    return {
+                        id: row.ID,
+                        nombre: 'Rifa #' + row.ID,
+                        datos: null
+                    };
+                }
+            });
+        }
+        
         const backup = {
             fecha: new Date().toISOString(),
             personas: personas.recordset,
             prestamos: prestamos.recordset,
             ahorros: ahorros.recordset,
-            historialPagos: historialPagos.recordset
+            historialPagos: historialPagos.recordset,
+            rifas: rifas
         };
         
         res.json(backup);

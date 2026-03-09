@@ -5,7 +5,67 @@ let guardandoRifa = false; // Flag para evitar duplicados al guardar
 
 // ==================== SISTEMA DE BACKUP ====================
 
-// Función para crear un backup (descargar JSON)
+// Función para crear un backup de TODAS las rifas existentes (descargar JSON completo)
+function crearBackupTodasRifas() {
+    Swal.fire({
+        title: 'Generando Backup...',
+        html: 'Esto puede tomar unos segundos.',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+    
+    // Llamar al endpoint de backup que ahora incluye todas las rifas
+    fetch('/api/backup-database')
+        .then(res => {
+            if (!res.ok) throw new Error('Error al generar backup');
+            return res.json();
+        })
+        .then(data => {
+            Swal.close();
+            
+            // Convertir los datos a JSON
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            
+            // Crear elemento de descarga
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // Nombre del archivo con fecha
+            const fecha = new Date().toISOString().split('T')[0];
+            const cantidadRifas = data.rifas ? data.rifas.length : 0;
+            a.download = `backup_completo_${fecha}_${cantidadRifas}_rifas.json`;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Limpiar
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            // Mensaje de éxito
+            Swal.fire({
+                title: '¡Backup Creado!',
+                text: `Se han respaldado: ${cantidadRifas} rifas, ${data.personas?.length || 0} personas, ${data.prestamos?.length || 0} préstamos, ${data.ahorros?.length || 0} ahorros.`,
+                icon: 'success',
+                timer: 4000,
+                showConfirmButton: false
+            });
+            
+            console.log('✅ Backup completo creado:', fecha, '- Rifas:', cantidadRifas);
+        })
+        .catch(err => {
+            Swal.close();
+            console.error('❌ Error al crear backup:', err);
+            Swal.fire({
+                title: 'Error',
+                text: 'No se pudo generar el backup. Intenta de nuevo.',
+                icon: 'error'
+            });
+        });
+}
+
+// Función para crear un backup (descargar JSON) - Solo la rifa actual
 function crearBackup() {
     const datos = recolectarDatosPantalla();
     const fecha = datos.info.fecha || new Date().toISOString().split('T')[0];
