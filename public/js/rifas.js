@@ -1,6 +1,7 @@
 let syncTimeout;
 let ultimaSincronizacionManual = 0;
 let timerDebounce;
+let guardandoRifa = false; // Flag para evitar duplicados al guardar
 
 // --- LOCALSTORAGE PARA RESpaldo DE DATOS NO GUARDADOS ---
 
@@ -2886,6 +2887,13 @@ function crearRifaVacia(nombreRifa) {
 // Modificar la función guardarTodo para incluir el ID de la rifa
 const guardarTodoOriginal = guardarTodo;
 guardarTodo = async function() {
+    // 🚫 VERIFICAR SI YA SE ESTÁ GUARDANDO PARA EVITAR DUPLICADOS
+    if (guardandoRifa) {
+        console.log('⏳ Ya se está guardando, esperando...');
+        return;
+    }
+    guardandoRifa = true;
+    
     const status = document.getElementById('sync-status');
     if (status) status.className = 'sync-saving';
 
@@ -2958,6 +2966,9 @@ guardarTodo = async function() {
         console.error("❌ Error de red:", error);
         if (status) status.className = 'sync-error';
         Swal.fire('Error', 'No se pudo guardar la rifa. Verifica tu conexión.', 'error');
+    } finally {
+        // Siempre desbloqueamos el flag, sin importar si fue éxito o error
+        guardandoRifa = false;
     }
 };
 
