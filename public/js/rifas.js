@@ -56,9 +56,7 @@ function crearTabla(t = {}) {
     header.innerHTML = `
         <div>
             <span class="tabla-badge">${idTabla}</span>
-            <input type="text" class="input-table-title" 
-                   value="${t.nombre || t.titulo || 'Tabla ' + idTabla}" 
-                   onclick="event.stopPropagation()">
+            <span class="table-title-display">${t.nombre || t.titulo || 'Tabla ' + idTabla}</span>
         </div>
         <i class="fas fa-chevron-down arrow-icon"></i>
     `;
@@ -2065,6 +2063,23 @@ function asignarNumerosMultiples() {
     const tablaSeleccionada = document.getElementById('tablaClienteMultiple').value;
     const resultadoDiv = document.getElementById('resultadoAsignacion');
     
+    // Verificar que hay una rifa cargada actualmente
+    const fechaActual = document.getElementById('rifaDate')?.value || document.getElementById('filtroFecha')?.value;
+    const idRifaActual = window.idRifaActual;
+    
+    if (!fechaActual && !idRifaActual) {
+        Swal.fire('Error', 'No hay una rifa seleccionada. Por favor selecciona o crea una rifa primero.', 'warning');
+        return;
+    }
+    
+    console.log('🔍 DEBUG - Asignando números:', {
+        nombre,
+        numerosInput,
+        tablaSeleccionada,
+        fechaActual,
+        idRifaActual
+    });
+    
     if (!nombre) {
         Swal.fire('Error', 'Por favor ingresa el nombre del cliente', 'warning');
         return;
@@ -2134,6 +2149,10 @@ function asignarNumerosMultiples() {
         
         if (adelantado) {
             mensaje += `<br><small style="color: #856404;"><i class="fas fa-clock"></i> Pago adelantado activado</small>`;
+        }
+        
+        if (fechaActual) {
+            mensaje += `<br><small style="color: #0984e3;"><i class="fas fa-calendar"></i> Rifa: ${fechaActual}</small>`;
         }
         
         mensaje += `</div>`;

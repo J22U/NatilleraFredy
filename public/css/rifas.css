@@ -236,6 +236,19 @@ body {
     text-overflow: ellipsis;
 }
 
+/* Nuevo estilo para títulos de tablas que no son editables */
+.table-title-display {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: var(--nat-dark);
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* CUERPO DE LA TARJETA */
 /* 1. Esto las oculta por defecto */
 /* 1. Usamos rifa-card-body para que coincida con tu JS */
@@ -259,20 +272,68 @@ body {
     transform: rotate(180deg);
 }
 
-/* GRILLA DE NÚMEROS */
+/* GRILLA DE NÚMEROS - RESPONSIVE */
 .numeros-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); 
-    gap: 12px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+@media (min-width: 480px) {
+    .numeros-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
 }
 
 @media (min-width: 600px) {
-    .numeros-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    .numeros-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 12px;
+    }
+}
+
+@media (min-width: 768px) {
+    .numeros-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 12px;
+    }
+}
+
+@media (min-width: 992px) {
+    .numeros-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
 }
 
 .n-slot {
-    background: #fff; border: 1px solid #edf2f7; border-radius: 12px;
-    padding: 12px; display: flex; flex-direction: column; gap: 8px;
+    background: #fff;
+    border: 1px solid #edf2f7;
+    border-radius: 10px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 60px;
+    transition: all 0.2s ease;
+}
+
+@media (max-width: 480px) {
+    .n-slot {
+        padding: 8px 6px;
+        min-height: 55px;
+        border-radius: 8px;
+    }
+    
+    .n-number {
+        font-size: 14px;
+    }
+    
+    .n-name {
+        font-size: 10px;
+        padding: 4px;
+    }
 }
 
 .n-number { font-size: 16px; font-weight: 800; color: var(--nat-blue); }
@@ -532,9 +593,10 @@ body {
 
 /* Responsive para estadísticas y historial en móvil */
 @media (max-width: 600px) {
-    /* Estadísticas más compactas */
+    /* Estadísticas - cambiar a grid de 1 columna */
     .stats-grid {
-        gap: 8px !important;
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
     }
     
     /* Historial de ganancias - tabla responsive */
@@ -561,5 +623,11 @@ body {
     #contenidoHistorialGanancias > div:last-child {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (min-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
     }
 }
