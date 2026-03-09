@@ -1259,33 +1259,7 @@ function inicializarRifa() {
     });
     
     // === SINCRONIZAR NOMBRE DE RIFA CON FECHA DE SORTEO ===
-    // Cuando se escribe en "Nombre de la Rifa", automáticamente se copia al campo "Fecha Sorteo"
-    const rifaNameInput = document.getElementById('rifaName');
-    const rifaDateInput = document.getElementById('rifaDate');
-    if (rifaNameInput && rifaDateInput) {
-        // Función para sincronizar el nombre a la fecha
-        const sincronizarNombreAFecha = function() {
-            const nombreRifa = rifaNameInput.value.trim();
-            // SIEMPRE copiar el nombre al campo de fecha (sobrescribe cualquier fecha anterior)
-            if (nombreRifa) {
-                rifaDateInput.value = nombreRifa;
-                
-                // También sincronizar con filtroFecha si existe
-                const filtroFecha = document.getElementById('filtroFecha');
-                if (filtroFecha) {
-                    filtroFecha.value = nombreRifa;
-                }
-                
-                console.log('📅 Nombre de rifa copiado a fecha:', nombreRifa);
-            }
-        };
-        
-        // Agregar listener para cuando el usuario escribe
-        rifaNameInput.addEventListener('input', sincronizarNombreAFecha);
-        
-        // También ejecutar inmediatamente si ya hay un nombre (al cargar rifa existente)
-        sincronizarNombreAFecha();
-    }
+    // El campo fecha de sorteo ha sido eliminado, ahora el nombre de la rifa se usa como identificador
 }
 
 // Llamar al inicio al cargar la página
