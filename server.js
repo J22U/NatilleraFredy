@@ -810,7 +810,7 @@ app.get('/listar-inactivos', async (req, res) => {
 app.get('/api/ganancias-disponibles', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query("SELECT ISNULL(SUM(InteresesPagados), 0) as saldo FROM Prestamos");
+        const result = await pool.request().query("SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) as saldo FROM Prestamos WHERE Estado = 'Activo'");
         res.json(result.recordset[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -851,7 +851,7 @@ app.get('/api/datos-reparto', async (req, res) => {
         const pool = await poolPromise;
         
         // Obtener ganancias disponibles
-        const resultGanancias = await pool.request().query("SELECT ISNULL(SUM(InteresesPagados), 0) as saldo FROM Prestamos");
+        const resultGanancias = await pool.request().query("SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) as saldo FROM Prestamos WHERE Estado = 'Activo'");
         const gananciasDisponibles = parseFloat(resultGanancias.recordset[0].saldo || 0);
         
         // Obtener socios con esfuerzo
@@ -1761,3 +1761,4 @@ inicializarBaseDeDatos().then(() => {
         console.log('SERVIDOR CORRIENDO EN PUERTO ' + PORT);
     });
 });
+
