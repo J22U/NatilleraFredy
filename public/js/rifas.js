@@ -2583,7 +2583,16 @@ async function cargarRifaSeleccionada() {
                 document.getElementById('rifaPrize').value = datos.info.premio || '';
                 document.getElementById('rifaCost').value = datos.info.valor || '';
                 document.getElementById('costoPremio').value = datos.info.inversion || '';
-                document.getElementById('rifaDate').value = datos.info.fecha || '';
+                
+                // ACTUALIZAR LOS CAMPOS DE FECHA - Esto es clave para que funcione el cambio de rifa
+                const fechaRifa = datos.info.fecha || '';
+                document.getElementById('rifaDate').value = fechaRifa;
+                
+                // También actualizar el filtro de fecha si existe
+                const filtroFecha = document.getElementById('filtroFecha');
+                if (filtroFecha) {
+                    filtroFecha.value = fechaRifa;
+                }
             }
             
             // Guardar el ID de la rifa actual
@@ -2609,7 +2618,12 @@ async function cargarRifaSeleccionada() {
             // Cargar premios
             cargarPremios(datos);
             
+            // IMPORTANTE: Sincronizar el selector con la rifa cargada
+            selector.value = idSeleccionado;
+            
             console.log('✅ Rifa #' + idSeleccionado + ' cargada correctamente');
+        } else {
+            console.log('⚠️ No se encontraron datos para la rifa #' + idSeleccionado);
         }
     } catch (error) {
         console.error("Error al cargar rifa:", error);
