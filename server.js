@@ -382,6 +382,67 @@ app.get('/api/historial-rifas', async (req, res) => {
 
 // --- OTRAS RUTAS ---
 
+// Obtener premios pendientes de todas las rifas
+app.get('/api/premios-pendientes', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Verificar si la tabla Rifas_Datos existe
+        const tableCheck = await pool.request()
+            .query(`IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Datos') 
+                SELECT 1 as existe ELSE SELECT 0 as existe`);
+        
+        if (tableCheck.recordset[0].existe === 0) {
+            res.json([]);
+            return;
+        }
+        
+        // Obtener todas las rifas
+        const result = await pool.request()
+            .query("SELECT ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+        
+        const premiosPendientes = [];
+        
+        for (const row of result.recordset) {
+            try {
+                const datos = JSON.parse(row.Datos);
+                const nombreRifa = datos.info?.nombre || 'Rifa #' + row.ID;
+                const fechaSorteo = datos.info?.fecha || '';
+                
+                // Revisar cada tabla por premios
+                if (datos.info && datos.info.premios) {
+                    for (let i = 1; i <= 4; i++) {
+                        const key = `tabla${i}`;
+                        if (datos.info.premios[key] && datos.info.premios[key].ganadores) {
+                            datos.info.premios[key].ganadores.forEach((ganador, index) => {
+                                // Solo mostrar si tiene número y nombre pero NO está entregado
+                                if (ganador.numero && ganador.nombre && !ganador.entregado) {
+                                    premiosPendientes.push({
+                                        idRifa: row.ID,
+                                        nombreRifa: nombreRifa,
+                                        fechaSorteo: fechaSorteo,
+                                        tabla: i,
+                                        posicion: index + 1,
+                                        numero: ganador.numero,
+                                        nombreGanador: ganador.nombre
+                                    });
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log("Error al procesar rifa:", e.message);
+            }
+        }
+        
+        res.json(premiosPendientes);
+    } catch (err) {
+        console.error("Error al obtener premios pendientes:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/socios-esfuerzo', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -1777,4 +1838,7 @@ inicializarBaseDeDatos().then(() => {
         console.log('SERVIDOR CORRIENDO EN PUERTO ' + PORT);
     });
 });
+
+
+
 
