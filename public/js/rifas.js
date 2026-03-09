@@ -3,6 +3,132 @@ let ultimaSincronizacionManual = 0;
 let timerDebounce;
 let guardandoRifa = false; // Flag para evitar duplicados al guardar
 
+// ==================== SISTEMA DE BACKUP ====================
+
+// Función para crear un backup (descargar JSON)
+function crearBackup() {
+    const datos = recolectarDatosPantalla();
+    const fecha = datos.info.fecha || new Date().toISOString().split('T')[0];
+    const nombreRifa = datos.info.nombre || 'Rifa';
+    
+    // Convertir los datos a JSON
+    const jsonString = JSON.stringify(datos, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    
+    // Crear elemento de descarga
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_rifa_${nombreRifa}_${fecha}.json`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Limpiar
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    // Mensaje de éxito
+    Swal.fire({
+        title: '¡Backup Creado!',
+        text: `El backup se ha descargado como backup_rifa_${nombreRifa}_${fecha}.json`,
+        icon: 'success',
+        timer: 2500,
+        showConfirmButton: false
+    });
+    
+    console.log('✅ Backup creado:', fecha);
+}
+
+// Función para restaurar un backup desde archivo
+function restaurarBackup() {
+    // Crear input de archivo
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        try {
+            // Leer el archivo
+            const text = await file.text();
+            const datos = JSON.parse(text);
+            
+            // Confirmar restauración
+            const result = await Swal.fire({
+                title: '¿Restaurar Backup?',
+                html: `Se restaurarán los datos del archivo: <b>${file.name}</b><br><br>
+                       Los datos actuales se perderán. ¿Continuar?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#00b894',
+                cancelButtonColor: '#dfe6e9',
+                confirmButtonText: '<i class="fas fa-download"></i> Restaurar',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
+            });
+            
+            if (!result.isConfirmed) return;
+            
+            // Restaurar los datos
+            if (datos.info) {
+                if(document.getElementById('rifaName')) document.getElementById('rifaName').value = datos.info.nombre || '';
+                if(document.getElementById('rifaPrize')) document.getElementById('rifaPrize').value = datos.info.premio || '';
+                if(document.getElementById('rifaCost')) document.getElementById('rifaCost').value = datos.info.valor || '';
+                if(document.getElementById('costoPremio')) document.getElementById('costoPremio').value = datos.info.inversion || '';
+                if(document.getElementById('rifaDate')) document.getElementById('rifaDate').value = datos.info.fecha || '';
+            }
+            
+            // Limpiar y recrear las tablas
+            const container = document.getElementById('rifasContainer');
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= 4; i++) {
+                const key = `tabla${i}`;
+                const tablaData = datos[key] || { titulo: `Tabla ${i}`, participantes: {} };
+                crearTabla({ 
+                    nombre: tablaData.titulo || `Tabla ${i}`, 
+                    idTabla: i, 
+                    participantes: tablaData.participantes || {} 
+                });
+            }
+            
+            // Cargar premios si existen
+            if (datos.info && datos.info.premios) {
+                datosPremios = datos.info.premios;
+                renderizarPanelPremios();
+            }
+            
+            // Actualizar contadores
+            actualizarContadoresRifa();
+            
+            // Guardar automáticamente después de restaurar
+            await guardarTodo();
+            
+            Swal.fire({
+                title: '¡Restaurado!',
+                text: 'Los datos del backup se han restaurado correctamente.',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
+            console.log('✅ Backup restaurado:', file.name);
+            
+        } catch (error) {
+            console.error('❌ Error al restaurar backup:', error);
+            Swal.fire({
+                title: 'Error',
+                text: 'No se pudo restaurar el backup. Verifica que el archivo sea válido.',
+                icon: 'error'
+            });
+        }
+    };
+    
+    input.click();
+}
+
 // --- LOCALSTORAGE PARA RESpaldo DE DATOS NO GUARDADOS ---
 
 // Guardar en localStorage cuando hay cambios

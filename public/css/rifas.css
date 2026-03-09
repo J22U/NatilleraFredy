@@ -687,3 +687,56 @@ body {
         min-width: 100% !important;
     }
 }
+
+/* Responsive para header en móvil - hacer que el botón Volver quede arriba */
+@media (max-width: 768px) {
+    .main-header > div {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    
+    .header-left {
+        order: 1 !important;
+        flex-basis: auto !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+    }
+    
+    .header-center {
+        order: 2 !important;
+        flex-basis: auto !important;
+        margin: 10px 0 !important;
+        width: 100% !important;
+    }
+    
+    .header-center h1 {
+        font-size: 1.4rem !important;
+    }
+    
+    .header-right {
+        order: 3 !important;
+        flex-basis: auto !important;
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    
+    /* Ajustar selector de rifa para móvil */
+    .header-left > div {
+        width: 100% !important;
+        margin-top: 10px;
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+    }
+    
+    .header-left > div select {
+        min-width: 120px !important;
+        flex: 1;
+    }
+    
+    /* Evitar overflow horizontal */
+    .main-header {
+        overflow-x: hidden;
+        padding: 15px !important;
+    }
+}
