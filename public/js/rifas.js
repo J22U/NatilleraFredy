@@ -2851,7 +2851,8 @@ async function cargarRifaSeleccionada() {
                 
                 // ACTUALIZAR LOS CAMPOS DE FECHA - Esto es clave para que funcione el cambio de rifa
                 const fechaRifa = datos.info.fecha || '';
-                document.getElementById('rifaDate').value = fechaRifa;
+                const rifaDateEl = document.getElementById('rifaDate');
+                if (rifaDateEl) rifaDateEl.value = fechaRifa;
                 
                 // También actualizar el filtro de fecha si existe
                 const filtroFecha = document.getElementById('filtroFecha');
