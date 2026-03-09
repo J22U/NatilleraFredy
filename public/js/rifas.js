@@ -2787,6 +2787,9 @@ async function crearNuevaRifa() {
                             timer: 2500,
                             showConfirmButton: false
                         });
+                        
+                        // Auto-guardar la nueva rifa automáticamente
+                        await guardarTodo();
                         return;
                     }
                 } catch (error) {
@@ -2878,7 +2881,7 @@ async function crearNuevaRifa() {
 }
 
 // Función auxiliar para crear rifa vacía
-function crearRifaVacia(nombreRifa) {
+async function crearRifaVacia(nombreRifa) {
     // Limpiar los campos
     document.getElementById('rifaName').value = nombreRifa;
     document.getElementById('rifaPrize').value = '';
@@ -2922,6 +2925,9 @@ function crearRifaVacia(nombreRifa) {
         timer: 2000,
         showConfirmButton: false
     });
+    
+    // Auto-guardar la nueva rifa automáticamente
+    await guardarTodo();
 }
 
 // Modificar la función guardarTodo para incluir el ID de la rifa
