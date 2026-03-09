@@ -2743,15 +2743,17 @@ async function crearNuevaRifa() {
                             const tablaAnterior = datosAnterior[key];
                             
                             if (tablaAnterior && tablaAnterior.participantes) {
-                                // Copiar participantes pero sin pagos (todos pendientes)
+                                // Copiar participantes: los que tenían "pago adelantado" aparecen como pagados en la nueva rifa
                                 const participantesCopia = {};
                                 Object.keys(tablaAnterior.participantes).forEach(num => {
                                     const p = tablaAnterior.participantes[num];
                                     if (p.nombre && p.nombre.trim() !== '') {
+                                        // Si tenía pago adelantado, pasa a estar pagado en la nueva rifa
+                                        const esPagado = (p.adelantado === true || p.adelantado === "true");
                                         participantesCopia[num] = {
                                             nombre: p.nombre,
-                                            pago: false, // Reiniciar pagos
-                                            adelantado: false
+                                            pago: esPagado, // true solo si era adelantado
+                                            adelantado: false // El adelantar se consume
                                         };
                                     }
                                 });
