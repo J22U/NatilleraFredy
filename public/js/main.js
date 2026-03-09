@@ -2301,6 +2301,35 @@ function generarPDFReparto(data) {
         columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
     });
 
+    // SOCIO NO BENEFICIADO
+    if (data.socioNoBeneficiado) {
+        doc.setFontSize(11);
+        doc.setTextColor(185, 28, 28); // Rose 600
+        doc.text("SOCIO NO BENEFICIADO", 14, doc.lastAutoTable.finalY + 12);
+        
+        doc.autoTable({
+            startY: doc.lastAutoTable.finalY + 15,
+            head: [['ID', 'NOMBRE', 'AHORRO ACTUAL', 'PUNTOS', 'MOTIVO']],
+            body: [[
+                data.socioNoBeneficiado.id,
+                data.socioNoBeneficiado.nombre,
+                `$ ${Number(data.socioNoBeneficiado.ahorroActual || 0).toLocaleString('es-CO')}`,
+                data.socioNoBeneficiado.puntos || 0,
+                data.socioNoBeneficiado.motivo || 'Sin antigüedad mínima'
+            ]],
+            theme: 'striped',
+            headStyles: { fillStyle: [220, 38, 38], halign: 'center' },
+            styles: { fontSize: 9, cellPadding: 3 },
+            columnStyles: {
+                0: { cellWidth: 15, halign: 'center' },
+                1: { cellWidth: 50 },
+                2: { halign: 'right' },
+                3: { halign: 'center' },
+                4: { cellWidth: 60 }
+            }
+        });
+    }
+
     // Detalle por Socio
     doc.setFontSize(11);
     doc.text("DETALLE POR SOCIO", 14, doc.lastAutoTable.finalY + 12);

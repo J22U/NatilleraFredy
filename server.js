@@ -883,7 +883,7 @@ app.get('/api/datos-reparto', async (req, res) => {
         socios.forEach(socio => {
             const puntosSocio = parseFloat(socio.puntosEsfuerzo || 0);
             const saldoReal = parseFloat(socio.totalAhorrado || 0);
-            
+
             if (puntosSocio > 0) {
                 const interesJusto = Math.floor(puntosSocio * valorPunto);
                 sociosConReparto.push({
@@ -894,9 +894,18 @@ app.get('/api/datos-reparto', async (req, res) => {
                     interes: interesJusto,
                     nuevoSaldo: saldoReal + interesJusto
                 });
+            } else {
+                // Socio no beneficiado - guardar para el reporte
+                socioNoBeneficiado = {
+                    id: socio.id,
+                    nombre: socio.nombre,
+                    ahorroActual: saldoReal,
+                    puntos: 0,
+                    motivo: saldoReal > 0 ? 'Sin antigüedad mínima (0 puntos de esfuerzo)' : 'Sin ahorros registrados'
+                };
             }
         });
-        
+
         res.json({
             totalGanancias: gananciasDisponibles,
             totalPuntos: totalPuntosNatillera,
@@ -904,7 +913,8 @@ app.get('/api/datos-reparto', async (req, res) => {
             socios: sociosConReparto,
             totalRepartido: sociosConReparto.reduce((acc, s) => acc + s.interes, 0),
             totalSociosAhorradores: totalSociosAhorradores,
-            sociosBeneficiados: sociosConReparto.length
+            sociosBeneficiados: sociosConReparto.length,
+            socioNoBeneficiado: socioNoBeneficiado
         });
     } catch (err) {
         console.error("Error en /api/datos-reparto:", err.message);
