@@ -2798,6 +2798,24 @@ async function crearNuevaRifa() {
             // Si no se copia o hubo error, crear rifa vacía
             crearRifaVacia(nombreRifa);
             
+            // Auto-guardar la nueva rifa
+            Swal.fire({
+                title: 'Guardando...',
+                text: 'Creando y guardando la nueva rifa',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+            
+            await guardarTodo();
+            
+            Swal.fire({
+                title: 'Nueva Rifa Creada!',
+                text: 'La rifa se ha guardado automaticamente.',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
         } else {
             // No hay rifas anteriores, crear rifa vacía directamente
             const { value: nombreRifa } = await Swal.fire({
@@ -2817,6 +2835,24 @@ async function crearNuevaRifa() {
             
             if (!nombreRifa) return;
             crearRifaVacia(nombreRifa);
+            
+            // Auto-guardar la nueva rifa
+            Swal.fire({
+                title: 'Guardando...',
+                text: 'Creando y guardando la nueva rifa',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+            
+            await guardarTodo();
+            
+            Swal.fire({
+                title: 'Nueva Rifa Creada!',
+                text: 'La rifa se ha guardado automaticamente.',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
         }
         
     } catch (error) {
@@ -2848,8 +2884,12 @@ function crearRifaVacia(nombreRifa) {
     document.getElementById('rifaPrize').value = '';
     document.getElementById('rifaCost').value = '';
     document.getElementById('costoPremio').value = '';
-    document.getElementById('rifaDate').value = '';
+    document.getElementById('rifaDate').value = new Date().toISOString().split('T')[0];
     
+    // Sincronizar con el filtro de fecha
+    const filtroFecha = document.getElementById('filtroFecha');
+    if (filtroFecha) filtroFecha.value = new Date().toISOString().split('T')[0];
+
     // Limpiar el ID de rifa actual
     window.idRifaActual = null;
     
