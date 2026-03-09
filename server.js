@@ -386,13 +386,32 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request().query(`
-            SELECT P.ID_Persona as id, P.Nombre as nombre, P.Documento as documento, P.EsSocio,
-            CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
-            ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado
-            FROM Personas P WHERE P.Estado = 'Activo'
+            SELECT 
+                P.ID_Persona as id, 
+                P.Nombre as nombre, 
+                P.Documento as documento, 
+                P.EsSocio,
+                CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
+                ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
+                -- Calcular puntos de esfuerzo basados en antigüedad (fecha del primer ahorro) y ahorro
+                -- Puntos = (Meses de antigüedad desde primer ahorro * 10) + (Total Ahorrado / 1000)
+                -- Esto da más peso a quienes llevan más tiempo ahorrando Y tienen más ahorro
+                ISNULL((SELECT MIN(Fecha) FROM Ahorros WHERE ID_Persona = P.ID_Persona), GETDATE()) as primeraFechaAhorro,
+                DATEDIFF(MONTH, (SELECT MIN(Fecha) FROM Ahorros WHERE ID_Persona = P.ID_Persona), GETDATE()) as mesesAntiguedad,
+                ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as saldoTotal,
+                -- Calcular puntos de esfuerzo: mínimo 1 punto si tiene ahorro (para que no sea 0)
+                CASE 
+                    WHEN ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) > 0 THEN
+                        ISNULL(DATEDIFF(MONTH, (SELECT MIN(Fecha) FROM Ahorros WHERE ID_Persona = P.ID_Persona), GETDATE()), 0) * 10 + 
+                        ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) / 1000
+                    ELSE 0
+                END as puntosEsfuerzo
+            FROM Personas P 
+            WHERE P.Estado = 'Activo'
         `);
         res.json(result.recordset);
     } catch (err) {
+        console.error("Error en /api/socios-esfuerzo:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -1160,16 +1179,10 @@ app.delete('/api/eliminar-pago-deuda', async (req, res) => {
 
 // --- ENDPOINTS DE BACKUP Y RESTORE ---
 
-// Endpoint para descargar backup de la base de datos
-app.get('/api/backup-database', async (req, res) => {
+// Endpoint para descargar backup de SOLO las rifas
+app.get('/api/backup-rifas', async (req, res) => {
     try {
         const pool = await poolPromise;
-        
-        // Obtener todas las tablas importantes
-        const personas = await pool.request().query("SELECT * FROM Personas");
-        const prestamos = await pool.request().query("SELECT * FROM Prestamos");
-        const ahorros = await pool.request().query("SELECT * FROM Ahorros");
-        const historialPagos = await pool.request().query("SELECT * FROM HistorialPagos");
         
         // Obtener todas las rifas guardadas
         let rifas = [];
@@ -1203,11 +1216,35 @@ app.get('/api/backup-database', async (req, res) => {
         
         const backup = {
             fecha: new Date().toISOString(),
+            tipo: 'rifas',
+            rifas: rifas
+        };
+        
+        res.json(backup);
+    } catch (err) {
+        console.error("Error en backup de rifas:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Endpoint para descargar backup de la base de datos (solo personas, prestamos, ahorros, historialPagos)
+app.get('/api/backup-database', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Obtener todas las tablas importantes
+        const personas = await pool.request().query("SELECT * FROM Personas");
+        const prestamos = await pool.request().query("SELECT * FROM Prestamos");
+        const ahorros = await pool.request().query("SELECT * FROM Ahorros");
+        const historialPagos = await pool.request().query("SELECT * FROM HistorialPagos");
+        
+        const backup = {
+            fecha: new Date().toISOString(),
+            tipo: 'sistema',
             personas: personas.recordset,
             prestamos: prestamos.recordset,
             ahorros: ahorros.recordset,
-            historialPagos: historialPagos.recordset,
-            rifas: rifas
+            historialPagos: historialPagos.recordset
         };
         
         res.json(backup);
@@ -1557,6 +1594,13 @@ app.delete('/api/eliminar-rifa', async (req, res) => {
 async function inicializarBaseDeDatos() {
     try {
         const pool = await poolPromise;
+        
+        // Verificar si existe la columna FechaRegistro en Personas (para calcular antigüedad)
+        await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Personas' AND COLUMN_NAME = 'FechaRegistro')
+            BEGIN
+                ALTER TABLE Personas ADD FechaRegistro DATETIME DEFAULT GETDATE()
+            END`);
         
         // Verificar si existe la columna InteresesPagados en Prestamos
         await pool.request()

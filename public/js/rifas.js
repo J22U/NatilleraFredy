@@ -8,14 +8,14 @@ let guardandoRifa = false; // Flag para evitar duplicados al guardar
 // Función para crear un backup de TODAS las rifas existentes (descargar JSON completo)
 function crearBackupTodasRifas() {
     Swal.fire({
-        title: 'Generando Backup...',
+        title: 'Generando Backup de Rifas...',
         html: 'Esto puede tomar unos segundos.',
         allowOutsideClick: false,
         didOpen: () => { Swal.showLoading(); }
     });
     
-    // Llamar al endpoint de backup que ahora incluye todas las rifas
-    fetch('/api/backup-database')
+    // Llamar al endpoint de solo rifas
+    fetch('/api/backup-rifas')
         .then(res => {
             if (!res.ok) throw new Error('Error al generar backup');
             return res.json();
@@ -35,7 +35,7 @@ function crearBackupTodasRifas() {
             // Nombre del archivo con fecha
             const fecha = new Date().toISOString().split('T')[0];
             const cantidadRifas = data.rifas ? data.rifas.length : 0;
-            a.download = `backup_completo_${fecha}_${cantidadRifas}_rifas.json`;
+            a.download = `backup_rifas_${fecha}_${cantidadRifas}_rifas.json`;
             document.body.appendChild(a);
             a.click();
             
@@ -45,21 +45,80 @@ function crearBackupTodasRifas() {
             
             // Mensaje de éxito
             Swal.fire({
-                title: '¡Backup Creado!',
-                text: `Se han respaldado: ${cantidadRifas} rifas, ${data.personas?.length || 0} personas, ${data.prestamos?.length || 0} préstamos, ${data.ahorros?.length || 0} ahorros.`,
+                title: '¡Backup de Rifas Creado!',
+                text: `Se han respaldado: ${cantidadRifas} rifas.`,
                 icon: 'success',
                 timer: 4000,
                 showConfirmButton: false
             });
             
-            console.log('✅ Backup completo creado:', fecha, '- Rifas:', cantidadRifas);
+            console.log('✅ Backup de rifas creado:', fecha, '- Rifas:', cantidadRifas);
         })
         .catch(err => {
             Swal.close();
-            console.error('❌ Error al crear backup:', err);
+            console.error('❌ Error al crear backup de rifas:', err);
             Swal.fire({
                 title: 'Error',
-                text: 'No se pudo generar el backup. Intenta de nuevo.',
+                text: 'No se pudo generar el backup de rifas. Intenta de nuevo.',
+                icon: 'error'
+            });
+        });
+}
+
+// Función para crear backup del sistema (personas, prestamos, ahorros)
+function crearBackupSistema() {
+    Swal.fire({
+        title: 'Generando Backup del Sistema...',
+        html: 'Esto puede tomar unos segundos.',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+    
+    // Llamar al endpoint del sistema
+    fetch('/api/backup-database')
+        .then(res => {
+            if (!res.ok) throw new Error('Error al generar backup');
+            return res.json();
+        })
+        .then(data => {
+            Swal.close();
+            
+            // Convertir los datos a JSON
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            
+            // Crear elemento de descarga
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // Nombre del archivo con fecha
+            const fecha = new Date().toISOString().split('T')[0];
+            a.download = `backup_sistema_${fecha}.json`;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Limpiar
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            // Mensaje de éxito
+            Swal.fire({
+                title: '¡Backup del Sistema Creado!',
+                text: `Se han respaldado: ${data.personas?.length || 0} personas, ${data.prestamos?.length || 0} préstamos, ${data.ahorros?.length || 0} ahorros.`,
+                icon: 'success',
+                timer: 4000,
+                showConfirmButton: false
+            });
+            
+            console.log('✅ Backup del sistema creado:', fecha);
+        })
+        .catch(err => {
+            Swal.close();
+            console.error('❌ Error al crear backup del sistema:', err);
+            Swal.fire({
+                title: 'Error',
+                text: 'No se pudo generar el backup del sistema. Intenta de nuevo.',
                 icon: 'error'
             });
         });
