@@ -2643,11 +2643,40 @@ guardarTodo = async function() {
 const inicializarRifaOriginal = inicializarRifa;
 inicializarRifa = function() {
     // Primero cargar la lista de rifas
-    cargarListaRifas();
-    
-    // Luego inicializar como antes
-    inicializarRifaOriginal();
+    cargarListaRifas().then(() => {
+        // Después de cargar la lista, seleccionar la última rifa o crear tablas vacías
+        const selector = document.getElementById('rifaSelector');
+        
+        if (selector && selector.options.length > 1) {
+            // Hay rifas guardadas, seleccionar la última (la primera en la lista después de "-- Nueva Rifa --")
+            selector.selectedIndex = 1;
+            
+            // Obtener el ID de la rifa seleccionada
+            const idSeleccionado = selector.value;
+            
+            if (idSeleccionado) {
+                // Cargar los datos de esa rifa
+                cargarRifaSeleccionada();
+            }
+        } else {
+            // No hay rifas, crear tablas vacías
+            crearTablasVacias();
+        }
+    });
 };
+
+// Función auxiliar para crear tablas vacías
+function crearTablasVacias() {
+    const container = document.getElementById('rifasContainer');
+    container.innerHTML = '';
+    
+    for (let i = 1; i <= 4; i++) {
+        crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
+    }
+    
+    actualizarContadoresRifa();
+    renderizarPanelPremios();
+}
 
 // Modificar eliminarRifa para usar el ID
 const eliminarRifaOriginal = eliminarRifa;

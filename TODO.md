@@ -32,6 +32,11 @@
 3. **Guardar:** Los datos se guardan asociados al ID de la rifa
 4. **Eliminar:** Elimina la rifa actual
 
+### Correciones realizadas:
+- ✅ Al cargar la página, ahora se carga automáticamente la última rifa guardada
+- ✅ Al seleccionar una rifa del dropdown, se cargan sus datos correctamente
+- ✅ Los datos persisten al refrescar la página
+
 ### Ventajas:
 - ✅ Sin problemas de timezone
 - ✅ Sin problemas de fechas duplicadas
