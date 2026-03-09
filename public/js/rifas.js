@@ -866,13 +866,14 @@ async function cargarHistorialGanancias() {
         
         let html = '';
         datos.forEach(rifa => {
-            const fecha = rifa.fechaSorteo ? new Date(rifa.fechaSorteo).toLocaleDateString('es-CO') : 'N/A';
+            // CAMBIO: Mostrar el NOMBRE de la rifa en lugar de la fecha
+            const nombreRifa = rifa.nombre || rifa.fechaSorteo || 'Rifa #' + rifa.id;
             const ganancia = parseFloat(rifa.gananciaNeta) || 0;
             const colorGanancia = ganancia >= 0 ? '#00b894' : '#e74c3c';
             
             html += `
                 <tr style="border-bottom: 1px solid #f1f2f6;">
-                    <td style="padding: 12px; font-weight: 600;">📅 ${fecha}</td>
+                    <td style="padding: 12px; font-weight: 600;">🎯 ${nombreRifa}</td>
                     <td style="padding: 12px; text-align: right;">${formato.format(rifa.totalRecaudado || 0)}</td>
                     <td style="padding: 12px; text-align: right;">${formato.format(rifa.costoPremios || rifa.costoPremio || 0)}</td>
                     <td style="padding: 12px; text-align: right; font-weight: 700; color: ${colorGanancia};">${formato.format(ganancia)}</td>
@@ -901,6 +902,11 @@ async function cargarHistorialGanancias() {
         `;
     }
 }
+
+// Auto-refresco del historial de ganancias cada 30 segundos
+setInterval(() => {
+    cargarHistorialGanancias();
+}, 30000); // 30000ms = 30 segundos
 
 function actualizarDisplayGanancias() {
     const elemento = document.getElementById('stats-ganancia');
