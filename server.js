@@ -39,49 +39,74 @@ app.post('/login', (req, res) => {
     }
 });
 
-// --- RUTAS DE RIFAS ---
+// --- RUTAS DE RIFAS (POR NOMBRE/ID - SIMPLE) ---
 
-// Obtener los datos de las rifas desde Rifas_Detalle
-app.get('/api/cargar-rifas', async (req, res) => {
+// Obtener lista de todas las rifas
+app.get('/api/lista-rifas', async (req, res) => {
     try {
-        // Usar la fecha directamente del query string sin normalización problemática
-        // El frontend ya envía la fecha en formato YYYY-MM-DD
-        let fecha = req.query.fecha;
+        const pool = await poolPromise;
+        
+        // Verificar si la tabla Rifas_Datos existe
+        const tableCheck = await pool.request()
+            .query(`IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Datos') 
+                SELECT 1 as existe ELSE SELECT 0 as existe`);
+        
+        if (tableCheck.recordset[0].existe === 0) {
+            res.json([]);
+            return;
+        }
+        
+        // Obtener los IDs únicos de rifas guardadas (usando el ID como identificador)
+        // Ahora parseamos los Datos JSON para obtener el nombre
+        const result = await pool.request()
+            .query("SELECT ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+        
+        const listaRifas = result.recordset.map(row => {
+            try {
+                const datos = JSON.parse(row.Datos);
+                return {
+                    id: row.ID,
+                    nombre: datos.info?.nombre || 'Rifa #' + row.ID,
+                    fecha: datos.info?.fecha || '',
+                    premio: datos.info?.premio || ''
+                };
+            } catch (e) {
+                return {
+                    id: row.ID,
+                    nombre: 'Rifa #' + row.ID,
+                    fecha: '',
+                    premio: ''
+                };
+            }
+        });
+        
+        res.json(listaRifas);
+    } catch (err) {
+        console.error("Error al obtener lista de rifas:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Obtener rifa por ID
+app.get('/api/cargar-rifa-id', async (req, res) => {
+    try {
+        const { id } = req.query;
+        
+        if (!id) {
+            return res.status(400).json({ error: "ID de rifa requerido" });
+        }
         
         const pool = await poolPromise;
         
-        console.log('🔍 DEBUG cargar-rifas - Fecha recibida del frontend:', fecha);
-        
-        let query;
-        
-        if (fecha) {
-            query = `
-                SELECT Id, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
-                FROM Rifas_Detalle 
-                WHERE CONVERT(VARCHAR(10), FechaSorteo, 120) = @fechaBuscada
-                ORDER BY TablaId, Numero
-            `;
-        } else {
-            query = `
-                SELECT Id, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla, FechaSorteo
-                FROM Rifas_Detalle 
-                ORDER BY FechaSorteo DESC, TablaId, Numero
-            `;
-        }
-
-        console.log('🔍 DEBUG cargar-rifas - Query a ejecutar:', query);
-        
         const result = await pool.request()
-            .input('fechaBuscada', sql.VarChar(10), fecha || null)
-            .query(query);
-
-        console.log('🔍 DEBUG cargar-rifas - Registros encontrados:', result.recordset.length);
+            .input('id', sql.Int, id)
+            .query("SELECT TOP 1 Datos FROM Rifas_Datos WHERE ID = @id");
         
-        if (result.recordset.length === 0) {
+        if (result.recordset.length === 0 || !result.recordset[0].Datos) {
             res.json({ 
                 sinDatos: true, 
-                mensaje: "No hay rifa guardada",
-                info: { nombre: '', premio: '', valor: '', fecha: req.query.fecha || '', inversion: '' },
+                mensaje: "Rifa no encontrada",
+                info: { nombre: '', premio: '', valor: '', fecha: '', inversion: '' },
                 tabla1: { titulo: 'Tabla 1', participantes: {} },
                 tabla2: { titulo: 'Tabla 2', participantes: {} },
                 tabla3: { titulo: 'Tabla 3', participantes: {} },
@@ -89,209 +114,157 @@ app.get('/api/cargar-rifas', async (req, res) => {
             });
             return;
         }
-
-        // Ver las fechas que existen en la base de datos
-        const fechasExistentes = await pool.request().query('SELECT DISTINCT TOP 5 FechaSorteo FROM Rifas_Detalle ORDER BY FechaSorteo DESC');
-        console.log('🔍 DEBUG cargar-rifas - Fechas en BD:', fechasExistentes.recordset.map(r => r.FechaSorteo));
-
-        // Consultar también Rifas_Info para obtener la información de la rifa
-        let infoRifa = { nombre: '', premio: '', valor: '', fecha: req.query.fecha || '', inversion: '' };
-        try {
-            const infoResult = await pool.request()
-                .input('fechaBuscada', sql.Date, fecha || null)
-                .query("SELECT NombreRifa, Premio, ValorPuesto, CostoPremio, Premios FROM Rifas_Info WHERE FechaSorteo = @fechaBuscada");
-            
-            if (infoResult.recordset.length > 0) {
-                const r = infoResult.recordset[0];
-                infoRifa = {
-                    nombre: r.NombreRifa || '',
-                    premio: r.Premo || r.Premio || '',
-                    valor: r.ValorPuesto || '',
-                    fecha: fecha || '',
-                    inversion: r.CostoPremio || ''
-                };
-                // Intentar parsear Premios si existe
-                if (r.Premios) {
-                    try {
-                        infoRifa.premios = JSON.parse(r.Premios);
-                    } catch(e) {}
-                }
-            }
-        } catch(errInfo) {
-            console.log("Error al cargar info de rifa:", errInfo.message);
-        }
-
-        const datos = {
-            info: infoRifa,
-            tabla1: { titulo: 'Tabla 1', participantes: {} },
-            tabla2: { titulo: 'Tabla 2', participantes: {} },
-            tabla3: { titulo: 'Tabla 3', participantes: {} },
-            tabla4: { titulo: 'Tabla 4', participantes: {} }
-        };
-
-        // Determinar si TablaId tiene valores
-        const tieneTablaId = result.recordset.some(r => r.TablaId !== null && r.TablaId !== undefined);
         
-        if (tieneTablaId) {
-            // Usar TablaId del registro
-            result.recordset.forEach(row => {
-                const numTabla = parseInt(row.TablaId);
-                const numStr = row.Numero ? row.Numero.trim() : '';
-                const nombre = row.NombreParticipante || '';
-                const estaPagado = row.EstadoPago === 1 || row.EstadoPago === true;
-                const titulo = row.TituloTabla || 'Tabla ' + numTabla;
-
-                if (numTabla >= 1 && numTabla <= 4 && numStr) {
-                    const keyTabla = 'tabla' + numTabla;
-                    
-                    if (!datos[keyTabla].titulo || datos[keyTabla].titulo === 'Tabla ' + numTabla) {
-                        datos[keyTabla].titulo = titulo;
-                    }
-
-                    if (nombre && nombre.trim() !== '') {
-                        datos[keyTabla].participantes[numStr] = {
-                            nombre: nombre.trim(),
-                            pago: estaPagado
-                        };
-                    }
-                }
-            });
-        } else {
-            // TablaId vacío - los registros ya vienen filtrados por fecha, solo ordenarlos
-            const registrosOrdenados = [...result.recordset].sort((a, b) => a.Id - b.Id);
-            
-            registrosOrdenados.forEach((row, index) => {
-                const numTabla = Math.floor(index / 100) + 1;
-                const numStr = row.Numero ? row.Numero.trim() : '';
-                const nombre = row.NombreParticipante || '';
-                const estaPagado = row.EstadoPago === 1 || row.EstadoPago === true;
-                const titulo = row.TituloTabla || 'Tabla ' + numTabla;
-
-                if (numTabla >= 1 && numTabla <= 4 && numStr) {
-                    const keyTabla = 'tabla' + numTabla;
-                    
-                    if (!datos[keyTabla].titulo || datos[keyTabla].titulo === 'Tabla ' + numTabla) {
-                        datos[keyTabla].titulo = titulo;
-                    }
-
-                    if (nombre && nombre.trim() !== '') {
-                        datos[keyTabla].participantes[numStr] = {
-                            nombre: nombre.trim(),
-                            pago: estaPagado
-                        };
-                    }
-                }
-            });
+        try {
+            const datos = JSON.parse(result.recordset[0].Datos);
+            datos.idRifa = id;
+            res.json(datos);
+        } catch (parseError) {
+            console.error("Error al parsear datos de rifa:", parseError);
+            res.status(500).json({ error: "Error al leer los datos de la rifa" });
         }
-
-        console.log("DATOS DESDE Rifas_Detalle:", datos);
-        res.json(datos);
-
     } catch (err) {
-        console.error("Error al leer:", err.message);
+        console.error("Error al cargar rifa:", err.message);
         res.status(500).json({ error: "Error: " + err.message });
     }
 });
 
-// Guardar rifa en Rifas_Detalle
+// Guardar rifa - Simple: todo en un JSON
 app.post('/api/guardar-rifa', async (req, res) => {
-    let transaction;
-    
     try {
         const pool = await poolPromise;
-        transaction = new sql.Transaction(pool);
-        await transaction.begin();
-        
         const nuevosDatos = req.body;
-        console.log('Datos recibidos:', JSON.stringify(nuevosDatos).substring(0, 500));
         
-        const fechaSorteo = nuevosDatos.info ? nuevosDatos.info.fecha : null;
-
-        if (!fechaSorteo) {
-            if (transaction) await transaction.rollback();
-            return res.status(400).json({ success: false, error: "La fecha es obligatoria" });
+        // Verificar si la tabla existe
+        const tableCheck = await pool.request()
+            .query(`IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Rifas_Datos') 
+                SELECT 1 as existe ELSE SELECT 0 as existe`);
+        
+        if (tableCheck.recordset[0].existe === 0) {
+            // Crear la tabla si no existe
+            await pool.request()
+                .query(`CREATE TABLE Rifas_Datos (
+                    ID INT IDENTITY(1,1) PRIMARY KEY,
+                    Datos NVARCHAR(MAX)
+                )`);
         }
-
-        // Usar la fecha directamente para evitar problemas de zona horaria
-        const fechaParaSQL = fechaSorteo;
         
-        console.log('🔍 DEBUG - Fecha guardando rifa:', fechaParaSQL);
-
-        // Eliminar TODOS los registros existentes de Rifas_Detalle para esta fecha específica
-        await transaction.request()
-            .input('fecha', sql.Date, fechaParaSQL)
-            .query("DELETE FROM Rifas_Detalle WHERE FechaSorteo = @fecha");
+        // Si tiene ID, actualizar; si no, crear nuevo
+        const datosJSON = JSON.stringify(nuevosDatos);
         
-        console.log('🗑️ Datos anteriores eliminados');
-        
-        // Insertar los nuevos participantes
-        for (let numTabla = 1; numTabla <= 4; numTabla++) {
-            const keyTabla = 'tabla' + numTabla;
-            const tablaData = nuevosDatos[keyTabla];
+        if (nuevosDatos.idRifa) {
+            // Actualizar rifa existente
+            await pool.request()
+                .input('id', sql.Int, nuevosDatos.idRifa)
+                .input('datos', sql.NVARCHAR(sql.MAX), datosJSON)
+                .query("UPDATE Rifas_Datos SET Datos = @datos WHERE ID = @id");
             
-            if (tablaData && tablaData.participantes) {
-                const titulo = tablaData.titulo || 'Tabla ' + numTabla;
-                
-                for (let num = 0; num <= 99; num++) {
-                    const numStr = num.toString().padStart(2, '0');
-                    const participante = tablaData.participantes[numStr];
-                    
-                    if (participante && participante.nombre && participante.nombre.trim() !== "") {
-                        await transaction.request()
-                            .input('fecha', sql.Date, fechaParaSQL)
-                            .input('tablaId', sql.Int, numTabla)
-                            .input('numero', sql.Char(2), numStr)
-                            .input('nombre', sql.VarChar(100), participante.nombre.trim())
-                            .input('pago', sql.Bit, participante.pago ? 1 : 0)
-                            .input('titulo', sql.VarChar(100), titulo)
-                            .query(`
-                                INSERT INTO Rifas_Detalle 
-                                (FechaSorteo, TablaId, Numero, NombreParticipante, EstadoPago, TituloTabla) 
-                                VALUES (@fecha, @tablaId, @numero, @nombre, @pago, @titulo)
-                            `);
-                    }
-                }
-            }
+            console.log('✅ Rifa #' + nuevosDatos.idRifa + ' actualizada');
+            res.json({ success: true, message: "Guardado correctamente", id: nuevosDatos.idRifa });
+        } else {
+            // Insertar nueva rifa
+            const result = await pool.request()
+                .input('datos', sql.NVARCHAR(sql.MAX), datosJSON)
+                .query("INSERT INTO Rifas_Datos (Datos) VALUES (@datos); SELECT SCOPE_IDENTITY() as newId");
+            
+            const newId = result.recordset[0].newId;
+            console.log('✅ Nueva rifa creada con ID:', newId);
+            res.json({ success: true, message: "Guardado correctamente", id: newId });
         }
-
-        await transaction.commit();
-        console.log('✅ Datos guardados en Rifas_Detalle');
-        
-        // Guardar información de la rifa en Rifas_Info
-        const pool2 = await poolPromise;
-        const info = nuevosDatos.info || {};
-        const premiosString = info.premios ? JSON.stringify(info.premios) : null;
-        
-        // Eliminar info anterior de esta fecha y insertar nueva
-        await pool2.request()
-            .input('fecha', sql.Date, fechaParaSQL)
-            .query("DELETE FROM Rifas_Info WHERE FechaSorteo = @fecha");
-        
-        await pool2.request()
-            .input('fecha', sql.Date, fechaParaSQL)
-            .input('nombre', sql.VarChar(200), info.nombre || '')
-            .input('premio', sql.VarChar(200), info.premio || '')
-            .input('valorPuesto', sql.Decimal(18,2), parseFloat(info.valor) || 0)
-            .input('costoPremio', sql.Decimal(18,2), parseFloat(info.inversion) || 0)
-            .input('premios', sql.NVARCHAR(sql.MAX), premiosString)
-            .query(`
-                INSERT INTO Rifas_Info (FechaSorteo, NombreRifa, Premio, ValorPuesto, CostoPremio, Premios)
-                VALUES (@fecha, @nombre, @premio, @valorPuesto, @costoPremio, @premios)
-            `);
-        
-        console.log('✅ Información de rifa guardada en Rifas_Info');
-        res.json({ success: true, message: "Guardado correctamente" });
         
     } catch (err) {
-        console.error("❌ Error al guardar:", err.message);
-        if (transaction) {
-            try {
-                await transaction.rollback();
-            } catch (rbError) {
-                console.error("Error en rollback:", rbError.message);
-            }
-        }
+        console.error("❌ Error al guardar rifa:", err.message);
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Eliminar rifa por ID
+app.delete('/api/eliminar-rifa', async (req, res) => {
+    try {
+        const { id } = req.body;
+        
+        if (!id) {
+            return res.status(400).json({ success: false, error: "ID de rifa requerido" });
+        }
+        
+        const pool = await poolPromise;
+        
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query("DELETE FROM Rifas_Datos WHERE ID = @id");
+        
+        console.log('🗑️ Rifa #' + id + ' eliminada');
+        res.json({ success: true, message: "Rifa eliminada correctamente" });
+        
+    } catch (err) {
+        console.error("Error al eliminar rifa:", err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Obtener historial de rifas
+app.get('/api/historial-rifas', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        const result = await pool.request()
+            .query("SELECT ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+        
+        if (result.recordset.length === 0) {
+            res.json([]);
+            return;
+        }
+        
+        const historial = result.recordset.map(row => {
+            try {
+                const datos = JSON.parse(row.Datos);
+                const costoPuesto = parseFloat(datos.info?.valor) || 0;
+                const costoPremio = parseFloat(datos.info?.inversion) || 0;
+                
+                let totalParticipantes = 0;
+                let totalPagados = 0;
+                
+                for (let i = 1; i <= 4; i++) {
+                    const key = 'tabla' + i;
+                    if (datos[key] && datos[key].participantes) {
+                        Object.values(datos[key].participantes).forEach(p => {
+                            if (p.nombre && p.nombre.trim() !== '') {
+                                totalParticipantes++;
+                                if (p.pago) totalPagados++;
+                            }
+                        });
+                    }
+                }
+                
+                const totalRecaudado = totalPagados * costoPuesto;
+                const gananciaNeta = totalRecaudado - costoPremio;
+                
+                return {
+                    id: row.ID,
+                    fechaSorteo: datos.info?.fecha || '',
+                    nombre: datos.info?.nombre || 'Rifa #' + row.ID,
+                    premio: datos.info?.premio || '',
+                    valorPuesto: costoPuesto,
+                    costoPremio: costoPremio,
+                    totalParticipantes: totalParticipantes,
+                    totalPagados: totalPagados,
+                    totalRecaudado: totalRecaudado,
+                    costoPremios: costoPremio,
+                    gananciaNeta: gananciaNeta
+                };
+            } catch (e) {
+                return {
+                    id: row.ID,
+                    nombre: 'Rifa #' + row.ID,
+                    error: true
+                };
+            }
+        }).filter(r => !r.error);
+        
+        res.json(historial);
+    } catch (err) {
+        console.error("Error al obtener historial:", err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 

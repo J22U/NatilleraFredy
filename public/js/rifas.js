@@ -355,26 +355,14 @@ async function sincronizarConServidor(datos) {
 async function cargarRifas() {
     const container = document.getElementById('rifasContainer');
     
-    // 1. Intentamos obtener la fecha de cualquiera de los dos inputs
-    const filtroFecha = document.getElementById('filtroFecha');
-    const rifaDate = document.getElementById('rifaDate');
-    let fechaParaCargar = filtroFecha?.value || rifaDate?.value || new Date().toISOString().split('T')[0];
-
-    // 🔍 DEBUG: Verificar que la fecha es correcta antes de hacer la petición
-    console.log('🔍 DEBUG frontend - Fecha seleccionada para cargar:', fechaParaCargar);
-    console.log('🔍 DEBUG frontend - Valor de filtroFecha input:', filtroFecha?.value);
-    console.log('🔍 DEBUG frontend - Valor de rifaDate input:', rifaDate?.value);
-
-    // Declarar datos aquí para que esté disponible en todo el ámbito de la función
+    // Ya no necesitamos la fecha para cargar - se carga la última rifa guardada
     let datos = { info: {} };
 
     try {
-        // 2. Intentamos pedir los datos al servidor
-        // IMPORTANTE: Asegurarse de que la fecha se pasa correctamente en la URL
-        const url = `/api/cargar-rifas?fecha=${encodeURIComponent(fechaParaCargar)}`;
-        console.log('🔍 DEBUG frontend - URL de la petición:', url);
+        // Cargar la rifa desde el servidor (ya no necesita parámetro de fecha)
+        console.log('🔍 DEBUG frontend - Cargando rifa...');
         
-        const response = await fetch(url);
+        const response = await fetch('/api/cargar-rifas');
         
         if (!response.ok) {
             throw new Error(`Error servidor: ${response.status}`);
@@ -2426,3 +2414,309 @@ async function eliminarRifa() {
 async function guardarRifaActual() {
     await guardarTodo();
 }
+
+// ==================== SISTEMA DE SELECCIÓN DE RIFAS POR NOMBRE ====================
+
+// Cargar la lista de rifas al iniciar
+async function cargarListaRifas() {
+    try {
+        const response = await fetch('/api/lista-rifas');
+        const rifas = await response.json();
+        
+        const selector = document.getElementById('rifaSelector');
+        if (!selector) return;
+        
+        // Limpiar opciones existentes (mantener solo la primera)
+        selector.innerHTML = '<option value="">-- Nueva Rifa --</option>';
+        
+        // Agregar las rifas existentes
+        rifas.forEach(rifa => {
+            const option = document.createElement('option');
+            option.value = rifa.id;
+            option.textContent = rifa.nombre || 'Rifa #' + rifa.id;
+            if (rifa.fecha) {
+                option.textContent += ` (${rifa.fecha})`;
+            }
+            selector.appendChild(option);
+        });
+        
+        console.log('📋 Lista de rifas cargada:', rifas.length);
+    } catch (error) {
+        console.error("Error al cargar lista de rifas:", error);
+    }
+}
+
+// Función para cargar la rifa seleccionada
+async function cargarRifaSeleccionada() {
+    const selector = document.getElementById('rifaSelector');
+    const idSeleccionado = selector?.value;
+    
+    if (!idSeleccionado) {
+        // Nueva rifa vacía
+        console.log('📋 Nueva rifa');
+        return;
+    }
+    
+    console.log('📋 Cargando rifa ID:', idSeleccionado);
+    
+    try {
+        const response = await fetch(`/api/cargar-rifa-id?id=${idSeleccionado}`);
+        const datos = await response.json();
+        
+        if (datos && !datos.sinDatos) {
+            // Llenar la información de la rifa
+            if (datos.info) {
+                document.getElementById('rifaName').value = datos.info.nombre || '';
+                document.getElementById('rifaPrize').value = datos.info.premio || '';
+                document.getElementById('rifaCost').value = datos.info.valor || '';
+                document.getElementById('costoPremio').value = datos.info.inversion || '';
+                document.getElementById('rifaDate').value = datos.info.fecha || '';
+            }
+            
+            // Guardar el ID de la rifa actual
+            window.idRifaActual = datos.idRifa;
+            
+            // Limpiar el contenedor y dibujar las tablas
+            const container = document.getElementById('rifasContainer');
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= 4; i++) {
+                const key = `tabla${i}`;
+                const tablaData = datos[key] || { titulo: `Tabla ${i}`, participantes: {} };
+                crearTabla({ 
+                    nombre: tablaData.titulo, 
+                    idTabla: i, 
+                    participantes: tablaData.participantes || {} 
+                });
+            }
+            
+            // Actualizar contadores
+            actualizarContadoresRifa();
+            
+            // Cargar premios
+            cargarPremios(datos);
+            
+            console.log('✅ Rifa #' + idSeleccionado + ' cargada correctamente');
+        }
+    } catch (error) {
+        console.error("Error al cargar rifa:", error);
+    }
+}
+
+// Función para crear una nueva rifa
+async function crearNuevaRifa() {
+    const { value: nombreRifa } = await Swal.fire({
+        title: 'Nueva Rifa',
+        html: `
+            <input type="text" id="nuevoNombreRifa" class="swal2-input" placeholder="Ej: Rifa Navidad 2025">
+        `,
+        preConfirm: () => {
+            return document.getElementById('nuevoNombreRifa').value;
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Crear',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!nombreRifa) return;
+    
+    // Limpiar los campos
+    document.getElementById('rifaName').value = nombreRifa;
+    document.getElementById('rifaPrize').value = '';
+    document.getElementById('rifaCost').value = '';
+    document.getElementById('costoPremio').value = '';
+    document.getElementById('rifaDate').value = '';
+    
+    // Limpiar el ID de rifa actual
+    window.idRifaActual = null;
+    
+    // Limpiar las tablas
+    const container = document.getElementById('rifasContainer');
+    container.innerHTML = '';
+    
+    for (let i = 1; i <= 4; i++) {
+        crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
+    }
+    
+    // Actualizar contadores
+    actualizarContadoresRifa();
+    
+    // Renderizar panel de premios vacío
+    renderizarPanelPremios();
+    
+    // Agregar al selector
+    const selector = document.getElementById('rifaSelector');
+    const option = document.createElement('option');
+    option.value = 'nuevo';
+    option.textContent = nombreRifa + ' (Nueva)';
+    option.selected = true;
+    selector.appendChild(option);
+    
+    Swal.fire({
+        title: '¡Nueva Rifa Creada!',
+        text: 'Ahora puedes agregar participantes.',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false
+    });
+}
+
+// Modificar la función guardarTodo para incluir el ID de la rifa
+const guardarTodoOriginal = guardarTodo;
+guardarTodo = async function() {
+    const status = document.getElementById('sync-status');
+    if (status) status.className = 'sync-saving';
+
+    const datos = recolectarDatosPantalla();
+    
+    // Incluir el ID de la rifa si existe
+    if (window.idRifaActual) {
+        datos.idRifa = window.idRifaActual;
+    }
+
+    // Verificación de seguridad: Si no hay fecha, usar la fecha actual
+    if (!datos.info.fecha) {
+        const fechaActual = new Date().toISOString().split('T')[0];
+        datos.info.fecha = fechaActual;
+    }
+
+    // Si no hay tablas creadas, crear las 4 tablas vacías
+    if (!datos.tabla1 && !datos.tabla2 && !datos.tabla3 && !datos.tabla4) {
+        datos.tabla1 = { titulo: 'Tabla 1', participantes: {} };
+        datos.tabla2 = { titulo: 'Tabla 2', participantes: {} };
+        datos.tabla3 = { titulo: 'Tabla 3', participantes: {} };
+        datos.tabla4 = { titulo: 'Tabla 4', participantes: {} };
+    }
+
+    console.log('📤 Enviando datos al servidor:', JSON.stringify(datos).substring(0, 500));
+
+    try {
+        const response = await fetch('/api/guardar-rifa', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(datos)
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            if (status) {
+                status.className = 'sync-success';
+                setTimeout(() => status.className = 'sync-idle', 2000);
+            }
+            
+            // Actualizar el ID de la rifa si es nueva
+            if (result.id && !window.idRifaActual) {
+                window.idRifaActual = result.id;
+                
+                // Agregar al selector
+                const selector = document.getElementById('rifaSelector');
+                const option = document.createElement('option');
+                option.value = result.id;
+                option.textContent = datos.info.nombre || 'Rifa #' + result.id;
+                selector.appendChild(option);
+                selector.value = result.id;
+            }
+            
+            limpiarLocalStorage();
+            Swal.fire({
+                title: '¡Guardado!',
+                text: 'La rifa se ha guardado correctamente.',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            console.log('✅ Rifa guardada correctamente, ID:', result.id);
+        } else {
+            throw new Error(result.error || 'Error desconocido');
+        }
+    } catch (error) {
+        console.error("❌ Error de red:", error);
+        if (status) status.className = 'sync-error';
+        Swal.fire('Error', 'No se pudo guardar la rifa. Verifica tu conexión.', 'error');
+    }
+};
+
+// Modificar la función inicializarRifa para cargar la lista de rifas
+const inicializarRifaOriginal = inicializarRifa;
+inicializarRifa = function() {
+    // Primero cargar la lista de rifas
+    cargarListaRifas();
+    
+    // Luego inicializar como antes
+    inicializarRifaOriginal();
+};
+
+// Modificar eliminarRifa para usar el ID
+const eliminarRifaOriginal = eliminarRifa;
+eliminarRifa = async function() {
+    const idActual = window.idRifaActual;
+    
+    if (!idActual) {
+        Swal.fire('Error', 'No hay rifa seleccionada para eliminar', 'error');
+        return;
+    }
+    
+    try {
+        const result = await Swal.fire({
+            title: '¿Eliminar Rifa?',
+            html: `¿Estás seguro de eliminar esta rifa?<br>Esta acción no se puede deshacer.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#c0392b',
+            cancelButtonColor: '#dfe6e9',
+            confirmButtonText: '<i class="fas fa-trash"></i> Eliminar',
+            cancelButtonText: 'Cancelar',
+            reverseButtons: true
+        });
+
+        if (!result.isConfirmed) return;
+
+        const response = await fetch('/api/eliminar-rifa', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: idActual })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            Swal.fire({
+                title: '¡Eliminada!',
+                text: 'La rifa ha sido eliminada correctamente.',
+                icon: 'success',
+                confirmButtonColor: '#0984e3'
+            });
+
+            // Limpiar
+            window.idRifaActual = null;
+            
+            // Recargar lista
+            cargarListaRifas();
+            
+            // Limpiar campos
+            document.getElementById('rifaName').value = '';
+            document.getElementById('rifaPrize').value = '';
+            document.getElementById('rifaCost').value = '';
+            document.getElementById('costoPremio').value = '';
+            document.getElementById('rifaDate').value = '';
+            
+            // Limpiar tablas
+            const container = document.getElementById('rifasContainer');
+            container.innerHTML = '';
+            for (let i = 1; i <= 4; i++) {
+                crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
+            }
+            actualizarContadoresRifa();
+            
+        } else {
+            throw new Error(data.error || 'Error al eliminar');
+        }
+
+    } catch (error) {
+        console.error("Error al eliminar rifa:", error);
+        Swal.fire('Error', 'No se pudo eliminar la rifa. Intenta de nuevo.', 'error');
+    }
+};

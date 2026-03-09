@@ -16,15 +16,21 @@
         <header class="main-header" style="background: linear-gradient(135deg, #0984e3 0%, #00cec9 100%); padding: 20px; border-radius: 0 0 20px 20px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 
-                <!-- Izquierda: Volver + Fecha -->
+                <!-- Izquierda: Volver + Selector de Rifa -->
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <button onclick="window.location.href='dashboard.html'" class="btn-add" style="background: rgba(255,255,255,0.2); border: none; color: white;">
                         <i class="fas fa-arrow-left"></i> Volver
                     </button>
                     
-                    <div style="background: white; padding: 10px 20px; border-radius: 50px; display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-calendar-alt" style="color: #0984e3;"></i>
-                        <input type="date" id="filtroFecha" onchange="cargarRifasPorFecha()" style="border: none; font-weight: 700; color: #2d3436; outline: none;">
+                    <!-- Selector de Rifa -->
+                    <div style="background: white; padding: 8px 15px; border-radius: 50px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-ticket-alt" style="color: #0984e3;"></i>
+                        <select id="rifaSelector" onchange="cargarRifaSeleccionada()" style="border: none; font-weight: 700; color: #2d3436; outline: none; cursor: pointer; min-width: 150px;">
+                            <option value="">-- Nueva Rifa --</option>
+                        </select>
+                        <button onclick="crearNuevaRifa()" title="Crear nueva rifa" style="background: #00b894; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer;">
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
                 </div>
                 
