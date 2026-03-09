@@ -1390,7 +1390,7 @@ function actualizarContadoresRifa() {
             if (datosPremios[key] && datosPremios[key].ganadores) {
                 datosPremios[key].ganadores.forEach(ganador => {
                     // Solo cuenta si el premio está marcado como entregado Y tiene número y nombre
-                    if (ganador.entregado && ganador.numero && ganador.nombre) {
+                    if (ganador.numero &&ganador.nombre) {
                         costoPremiosReales += costoPremio;
                         cantidadGanadores++;
                     }

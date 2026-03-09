@@ -336,7 +336,7 @@ app.get('/api/historial-rifas', async (req, res) => {
                         if (datos.info.premios[key] && datos.info.premios[key].ganadores) {
                             datos.info.premios[key].ganadores.forEach(ganador => {
                                 // Solo contar si el premio está marcado como entregado Y tiene número y nombre
-                                if (ganador.entregado && ganador.numero && ganador.nombre) {
+                                if (ganador.numero &&ganador.nombre) {
                                     cantidadGanadoresEntregados++;
                                     costoPremiosReales += costoPremio;
                                 }
