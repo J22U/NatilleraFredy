@@ -1263,11 +1263,11 @@ function inicializarRifa() {
     const rifaNameInput = document.getElementById('rifaName');
     const rifaDateInput = document.getElementById('rifaDate');
     if (rifaNameInput && rifaDateInput) {
-        rifaNameInput.addEventListener('input', function() {
-            const nombreRifa = this.value.trim();
-            // Solo actualizar si el nombre no está vacío y la fecha está vacía o es igual a la fecha anterior del nombre
+        // Función para sincronizar el nombre a la fecha
+        const sincronizarNombreAFecha = function() {
+            const nombreRifa = rifaNameInput.value.trim();
+            // SIEMPRE copiar el nombre al campo de fecha (sobrescribe cualquier fecha anterior)
             if (nombreRifa) {
-                // Copiar el nombre al campo de fecha
                 rifaDateInput.value = nombreRifa;
                 
                 // También sincronizar con filtroFecha si existe
@@ -1278,7 +1278,13 @@ function inicializarRifa() {
                 
                 console.log('📅 Nombre de rifa copiado a fecha:', nombreRifa);
             }
-        });
+        };
+        
+        // Agregar listener para cuando el usuario escribe
+        rifaNameInput.addEventListener('input', sincronizarNombreAFecha);
+        
+        // También ejecutar inmediatamente si ya hay un nombre (al cargar rifa existente)
+        sincronizarNombreAFecha();
     }
 }
 
