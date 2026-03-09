@@ -741,6 +741,22 @@ function irATabla(cardId) {
     }
 }
 
+// Función para limpiar la búsqueda
+function limpiarBusqueda() {
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
+    
+    if (searchResults) {
+        searchResults.style.display = 'none';
+        searchResults.innerHTML = '';
+    }
+}
+
 // Función auxiliar para no perder los colores verde/naranja al buscar
 function actualizarColorAlVuelo(slot) {
     const nombre = slot.querySelector('.n-name').value.trim();
