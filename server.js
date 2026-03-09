@@ -312,6 +312,7 @@ app.get('/api/historial-rifas', async (req, res) => {
                 let totalParticipantes = 0;
                 let totalPagados = 0;
                 
+                // Contar participantes y pagos
                 for (let i = 1; i <= 4; i++) {
                     const key = 'tabla' + i;
                     if (datos[key] && datos[key].participantes) {
@@ -324,8 +325,29 @@ app.get('/api/historial-rifas', async (req, res) => {
                     }
                 }
                 
+                // Calcular costo REAL de premios: solo contar los premios ENTREGADOS
+                // Ganancia = Total Recogido - (Premios Entregados × CostoPremio)
+                let cantidadGanadoresEntregados = 0;
+                let costoPremiosReales = 0;
+                
+                if (datos.info && datos.info.premios) {
+                    for (let i = 1; i <= 4; i++) {
+                        const key = 'tabla' + i;
+                        if (datos.info.premios[key] && datos.info.premios[key].ganadores) {
+                            datos.info.premios[key].ganadores.forEach(ganador => {
+                                // Solo contar si el premio está marcado como entregado Y tiene número y nombre
+                                if (ganador.entregado && ganador.numero && ganador.nombre) {
+                                    cantidadGanadoresEntregados++;
+                                    costoPremiosReales += costoPremio;
+                                }
+                            });
+                        }
+                    }
+                }
+                
                 const totalRecaudado = totalPagados * costoPuesto;
-                const gananciaNeta = totalRecaudado - costoPremio;
+                // Usar costoPremiosReales (solo premios entregados) para la ganancia
+                const gananciaNeta = totalRecaudado - costoPremiosReales;
                 
                 return {
                     id: row.ID,
@@ -334,10 +356,12 @@ app.get('/api/historial-rifas', async (req, res) => {
                     premio: datos.info?.premio || '',
                     valorPuesto: costoPuesto,
                     costoPremio: costoPremio,
+                    cantidadGanadoresEntregados: cantidadGanadoresEntregados,
+                    costoPremiosReales: costoPremiosReales,
                     totalParticipantes: totalParticipantes,
                     totalPagados: totalPagados,
                     totalRecaudado: totalRecaudado,
-                    costoPremios: costoPremio,
+                    costoPremios: costoPremiosReales,
                     gananciaNeta: gananciaNeta
                 };
             } catch (e) {
