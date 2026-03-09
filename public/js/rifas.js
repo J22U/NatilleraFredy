@@ -2987,12 +2987,27 @@ guardarTodo = async function() {
             if (result.id && !window.idRifaActual) {
                 window.idRifaActual = result.id;
                 
-                // Agregar al selector
+                // Agregar al selector - VERIFICAR SI YA EXISTE UNA OPCIÓN "nueva"
                 const selector = document.getElementById('rifaSelector');
-                const option = document.createElement('option');
-                option.value = result.id;
-                option.textContent = datos.info.nombre || 'Rifa #' + result.id;
-                selector.appendChild(option);
+                
+                // Buscar si ya existe una opción con valor "nuevo" o "nueva"
+                let option = Array.from(selector.options).find(opt => 
+                    opt.value === 'nuevo' || opt.value === 'nueva' || opt.textContent.includes('(Nueva)')
+                );
+                
+                if (option) {
+                    // Actualizar la opción existente en lugar de crear una nueva
+                    option.value = result.id;
+                    option.textContent = datos.info.nombre || 'Rifa #' + result.id;
+                    console.log('✅ Opción actualizada en selector:', option.textContent);
+                } else {
+                    // Crear nueva opción si no existe
+                    option = document.createElement('option');
+                    option.value = result.id;
+                    option.textContent = datos.info.nombre || 'Rifa #' + result.id;
+                    selector.appendChild(option);
+                }
+                
                 selector.value = result.id;
             }
             
