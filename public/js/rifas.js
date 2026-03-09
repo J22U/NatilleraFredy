@@ -562,7 +562,8 @@ function buscarCliente() {
     let resultados = {};
 
     document.querySelectorAll('.rifa-card').forEach(card => {
-        const tituloTabla = card.querySelector('.input-table-title').value;
+        // Cambiado de .input-table-title a .table-title-display
+        const tituloTabla = card.querySelector('.table-title-display')?.innerText || card.querySelector('.tabla-badge')?.innerText || 'Tabla';
         const badgeTabla = card.querySelector('.tabla-badge').innerText;
         const slots = card.querySelectorAll('.n-slot');
 
@@ -2254,12 +2255,97 @@ async function mostrarPanelDeudores() {
     lista.innerHTML = '<div style="text-align: center; padding: 30px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #0984e3;"></i><p>Cargando deudores...</p></div>';
     
     try {
+        // Primero cargar la lista de rifas para el dropdown
+        const responseRifas = await fetch('/api/lista-rifas');
+        const rifas = await responseRifas.json();
+        
         // Obtener datos de la rifa actual
         const fechaActual = document.getElementById('filtroFecha')?.value || document.getElementById('rifaDate')?.value || new Date().toISOString().split('T')[0];
         const valorPuesto = parseFloat(document.getElementById('rifaCost')?.value) || 0;
         
-        const response = await fetch(`/api/cargar-rifas?fecha=${fechaActual}`);
+        // Crear el HTML con el dropdown de selección de rifa
+        let html = '';
+        
+        // Dropdown para seleccionar rifa
+        html += `
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #636e72; text-transform: uppercase; margin-bottom: 8px;">
+                    <i class="fas fa-filter"></i> Seleccionar Rifa
+                </label>
+                <select id="selectorRifaDeudores" onchange="cargarDeudoresPorRifa()" style="width: 100%; padding: 12px; border: 2px solid #0984e3; border-radius: 8px; font-size: 1rem; font-weight: 600; background: white;">
+                    <option value="">-- Seleccionar Rifa --</option>
+        `;
+        
+        // Agregar las rifas disponibles
+        rifas.forEach(rifa => {
+            const selected = (rifa.fecha === fechaActual) ? 'selected' : '';
+            html += `<option value="${rifa.id}" ${selected}>${rifa.nombre || 'Rifa #' + rifa.id} ${rifa.fecha ? '(' + rifa.fecha + ')' : ''}</option>`;
+        });
+        
+        html += `
+                </select>
+            </div>
+            <div id="contenidoDeudores">
+                <div style="text-align: center; padding: 30px; color: #636e72;">
+                    <i class="fas fa-hand-pointer" style="font-size: 2rem; color: #0984e3;"></i>
+                    <p style="margin-top: 10px;">Selecciona una rifa para ver los deudores</p>
+                </div>
+            </div>
+        `;
+        
+        lista.innerHTML = html;
+        
+        // Si hay una rifa actual seleccionada, cargar sus deudores automáticamente
+        const rifaActual = rifas.find(r => r.fecha === fechaActual);
+        if (rifaActual) {
+            // small delay to ensure the dropdown is rendered
+            setTimeout(() => {
+                cargarDeudoresPorRifa();
+            }, 100);
+        }
+        
+    } catch (error) {
+        console.error("Error al cargar lista de rifas:", error);
+        lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #e74c3c;"><i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i><p>Error al cargar las rifas</p></div>';
+    }
+}
+
+// Función para cargar los deudores de la rifa seleccionada
+async function cargarDeudoresPorRifa() {
+    const selector = document.getElementById('selectorRifaDeudores');
+    const contenido = document.getElementById('contenidoDeudores');
+    const idRifa = selector?.value;
+    
+    if (!idRifa) {
+        if (contenido) {
+            contenido.innerHTML = `
+                <div style="text-align: center; padding: 30px; color: #636e72;">
+                    <i class="fas fa-hand-pointer" style="font-size: 2rem; color: #0984e3;"></i>
+                    <p style="margin-top: 10px;">Selecciona una rifa para ver los deudores</p>
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    // Mostrar loading
+    if (contenido) {
+        contenido.innerHTML = '<div style="text-align: center; padding: 30px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: #0984e3;"></i><p>Cargando deudores...</p></div>';
+    }
+    
+    try {
+        // Cargar los datos de la rifa seleccionada
+        const response = await fetch(`/api/cargar-rifa-id?id=${idRifa}`);
         const datos = await response.json();
+        
+        if (!datos || datos.sinDatos) {
+            if (contenido) {
+                contenido.innerHTML = '<div style="text-align: center; padding: 30px; color: #636e72;"><i class="fas fa-info-circle" style="font-size: 2rem;"></i><p>No hay datos para esta rifa</p></div>';
+            }
+            return;
+        }
+        
+        const valorPuesto = parseFloat(datos.info?.valor) || 0;
         
         // Agrupar deudores por nombre
         const deudores = {};
@@ -2296,11 +2382,11 @@ async function mostrarPanelDeudores() {
             }
         }
         
-        // Generar HTML
+        // Generar HTML de los deudores
         const nombresDeudores = Object.keys(deudores);
         
         if (nombresDeudores.length === 0) {
-            lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #00b894;"><i class="fas fa-check-circle" style="font-size: 3rem;"></i><p style="font-size: 1.2rem; margin-top: 10px;">¡No hay personas con deudas!</p></div>';
+            contenido.innerHTML = '<div style="text-align: center; padding: 30px; color: #00b894;"><i class="fas fa-check-circle" style="font-size: 3rem;"></i><p style="font-size: 1.2rem; margin-top: 10px;">¡No hay personas con deudas en esta rifa!</p></div>';
             return;
         }
         
@@ -2308,7 +2394,7 @@ async function mostrarPanelDeudores() {
             style: 'currency', currency: 'COP', maximumFractionDigits: 0
         });
         
-        let html = '';
+        let htmlDeudores = '';
         
         // Calcular total general
         let totalGeneral = 0;
@@ -2317,7 +2403,7 @@ async function mostrarPanelDeudores() {
         });
         
         // Card de total
-        html += `
+        htmlDeudores += `
             <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); padding: 20px; border-radius: 12px; color: white; margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
@@ -2335,7 +2421,7 @@ async function mostrarPanelDeudores() {
         nombresDeudores.forEach(nombre => {
             const d = deudores[nombre];
             
-            html += `
+            htmlDeudores += `
                 <div style="border: 2px solid #e74c3c; border-radius: 12px; padding: 15px; background: #fff5f5;">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                         <div>
@@ -2357,11 +2443,13 @@ async function mostrarPanelDeudores() {
             `;
         });
         
-        lista.innerHTML = html;
+        contenido.innerHTML = htmlDeudores;
         
     } catch (error) {
         console.error("Error al cargar deudores:", error);
-        lista.innerHTML = '<div style="text-align: center; padding: 30px; color: #e74c3c;"><i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i><p>Error al cargar los deudores</p></div>';
+        if (contenido) {
+            contenido.innerHTML = '<div style="text-align: center; padding: 30px; color: #e74c3c;"><i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i><p>Error al cargar los deudores</p></div>';
+        }
     }
 }
 
@@ -2533,14 +2621,22 @@ async function crearNuevaRifa() {
     const { value: nombreRifa } = await Swal.fire({
         title: 'Nueva Rifa',
         html: `
-            <input type="text" id="nuevoNombreRifa" class="swal2-input" placeholder="Ej: Rifa Navidad 2025">
+            <input type="text" id="nuevoNombreRifa" class="swal2-input" placeholder="Ej: Rifa Navidad 2025" style="font-size: 16px !important; padding: 12px !important; width: 100% !important;">
         `,
         preConfirm: () => {
             return document.getElementById('nuevoNombreRifa').value;
         },
         showCancelButton: true,
         confirmButtonText: 'Crear',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        // Configuración responsive para móviles
+        width: window.innerWidth <= 480 ? '95%' : (window.innerWidth <= 768 ? '90%' : '500px'),
+        padding: window.innerWidth <= 480 ? '10px' : '20px',
+        customClass: {
+            popup: 'swal-responsive',
+            title: 'swal-title-responsive',
+            htmlContainer: 'swal-html-responsive'
+        }
     });
     
     if (!nombreRifa) return;

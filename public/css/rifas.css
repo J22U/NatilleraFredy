@@ -631,3 +631,59 @@ body {
         grid-template-columns: repeat(3, 1fr) !important;
     }
 }
+
+/* Estilos responsive para SweetAlert modales en móviles */
+@media (max-width: 500px) {
+    .swal2-popup {
+        width: 90% !important;
+        max-width: 350px !important;
+        padding: 15px !important;
+        font-size: 14px !important;
+    }
+    
+    .swal2-title {
+        font-size: 1.2rem !important;
+        margin-bottom: 10px !important;
+    }
+    
+    .swal2-content {
+        font-size: 0.9rem !important;
+    }
+    
+    .swal2-input {
+        font-size: 16px !important; /* Evita zoom en iOS */
+        padding: 12px !important;
+        height: 45px !important;
+        width: 100% !important;
+    }
+    
+    .swal2-actions {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    
+    .swal2-confirm, 
+    .swal2-cancel {
+        flex: 1 !important;
+        min-width: 120px !important;
+        padding: 12px 20px !important;
+        font-size: 0.9rem !important;
+    }
+    
+    .swal2-html-container {
+        padding: 10px 5px !important;
+    }
+}
+
+/* Optimización para pantallas muy pequeñas */
+@media (max-width: 350px) {
+    .swal2-popup {
+        width: 95% !important;
+        padding: 10px !important;
+    }
+    
+    .swal2-confirm, 
+    .swal2-cancel {
+        min-width: 100% !important;
+    }
+}
