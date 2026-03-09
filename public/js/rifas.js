@@ -2632,29 +2632,200 @@ async function cargarRifaSeleccionada() {
 
 // Función para crear una nueva rifa
 async function crearNuevaRifa() {
-    const { value: nombreRifa } = await Swal.fire({
-        title: 'Nueva Rifa',
-        html: `
-            <input type="text" id="nuevoNombreRifa" class="swal2-input" placeholder="Ej: Rifa Navidad 2025" style="font-size: 16px !important; padding: 12px !important; width: 100% !important;">
-        `,
-        preConfirm: () => {
-            return document.getElementById('nuevoNombreRifa').value;
-        },
-        showCancelButton: true,
-        confirmButtonText: 'Crear',
-        cancelButtonText: 'Cancelar',
-        // Configuración responsive para móviles
-        width: window.innerWidth <= 480 ? '95%' : (window.innerWidth <= 768 ? '90%' : '500px'),
-        padding: window.innerWidth <= 480 ? '10px' : '20px',
-        customClass: {
-            popup: 'swal-responsive',
-            title: 'swal-title-responsive',
-            htmlContainer: 'swal-html-responsive'
+    // Primero verificar si hay rifas anteriores para copiar
+    try {
+        const responseRifas = await fetch('/api/lista-rifas');
+        const rifas = await responseRifas.json();
+        
+        const hayRifasAnteriores = rifas && rifas.length > 0;
+        
+        if (hayRifasAnteriores) {
+            // Hay rifas anteriores, preguntar si desea copiar
+            const { value: respuesta } = await Swal.fire({
+                title: 'Nueva Rifa',
+                html: `
+                    <input type="text" id="nuevoNombreRifa" class="swal2-input" placeholder="Ej: Rifa Navidad 2025" style="font-size: 16px !important; padding: 12px !important; width: 100% !important;">
+                `,
+                preConfirm: () => {
+                    return {
+                        nombre: document.getElementById('nuevoNombreRifa').value,
+                        copiar: document.getElementById('copiarParticipantes')?.checked || false
+                    };
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Crear',
+                cancelButtonText: 'Cancelar',
+                // Configuración responsive para móviles
+                width: window.innerWidth <= 480 ? '95%' : (window.innerWidth <= 768 ? '90%' : '500px'),
+                padding: window.innerWidth <= 480 ? '10px' : '20px',
+                customClass: {
+                    popup: 'swal-responsive',
+                    title: 'swal-title-responsive',
+                    htmlContainer: 'swal-html-responsive'
+                },
+                html: `
+                    <div style="text-align: left; margin-bottom: 20px;">
+                        <label style="display: block; font-size: 14px; font-weight: 600; color: #2d3436; margin-bottom: 8px;">Nombre de la nueva rifa:</label>
+                        <input type="text" id="nuevoNombreRifa" class="swal2-input" placeholder="Ej: Rifa Navidad 2025" style="font-size: 16px !important; padding: 12px !important; width: 100% !important;">
+                    </div>
+                    <div style="text-align: left; background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+                            <input type="checkbox" id="copiarParticipantes" style="width: 20px; height: 20px; accent-color: #0984e3;">
+                            <span style="font-weight: 600; color: #2d3436;">
+                                <i class="fas fa-copy" style="margin-right: 8px; color: #0984e3;"></i>
+                                Copiar participantes de la rifa anterior
+                            </span>
+                        </label>
+                        <p style="font-size: 12px; color: #636e72; margin-top: 8px; margin-bottom: 0;">
+                            Se copiarán los nombres de los participantes. Los pagos se reiniciarán (quedarán pendientes de pagar).
+                        </p>
+                    </div>
+                `
+            });
+            
+            if (!respuesta) return; // Cancelado
+            
+            const { nombre: nombreRifa, copiar: copiarParticipantes } = respuesta;
+            
+            if (!nombreRifa) {
+                Swal.fire('Error', 'Por favor ingresa un nombre para la rifa', 'warning');
+                return;
+            }
+            
+            // Limpiar los campos
+            document.getElementById('rifaName').value = nombreRifa;
+            document.getElementById('rifaPrize').value = '';
+            document.getElementById('rifaCost').value = '';
+            document.getElementById('costoPremio').value = '';
+            document.getElementById('rifaDate').value = '';
+            
+            // Limpiar el ID de rifa actual
+            window.idRifaActual = null;
+            
+            if (copiarParticipantes) {
+                // Copiar participantes de la rifa más reciente
+                try {
+                    // Cargar la rifa más reciente
+                    const responseRifa = await fetch('/api/cargar-rifas');
+                    const datosAnterior = await responseRifa.json();
+                    
+                    if (datosAnterior && !datosAnterior.sinDatos) {
+                        // Copiar la información básica
+                        if (datosAnterior.info) {
+                            document.getElementById('rifaPrize').value = datosAnterior.info.premio || '';
+                            document.getElementById('rifaCost').value = datosAnterior.info.valor || '';
+                            document.getElementById('costoPremio').value = datosAnterior.info.inversion || '';
+                        }
+                        
+                        // Copiar las tablas con participantes (sin pagos)
+                        const container = document.getElementById('rifasContainer');
+                        container.innerHTML = '';
+                        
+                        for (let i = 1; i <= 4; i++) {
+                            const key = `tabla${i}`;
+                            const tablaAnterior = datosAnterior[key];
+                            
+                            if (tablaAnterior && tablaAnterior.participantes) {
+                                // Copiar participantes pero sin pagos (todos pendientes)
+                                const participantesCopia = {};
+                                Object.keys(tablaAnterior.participantes).forEach(num => {
+                                    const p = tablaAnterior.participantes[num];
+                                    if (p.nombre && p.nombre.trim() !== '') {
+                                        participantesCopia[num] = {
+                                            nombre: p.nombre,
+                                            pago: false, // Reiniciar pagos
+                                            adelantado: false
+                                        };
+                                    }
+                                });
+                                
+                                crearTabla({ 
+                                    nombre: tablaAnterior.titulo || `Tabla ${i}`, 
+                                    idTabla: i, 
+                                    participantes: participantesCopia 
+                                });
+                            } else {
+                                crearTabla({ nombre: `Tabla ${i}`, idTabla: i, participantes: {} });
+                            }
+                        }
+                        
+                        // Actualizar contadores
+                        actualizarContadoresRifa();
+                        
+                        // Renderizar panel de premios vacío
+                        renderizarPanelPremios();
+                        
+                        // Agregar al selector
+                        const selector = document.getElementById('rifaSelector');
+                        const option = document.createElement('option');
+                        option.value = 'nuevo';
+                        option.textContent = nombreRifa + ' (Nueva)';
+                        option.selected = true;
+                        selector.appendChild(option);
+                        
+                        Swal.fire({
+                            title: '¡Nueva Rifa Creada!',
+                            text: 'Se copiaron los participantes de la rifa anterior. Los pagos se han reiniciado.',
+                            icon: 'success',
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                        return;
+                    }
+                } catch (error) {
+                    console.error("Error al copiar rifa anterior:", error);
+                    // Si falla, crear rifa vacía
+                }
+            }
+            
+            // Si no se copia o hubo error, crear rifa vacía
+            crearRifaVacia(nombreRifa);
+            
+        } else {
+            // No hay rifas anteriores, crear rifa vacía directamente
+            const { value: nombreRifa } = await Swal.fire({
+                title: 'Nueva Rifa',
+                html: `
+                    <input type="text" id="nuevoNombreRifa" class="swal2-input" placeholder="Ej: Rifa Navidad 2025" style="font-size: 16px !important; padding: 12px !important; width: 100% !important;">
+                `,
+                preConfirm: () => {
+                    return document.getElementById('nuevoNombreRifa').value;
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Crear',
+                cancelButtonText: 'Cancelar',
+                width: window.innerWidth <= 480 ? '95%' : (window.innerWidth <= 768 ? '90%' : '500px'),
+                padding: window.innerWidth <= 480 ? '10px' : '20px'
+            });
+            
+            if (!nombreRifa) return;
+            crearRifaVacia(nombreRifa);
         }
-    });
-    
-    if (!nombreRifa) return;
-    
+        
+    } catch (error) {
+        console.error("Error al verificar rifas anteriores:", error);
+        
+        // En caso de error, crear rifa vacía
+        const { value: nombreRifa } = await Swal.fire({
+            title: 'Nueva Rifa',
+            html: `
+                <input type="text" id="nuevoNombreRifa" class="swal2-input" placeholder="Ej: Rifa Navidad 2025" style="font-size: 16px !important; padding: 12px !important; width: 100% !important;">
+            `,
+            preConfirm: () => {
+                return document.getElementById('nuevoNombreRifa').value;
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Crear',
+            cancelButtonText: 'Cancelar'
+        });
+        
+        if (!nombreRifa) return;
+        crearRifaVacia(nombreRifa);
+    }
+}
+
+// Función auxiliar para crear rifa vacía
+function crearRifaVacia(nombreRifa) {
     // Limpiar los campos
     document.getElementById('rifaName').value = nombreRifa;
     document.getElementById('rifaPrize').value = '';
