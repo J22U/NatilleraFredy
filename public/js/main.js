@@ -2292,7 +2292,8 @@ function generarPDFReparto(data) {
             ['Total Puntos Natillera', `${Number(data.totalPuntos || 0).toLocaleString('es-CO')}`],
             ['Valor por Punto', `$ ${Number(data.valorPunto || 0).toLocaleString('es-CO')}`],
             ['Total Repartido', `$ ${Number(data.totalRepartido || 0).toLocaleString('es-CO')}`],
-            ['Socios Beneficiados', `${data.socios ? data.socios.length : 0}`]
+            ['Total Socios Ahorradores', `${data.totalSociosAhorradores || 0}`],
+            ['Socios Beneficiados', `${data.sociosBeneficiados || 0}`]
         ],
         theme: 'striped',
         headStyles: { fillStyle: [5, 150, 105], halign: 'center' },

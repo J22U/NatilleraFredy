@@ -854,6 +854,10 @@ app.get('/api/datos-reparto', async (req, res) => {
         const resultGanancias = await pool.request().query("SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) as saldo FROM Prestamos WHERE Estado = 'Activo'");
         const gananciasDisponibles = parseFloat(resultGanancias.recordset[0].saldo || 0);
         
+        // Obtener el TOTAL de socios ahorradores (todos los activos con EsSocio = 1)
+        const resultTotalSocios = await pool.request().query("SELECT COUNT(*) as total FROM Personas WHERE Estado = 'Activo' AND EsSocio = 1");
+        const totalSociosAhorradores = resultTotalSocios.recordset[0].total || 0;
+        
         // Obtener socios con esfuerzo
         const resultSocios = await pool.request().query(`
             SELECT 
@@ -898,7 +902,9 @@ app.get('/api/datos-reparto', async (req, res) => {
             totalPuntos: totalPuntosNatillera,
             valorPunto: valorPunto,
             socios: sociosConReparto,
-            totalRepartido: sociosConReparto.reduce((acc, s) => acc + s.interes, 0)
+            totalRepartido: sociosConReparto.reduce((acc, s) => acc + s.interes, 0),
+            totalSociosAhorradores: totalSociosAhorradores,
+            sociosBeneficiados: sociosConReparto.length
         });
     } catch (err) {
         console.error("Error en /api/datos-reparto:", err.message);
