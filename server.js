@@ -651,6 +651,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         }
 
         // Ahora obtener los datos actualizados para enviar al frontend
+        // Si el préstamo está Pagado, usar FechaPagoCompleto para que los días no sigan aumentando
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -668,24 +669,48 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     SaldoActual,
                     Estado,
-                    DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
+                    -- Si está Pagado, usar FechaPagoCompleto; si está Activo, usar GETDATE()
+                    CASE 
+                        WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), FechaPagoCompleto)
+                        ELSE DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
+                    END as DiasTranscurridos,
                     
                     -- 1. Interés generado TOTAL desde que empezó el préstamo (o desde el último abono a capital)
-                    -- (Calculado sobre el capital que se debe hoy, desde FechaUltimoAbonoCapital)
-                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as InteresGenerado,
+                    -- (Calculado sobre el capital que se debeUltimoAbonoCapital)
+                    -- hoy, desde Fecha Si está Pagado, usar FechaPagoCompleto para el cálculo
+                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * 
+                    CASE 
+                        WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
+                        ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
+                    END as InteresGenerado,
                     
                     -- 2. Interés pendiente = MAX(0, Interés Generado - Intereses Pagados - Interés Anticipado Usado)
-                    -- Aquí YA NO reste InteresAnticipado directamente, ahora reste InteresAnticipadoUsado
                     CASE 
-                        WHEN (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0) < 0 THEN 0
-                        ELSE (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0)
+                        WHEN (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * 
+                        CASE 
+                            WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
+                            ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
+                        END) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0) < 0 THEN 0
+                        ELSE (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * 
+                        CASE 
+                            WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
+                            ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
+                        END) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0)
                     END as InteresPendiente,
                     
                     -- 3. Saldo total hoy (Capital Pendiente + Interés Pendiente)
                     (MontoPrestado - ISNULL(MontoPagado, 0)) + 
                     CASE 
-                        WHEN (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0) < 0 THEN 0
-                        ELSE (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0)
+                        WHEN (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * 
+                        CASE 
+                            WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
+                            ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
+                        END) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0) < 0 THEN 0
+                        ELSE (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * 
+                        CASE 
+                            WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
+                            ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
+                        END) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0)
                     END as saldoHoy,
                     
                     MontoPrestado - ISNULL(MontoPagado, 0) as capitalHoy
@@ -757,9 +782,19 @@ app.post('/procesar-movimiento', async (req, res) => {
                     return res.status(400).json({ success: false, error: `No puede abonar más de $${capitalPendiente.toLocaleString()} (capital pendiente)` });
                 }
                 
-                await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
-                    .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END, Estado = CASE WHEN (SaldoActual - @m) <= 0 THEN 'Pagado' ELSE 'Activo' END, FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
+                // Verificar si este abono completó el préstamo
+                const nuevoSaldo = capitalPendiente - m;
+                
+                if (nuevoSaldo <= 0) {
+                    // El préstamo quedó pagado completamente - guardar fecha de pago completo
+                    await pool.request()
+                        .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte).input('fPago', sql.Date, fAporte)
+                        .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = 0, Estado = 'Pagado', FechaUltimoAbonoCapital = @fAporte, FechaPagoCompleto = @fPago WHERE ID_Prestamo = @idP");
+                } else {
+                    await pool.request()
+                        .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
+                        .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END, Estado = 'Activo', FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
+                }
             } else if (destinoAbono === 'interes') {
                 // Abono a INTERÉS: se suma a InteresesPagados (el saldo total se recalcula dinámicamente)
                 console.log(">>> Abono a INTERÉS");
@@ -834,9 +869,26 @@ app.post('/registrar-abono-dinamico', async (req, res) => {
             .query("INSERT INTO HistorialPagos (ID_Prestamo, ID_Persona, Monto, Fecha, Detalle, TipoMovimiento) VALUES (@idPrestamo, @idPersona, @monto, GETDATE(), @detalle, 'Abono Deuda')");
 
         if (tipo === 'capital') {
-            await transaction.request()
-                .input('idPrestamo', sql.Int, idPrestamo).input('monto', sql.Decimal(18, 2), m).input('fecha', sql.Date, fechaActual)
-                .query("UPDATE Prestamos SET MontoPagado = MontoPagado + @monto, SaldoActual = CASE WHEN (SaldoActual - @monto) < 0 THEN 0 ELSE SaldoActual - @monto END, Estado = CASE WHEN (SaldoActual - @monto) <= 0 THEN 'Pagado' ELSE 'Activo' END, FechaUltimoAbonoCapital = @fecha WHERE ID_Prestamo = @idPrestamo");
+            // Verificar si este abono completó el préstamo
+            // Primero obtener el saldo actual
+            const prestamoActual = await transaction.request()
+                .input('idPrestamo', sql.Int, idPrestamo)
+                .query("SELECT MontoPrestado, ISNULL(MontoPagado, 0) as MontoPagado FROM Prestamos WHERE ID_Prestamo = @idPrestamo");
+            
+            const p = prestamoActual.recordset[0];
+            const capitalPendiente = p.MontoPrestado - p.MontoPagado;
+            const nuevoSaldo = capitalPendiente - m;
+            
+            if (nuevoSaldo <= 0) {
+                // El préstamo quedó pagado completamente - guardar fecha de pago completo
+                await transaction.request()
+                    .input('idPrestamo', sql.Int, idPrestamo).input('monto', sql.Decimal(18, 2), m).input('fecha', sql.Date, fechaActual)
+                    .query("UPDATE Prestamos SET MontoPagado = MontoPagado + @monto, SaldoActual = 0, Estado = 'Pagado', FechaUltimoAbonoCapital = @fecha, FechaPagoCompleto = @fecha WHERE ID_Prestamo = @idPrestamo");
+            } else {
+                await transaction.request()
+                    .input('idPrestamo', sql.Int, idPrestamo).input('monto', sql.Decimal(18, 2), m).input('fecha', sql.Date, fechaActual)
+                    .query("UPDATE Prestamos SET MontoPagado = MontoPagado + @monto, SaldoActual = CASE WHEN (SaldoActual - @monto) < 0 THEN 0 ELSE SaldoActual - @monto END, Estado = CASE WHEN (SaldoActual - @monto) <= 0 THEN 'Pagado' ELSE 'Activo' END, FechaUltimoAbonoCapital = @fecha WHERE ID_Prestamo = @idPrestamo");
+            }
         } else {
             await transaction.request()
                 .input('idPrestamo', sql.Int, idPrestamo).input('monto', sql.Decimal(18, 2), m)
@@ -1796,6 +1848,13 @@ async function inicializarBaseDeDatos() {
             .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'InteresAnticipadoUsado')
             BEGIN
                 ALTER TABLE Prestamos ADD InteresAnticipadoUsado DECIMAL(18,2) DEFAULT 0
+            END`);
+
+        // Verificar si existe la columna FechaPagoCompleto (para guardar la fecha cuando el préstamo se pagó totalmente)
+        await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'FechaPagoCompleto')
+            BEGIN
+                ALTER TABLE Prestamos ADD FechaPagoCompleto DATETIME NULL
             END`);
 
         // Verificar si existe la tabla Rifas_Info
