@@ -72,4 +72,34 @@ if (loginForm) {
     alert("No se pudo conectar con el servidor. ¿Encendiste el Node?");
 }
     });
+
+    // Toggle para mostrar/ocultar contraseña
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+    const eyeIcon = document.getElementById('eyeIcon');
+    const eyeOffIcon = document.getElementById('eyeOffIcon');
+    
+    if (togglePassword && passwordInput) {
+        togglePassword.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Alternar entre type="password" y type="text"
+            const currentType = passwordInput.getAttribute('type');
+            
+            if (currentType === 'password') {
+                // Cambiar a texto visible
+                passwordInput.setAttribute('type', 'text');
+                // Mostrar ojo abierto, ocultar ojo tachado
+                if (eyeIcon) eyeIcon.classList.remove('hidden');
+                if (eyeOffIcon) eyeOffIcon.classList.add('hidden');
+            } else {
+                // Cambiar a contraseña oculta
+                passwordInput.setAttribute('type', 'password');
+                // Mostrar ojo tachado, ocultar ojo abierto
+                if (eyeIcon) eyeIcon.classList.add('hidden');
+                if (eyeOffIcon) eyeOffIcon.classList.remove('hidden');
+            }
+        });
+    }
 }
