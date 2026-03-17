@@ -688,9 +688,29 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
 app.get('/api/cobro-general', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query("SELECT p.ID_Persona, per.Nombre, SUM(p.SaldoActual) as TotalCapital FROM Prestamos p INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona WHERE p.Estado = 'Activo' GROUP BY p.ID_Persona, per.Nombre");
+        const result = await pool.request().query(`
+            SELECT 
+                p.ID_Persona, 
+                per.Nombre, 
+                -- SUMA TOTAL: Capital + Intereses del periodo actual + Intereses acumulados viejos
+                SUM(
+                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + -- Capital actual
+                    (
+                        ((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE())
+                    ) + -- Interés generado estos días
+                    ISNULL(p.InteresPendienteAcumulado, 0) - -- Lo que debe de antes
+                    ISNULL(p.InteresesPagados, 0) - -- Restamos lo que ya pagó de interés
+                    ISNULL(p.InteresAnticipadoUsado, 0) -- Restamos lo que se consumió de anticipos
+                ) as TotalDeuda 
+            FROM Prestamos p 
+            INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona 
+            WHERE p.Estado = 'Activo' 
+            GROUP BY p.ID_Persona, per.Nombre
+        `);
         res.json(result.recordset);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.post('/procesar-movimiento', async (req, res) => {
