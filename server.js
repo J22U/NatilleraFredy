@@ -609,7 +609,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
-                    ISNULL(InteresAcumulado, 0) as InteresAcumulado, -- Agregado para no perder intereses
+                    ISNULL(InteresAcumulado, 0) as InteresAcumulado,
                     TasaInteres, 
                     ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaCalculo
                 FROM Prestamos 
@@ -620,9 +620,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             const capitalPendiente = p.MontoPrestado - p.MontoPagado;
             const dias = Math.max(0, Math.floor((new Date() - new Date(p.FechaCalculo)) / (1000 * 60 * 60 * 24)));
             
-            // Interés Generado = Lo que ya estaba acumulado + lo nuevo generado hoy
             const interesGenerado = p.InteresAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
-            
             const anticipadoDisponible = Math.max(0, p.InteresAnticipado - p.InteresAnticipadoUsado);
             const interesPendiente = Math.max(0, interesGenerado - (p.InteresesPagados + p.InteresAnticipadoUsado));
             
@@ -636,7 +634,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             }
         }
 
-        // 2. CONSULTA FINAL PARA EL FRONTEND
+        // 2. CONSULTA FINAL PARA EL FRONTEND (Corregida coma y sintaxis)
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -653,21 +651,22 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
                     
-                    -- Interés Generado: InteresAcumulado + Interés desde el último abono
+                    -- Interés Generado
                     CAST(
                         ISNULL(InteresAcumulado, 0) +
                         (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
                     AS DECIMAL(18,2)) as InteresGenerado,
                     
-                    -- Interés Pendiente: (InteresAcumulado + Interés Nuevo) - (InteresesPagados + Usado)
+                    -- Interés Pendiente
                     CAST(
-                        (ISNULL(InteresAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
+                        (ISNULL(InteresAcumulado, 0) + 
+                        (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
                         - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
                     AS DECIMAL(18,2)) as InteresPendiente,
                     
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
                     
-                    -- Saldo Total corregido
+                    -- Saldo Total
                     CAST(
                         (MontoPrestado - ISNULL(MontoPagado, 0)) + 
                         ((ISNULL(InteresAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
@@ -675,7 +674,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     AS DECIMAL(18,2)) as saldoHoy
 
                 FROM Prestamos 
-                WHERE ID_Persona = @id 
+                WHERE ID_Persona = @id AND Estado = 'Activo'
                 ORDER BY ID_Prestamo ASC
             `);
 
