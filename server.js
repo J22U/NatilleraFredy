@@ -1864,12 +1864,23 @@ async function inicializarBaseDeDatos() {
                 ALTER TABLE Prestamos ADD InteresAnticipadoUsado DECIMAL(18,2) DEFAULT 0
             END`);
 
-        // Verificar si existe la columna FechaPagoCompleto (para guardar la fecha cuando el préstamo se pagó totalmente)
+// Verificar si existe la columna FechaPagoCompleto (para guardar la fecha cuando el préstamo se pagó totalmente)
         await pool.request()
             .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'FechaPagoCompleto')
             BEGIN
                 ALTER TABLE Prestamos ADD FechaPagoCompleto DATETIME NULL
             END`);
+
+        // 🎯 FIX: Llenar fechas NULL en préstamos legacy para evitar "S/F" en frontend
+        await pool.request()
+            .query(`
+                UPDATE Prestamos 
+                SET 
+                    FechaInicio = ISNULL(FechaInicio, ISNULL(Fecha, GETDATE())),
+                    Fecha = ISNULL(Fecha, GETDATE())
+                WHERE FechaInicio IS NULL OR Fecha IS NULL
+            `);
+        console.log('✅ Fechas legacy de préstamos corregidas (S/F → fechas válidas)');
 
         // ✅ NEW: InteresPendienteAcumulado para acumular intereses generados
         await pool.request()
