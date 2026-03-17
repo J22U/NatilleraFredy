@@ -609,7 +609,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
-                    ISNULL(InteresAcumulado, 0) as InteresAcumulado,
+                    ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
                     TasaInteres, 
                     ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaCalculo
                 FROM Prestamos 
@@ -621,7 +621,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             const dias = Math.max(0, Math.floor((new Date() - new Date(p.FechaCalculo)) / (1000 * 60 * 60 * 24)));
             
             // Interés Generado = Lo acumulado históricamente + lo generado en este periodo actual
-            const interesGenerado = p.InteresAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
+            const interesGenerado = p.InteresPendienteAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
             
             const anticipadoDisponible = Math.max(0, p.InteresAnticipado - p.InteresAnticipadoUsado);
             const interesPendiente = Math.max(0, interesGenerado - (p.InteresesPagados + p.InteresAnticipadoUsado));
@@ -647,7 +647,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
-                    ISNULL(InteresAcumulado, 0) as InteresAcumulado,
+                    ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
                     TasaInteres, 
                     Estado,
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
@@ -655,13 +655,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     
                     -- Interés Generado: Acumulado + Nuevo interés desde el último abono
                     CAST(
-                        ISNULL(InteresAcumulado, 0) +
+                        ISNULL(InteresPendienteAcumulado, 0) +
                         (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
                     AS DECIMAL(18,2)) as InteresGenerado,
                     
                     -- Interés Pendiente: (Total Generado) - (Pagos + Anticipados Usados)
                     CAST(
-                        (ISNULL(InteresAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
+                        (ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
                         - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
                     AS DECIMAL(18,2)) as InteresPendiente,
                     
@@ -670,7 +670,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     -- Saldo Total: Capital Actual + Interés Pendiente
                     CAST(
                         (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                        ((ISNULL(InteresAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
+                        ((ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
                         - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)))
                     AS DECIMAL(18,2)) as saldoHoy
 
