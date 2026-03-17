@@ -610,9 +610,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
                     ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
-                    TasaInteres, 
-                    ISNULL(FechaInicio, Fecha) as FechaInicio,
-                    ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaUltimoAbonoCapital,
+TasaInteres, 
+                    FORMAT(ISNULL(FechaInicio, ISNULL(Fecha, GETDATE())), 'dd/MM/yyyy') as FechaInicioFormateada,
+                    ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, ISNULL(Fecha, GETDATE()))) as FechaUltimoAbonoCapital,
                     DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as DiasTranscurridos
                 FROM Prestamos 
                 WHERE ID_Persona = @id AND Estado = 'Activo'
