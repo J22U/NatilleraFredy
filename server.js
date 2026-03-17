@@ -686,37 +686,17 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
 });
 
 app.get('/api/cobro-general', async (req, res) => {
+
     try {
+
         const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT 
-                p.ID_Persona, 
-                per.Nombre, 
-                -- ESTA ES LA SUMA QUE DA LOS $420.990
-                SUM(
-                    -- Capital Pendiente (Capital Inicial - Lo pagado a capital)
-                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
-                    
-                    -- Interés del periodo actual (desde el último abono hasta hoy)
-                    (
-                        ((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE())
-                    ) + 
-                    
-                    -- Interés viejo que ya estaba guardado
-                    ISNULL(p.InteresPendienteAcumulado, 0) - 
-                    
-                    -- Descontamos lo que ya pagó de interés o anticipó
-                    (ISNULL(p.InteresesPagados, 0) + ISNULL(p.InteresAnticipadoUsado, 0))
-                ) as TotalCapital 
-            FROM Prestamos p 
-            INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona 
-            WHERE p.Estado = 'Activo' 
-            GROUP BY p.ID_Persona, per.Nombre
-        `);
+
+        const result = await pool.request().query("SELECT p.ID_Persona, per.Nombre, SUM(p.SaldoActual) as TotalCapital FROM Prestamos p INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona WHERE p.Estado = 'Activo' GROUP BY p.ID_Persona, per.Nombre");
+
         res.json(result.recordset);
-    } catch (err) { 
-        res.status(500).json({ error: err.message }); 
-    }
+
+    } catch (err) { res.status(500).json({ error: err.message }); }
+
 });
 
 app.post('/procesar-movimiento', async (req, res) => {
@@ -1077,31 +1057,29 @@ app.get('/api/total-prestamos', async (req, res) => {
 app.get('/listar-miembros', async (req, res) => {
     try {
         const pool = await poolPromise;
-        // Consulta mejorada: calcula saldoPendiente igual que saldoHoy en detalle-prestamo
-        // Ahora usa InteresAnticipadoUsado (consumido) en lugar de InteresAnticipado
+        // NUEVA QUERY: Cálculo EXACTO igual al detalle-prestamo (saldoHoy)
         const result = await pool.request().query(`
             SELECT 
-                per.ID_Persona as id, 
+                per.ID_Persona as id,
                 per.Nombre as nombre, 
                 per.Documento as documento,
-                ISNULL((
-                    -- Calcular saldo total: capital pendiente + intereses generados - intereses pagados - interes anticipado USADO
-                    SELECT SUM(
-                        (ISNULL(p.MontoPrestado, 0) - ISNULL(p.MontoPagado, 0)) + 
-                        -- Interés generado desde el último abono a capital
-                        CASE 
-                            WHEN p.TasaInteres IS NOT NULL AND p.TasaInteres > 0 THEN
-                                ((ISNULL(p.MontoPrestado, 0) - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * 
-                                DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, GETDATE())), GETDATE())
-                            ELSE 0
-                        END
-                        - ISNULL(p.InteresesPagados, 0)
-                        - ISNULL(p.InteresAnticipadoUsado, 0)
-                    )
-                    FROM Prestamos p 
-                    WHERE p.ID_Persona = per.ID_Persona AND p.Estado = 'Activo'
-                ), 0) as saldoPendiente
+                ISNULL(SUM(d.saldoHoy), 0) as saldoHistoricoDetallado
             FROM Personas per
+            LEFT JOIN (
+                SELECT 
+                    ID_Persona,
+                    CAST(
+                        (MontoPrestado - ISNULL(MontoPagado, 0)) + 
+                        ((ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
+                        - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)))
+                    AS DECIMAL(18,2)
+                    ) as saldoHoy
+                FROM Prestamos 
+                WHERE Estado = 'Activo'
+            ) d ON per.ID_Persona = d.ID_Persona
+            GROUP BY per.ID_Persona, per.Nombre, per.Documento
+            HAVING ISNULL(SUM(d.saldoHoy), 0) > 0
+            ORDER BY SUM(d.saldoHoy) DESC
         `);
         res.json(result.recordset);
     } catch (err) { 

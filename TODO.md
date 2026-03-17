@@ -1,47 +1,49 @@
-# TODO.md - Plan de Implementación: Fix /procesar-movimiento para Préstamos
+# PLAN Lista de Cobro - Deuda Exacta del Historial
 
-## Plan Aprobado (Confirmado por Usuario)
+## 🔍 Información Recopilada
+**Endpoint actual:** `/listar-miembros` → `verListaRapidaDeudores()`
+**Cálculo actual:** `saldoPendiente` (aproximado)
+**Objetivo:** Usar **exactamente** el `saldoHoy` del historial (`/detalle-prestamo/:id`)
 
-**PLAN APROBADO. Procede con la implementación en server.js y la creación del TODO.md.**
-
-## Información Recopilada (de server.js y db.js)
-- Endpoint: `app.post('/procesar-movimiento')` maneja abonos a deuda con `destinoAbono`
-- DB: Tabla `Prestamos` tiene `InteresPendienteAcumulado DECIMAL(18,2) DEFAULT 0`
-- Cálculo: `DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, FechaInicio), @fAporte)`
-- Capital payments: UPDATE incluye `FechaUltimoAbonoCapital = @fAporte`
-- Default case: Deduce de `InteresPendienteAcumulado` con CASE WHEN (@acum - @m) < 0
-- ISNULL(InteresPendienteAcumulado, 0) ya implementado para socios legacy (ej. Jorge)
-
-## Pasos de Implementación (Estado Actual)
-
-### ✅ Paso 1: Crear TODO.md con plan detallado [COMPLETADO]
-### ✅ Paso 2: Aplicar edits precisos a server.js con edit_file (multiple diffs) [COMPLETADO]
-  - ✅ Fix variable refs (`interesGeneradoHoy → interesGenerado`)
-  - ✅ Enhance default case UPDATE con @acum
-  - ✅ Confirm capital UPDATE tiene `FechaUltimoAbonoCapital = @fAporte`
-  - ✅ Asegurar ISNULL en todas las queries
-
-### ✅ Paso 3: Verificar frontend `/detalle-prestamo/:id` usa ISNULL(InteresPendienteAcumulado, 0) [COMPLETADO]
-
-### ⬜ Paso 4: Test endpoint con curl + fecha manual (ayer)
+**Flujo actual:**
 ```
-curl -X POST http://localhost:3000/procesar-movimiento -H "Content-Type: application/json" -d '{"idPersona":1,"monto":1000,"tipoMovimiento":"deuda","idPrestamo":1,"destinoAbono":"capital","fechaManual":"2024-12-10"}'
+Frontend → GET /listar-miembros → saldoPendiente → Lista cobro
+Frontend → GET /detalle-prestamo/:id → saldoHoy → Historial individual ✓
 ```
 
-### ⬜ Paso 5: Verificar DB: `SELECT * FROM Prestamos WHERE ID_Prestamo=1`
-- InteresPendienteAcumulado > 0 después de capital payment
-- FechaUltimoAbonoCapital = fecha del pago
+## 🛠️ Plan Detallado
 
-### ⬜ Paso 6: Update TODO.md con [x] y attempt_completion
+### 1. Modificar endpoint `/listar-miembros` (server.js)
+```
+ANTES: saldoPendiente = fórmula simplificada
+DESPUÉS: saldoHistorico = JOIN con cálculo EXACTO de detalle-prestamo
+```
 
-## Dependencias Editadas
-- **server.js** (principal): /procesar-movimiento endpoint
+### 2. Frontend sin cambios
+```
+verListaRapidaDeudores() sigue usando saldoPendiente 
+→ Renombrar a saldoHistoricoDetallado (mismo valor que historial)
+```
 
-## Follow-up (Post-edits)
-1. **npm install** (si nuevas deps)
-2. **node server.js** (restart)
-3. **Test UI**: Dashboard → Abono deuda → Capital con fecha manual → Ver detalle préstamo
-4. **DB Query**: `SELECT InteresPendienteAcumulado, FechaUltimoAbonoCapital FROM Prestamos WHERE ID_Prestamo=1`
+### 3. Query Nueva (copiar lógica de detalle-prestamo)
+```
+SELECT per.id, per.nombre, SUM(saldoHoy) as saldoHistoricoDetallado
+FROM Personas per 
+JOIN (
+  SELECT ID_Persona, saldoHoy FROM detalle-prestamo-logic
+) d ON per.id = d.ID_Persona
+WHERE saldoHistoricoDetallado > 0
+```
 
-**Estado: Listo para edits precisos → Proceed with edit_file**
+## 📁 Archivos a editar
+- `server.js` (endpoint `/listar-miembros`)
+- `public/js/main.js` (renombrar saldoPendiente → saldoHistorico)
+
+## ⏭️ Próximos pasos
+1. ✅ Leer server.js (query actual)
+2. ✏️ Editar `/listar-miembros` con cálculo exacto
+3. 🔄 Reiniciar servidor
+4. ✅ Test lista cobro = historial
+
+**¿Procedo con la edición?**
 
