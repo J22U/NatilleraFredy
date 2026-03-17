@@ -1066,10 +1066,12 @@ app.get('/listar-miembros', async (req, res) => {
                     p.ID_Persona,
                     CAST(
                         (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
-                        ((ISNULL(p.InteresPendienteAcumulado, 0) + (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE()))) 
-                        - (ISNULL(p.InteresesPagados, 0) + ISNULL(p.InteresAnticipadoUsado, 0))
-                    AS DECIMAL(18,2)
-                    ) as saldoHoy
+                        (
+                          (ISNULL(p.InteresPendienteAcumulado, 0) + 
+                          (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE()))) 
+                          - (ISNULL(p.InteresesPagados, 0) + ISNULL(p.InteresAnticipadoUsado, 0))
+                        ) -- <-- Este paréntesis cierra el bloque de intereses
+                    AS DECIMAL(18,2)) as saldoHoy -- <-- Ahora el CAST cierra correctamente
                 FROM Prestamos p
                 WHERE p.Estado = 'Activo'
             )
@@ -1086,8 +1088,8 @@ app.get('/listar-miembros', async (req, res) => {
         `);
         res.json(result.recordset);
     } catch (err) { 
-        console.error("Error en /listar-miembros:", err.message, err.stack);
-        res.status(500).json({ error: "Error al obtener miembros" }); 
+        console.error("Error en /listar-miembros:", err.message);
+        res.status(500).json({ error: "Error al obtener miembros", detalle: err.message }); 
     }
 });
 
