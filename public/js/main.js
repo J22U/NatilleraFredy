@@ -1451,67 +1451,110 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
 async function verListaRapidaDeudores() {
     try {
         const res = await fetch('/listar-miembros');
-        const miembros = await res.json();
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error("Error HTTP:", res.status, errorText);
+            throw new Error(`Error ${res.status}: ${errorText}`);
+        }
+        const data = await res.json();
         
-        // LOG DE DEPURACIÓN: Abre la consola (F12) para ver qué llega
-        console.log("Datos recibidos del servidor:", miembros);
+        // Verificar si es error del servidor
+        if (data.error) {
+            console.error("Error del servidor:", data.error);
+            return Swal.fire({
+                title: 'Sin deudores o error DB',
+                text: data.error === 'Pool no disponible' ? 'No hay conexión con la base de datos en este momento.' : data.error,
+                icon: 'warning'
+            });
+        }
+        
+        // Si no es array, mostrar mensaje
+        if (!Array.isArray(data)) {
+            console.error("Respuesta no es array:", data);
+            return Swal.fire({
+                title: 'Datos inválidos',
+                text: 'La respuesta del servidor no tiene el formato esperado.',
+                icon: 'warning'
+            });
+        }
+
+        console.log("Datos recibidos del servidor:", data);
 
         // Filtramos asegurando que el saldo sea tratado como número
-        const deudores = miembros
+        // Usar saldoHistoricoDetallado (nuevo campo) o fallback a saldoPendiente
+        const deudores = data
             .filter(m => {
-                const saldo = Number(m.saldoPendiente);
+                const saldo = Number(m.saldoHistoricoDetallado || m.saldoPendiente || 0);
                 return !isNaN(saldo) && saldo > 0;
             })
-            .sort((a, b) => Number(b.saldoPendiente) - Number(a.saldoPendiente));
+            .sort((a, b) => {
+                const saldoA = Number(b.saldoHistoricoDetallado || b.saldoPendiente || 0);
+                const saldoB = Number(a.saldoHistoricoDetallado || a.saldoPendiente || 0);
+                return saldoA - saldoB;
+            });
 
         if (deudores.length === 0) {
             return Swal.fire({
-                title: '¡Cuentas Limpias!',
+                title: '¡Cuentas Limpias! 🎉',
                 text: 'No hay saldos pendientes detectados en la base de datos.',
                 icon: 'success',
                 confirmButtonColor: '#10b981'
             });
         }
 
-        const totalCartera = deudores.reduce((sum, m) => sum + Number(m.saldoPendiente), 0);
+        const totalCartera = deudores.reduce((sum, m) => {
+            const saldo = Number(m.saldoHistoricoDetallado || m.saldoPendiente || 0);
+            return sum + saldo;
+        }, 0);
 
         let htmlDeudores = `
             <div class="recaudo-container text-left font-sans">
-                <div class="grid grid-cols-2 gap-3 mb-6">
+                <div class="grid grid-cols-2 gap-3 mb-6 p-4 bg-gradient-to-r from-indigo-50 to-slate-50 rounded-2xl">
                     <div class="bg-indigo-600 p-4 rounded-2xl text-white shadow-md">
-                        <p class="text-[10px] uppercase opacity-80 font-bold">Por Recoger</p>
-                        <p class="text-xl font-black">$${totalCartera.toLocaleString()}</p>
+                        <p class="text-[10px] uppercase opacity-80 font-bold">CARTERA POR RECOGER</p>
+                        <p class="text-xl font-black">${totalCartera.toLocaleString()}</p>
                     </div>
-                    <div class="bg-white border-2 border-slate-100 p-4 rounded-2xl shadow-sm">
-                        <p class="text-[10px] text-slate-400 uppercase font-bold">Personas</p>
+                    <div class="bg-white border-2 border-slate-100 p-4 rounded-2xl shadow-sm flex items-center justify-center">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold">Personas con Deuda</p>
                         <p class="text-xl font-black text-slate-700">${deudores.length}</p>
                     </div>
                 </div>
                 <div class="space-y-3 max-h-[450px] overflow-y-auto pr-2">
-                    ${deudores.map((d, index) => `
-                        <div class="bg-white border-2 border-slate-50 p-4 rounded-2xl shadow-sm">
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <h4 class="font-bold text-slate-800">${d.nombre}</h4>
-                                    <p class="text-[10px] text-slate-400">${d.documento || ''}</p>
+                    ${deudores.map((d, index) => {
+                        const saldo = Number(d.saldoHistoricoDetallado || d.saldoPendiente || 0);
+                        const campoSaldo = d.saldoHistoricoDetallado ? 'saldoHistoricoDetallado' : 'saldoPendiente';
+                        return `
+                        <div class="bg-gradient-to-r from-white to-slate-50 border-2 border-slate-50 hover:border-indigo-200 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer" onclick="verHistorialFechas(${d.id}, '${d.nombre.replace(/'/g, "\\'")}')">
+                            <div class="flex justify-between items-start gap-4">
+                                <div class="flex-1">
+                                    <h4 class="font-bold text-slate-800 text-lg">${d.nombre}</h4>
+                                    <p class="text-[10px] text-slate-500 flex items-center gap-2">
+                                        <span class="bg-slate-100 px-2 py-0.5 rounded-full text-[8px] font-bold">${d.documento || 'S/D'}</span>
+                                    </p>
                                 </div>
-                                <div class="text-right">
-<p class="text-[8px] uppercase font-bold text-rose-500">Deuda Total (Con Int.)</p>
-                                    <p class="text-lg font-black text-rose-600">$${Number(d.saldoPendiente).toLocaleString()}</p>
-                                    <button onclick="verHistorialFechas(${d.id}, '${d.nombre}')" class="text-[10px] font-bold text-indigo-400 uppercase">Ver Detalles</button>
+                                <div class="text-right flex-shrink-0">
+                                    <p class="text-[9px] uppercase font-bold text-rose-500 tracking-wider mb-1">Deuda Histórica Completa</p>
+                                    <p class="text-xl font-black text-rose-600">${saldo.toLocaleString()}</p>
                                 </div>
                             </div>
                         </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
 
-        Swal.fire({ html: htmlDeudores, width: '500px', showConfirmButton: false, showCloseButton: true });
+        Swal.fire({ 
+            html: htmlDeudores, 
+            width: '600px', 
+            showConfirmButton: false, 
+            showCloseButton: true,
+            customClass: { popup: 'rounded-[2.5rem]' }
+        });
 
     } catch (err) {
         console.error("Error cargando deudores:", err);
-        Swal.fire('Error', 'Error de conexión', 'error');
+        Swal.fire('Error', `Error de conexión: ${err.message}`, 'error');
     }
 }
 
