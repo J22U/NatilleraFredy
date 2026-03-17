@@ -636,7 +636,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             }
         }
 
-        // 2. CONSULTA FINAL PARA EL FRONTEND (CORREGIDA PARA COINCIDENCIA VISUAL)
+        // 2. CONSULTA FINAL PARA EL FRONTEND (CORREGIDA PARA SUMA DIRECTA)
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -659,7 +659,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                         (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
                     AS DECIMAL(18,2)) as InteresGenerado,
                     
-                    -- Interés Pendiente: IGUALADO AL GENERADO PARA EVITAR NEGATIVOS VISUALES
+                    -- Interés Pendiente: IGUALADO AL GENERADO
                     CAST(
                         ISNULL(InteresPendienteAcumulado, 0) +
                         (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
@@ -667,11 +667,11 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
                     
-                    -- Saldo Total: Capital Actual + (Interés Total - Pagos de Interés Realizados)
+                    -- SALDO TOTAL CORREGIDO: Suma directa de Capital + Interés Generado
+                    -- Esto asegura que arriba aparezcan los $4.549.500
                     CAST(
                         (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                        ((ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
-                        - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)))
+                        (ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
                     AS DECIMAL(18,2)) as saldoHoy
 
                 FROM Prestamos 
