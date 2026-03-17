@@ -753,13 +753,14 @@ app.post('/procesar-movimiento', async (req, res) => {
             // OBTENER DATOS ACTUALES DEL PRÉSTAMO PARA VALIDAR + ACCUMULATE INTEREST
             const prestamoActual = await pool.request()
                 .input('idP', sql.Int, idPrestamo)
+                .input('fAporte', sql.Date, fAporte)
                 .query(`
                     SELECT 
                         SaldoActual,
                         ISNULL(MontoPagado, 0) as MontoPagado, 
                         ISNULL(InteresesPagados, 0) as InteresesPagados,
                         ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
-                        DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as DiasTranscurridos,
+                        DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), @fAporte) as DiasTranscurridos,
                         TasaInteres
                     FROM Prestamos 
                     WHERE ID_Prestamo = @idP
@@ -771,23 +772,24 @@ app.post('/procesar-movimiento', async (req, res) => {
 
             const p = prestamoActual.recordset[0];
             
-            // 🎯 STEP 2: CALCULAR Y ACUMULAR INTERÉS PENDIENTE
+            // 🎯 STEP 2: CALCULAR Y ACUMULAR INTERÉS PENDIENTE DESDE ÚLTIMO ABONO HASTA @fAporte
             const diasTranscurridos = p.DiasTranscurridos;
             const interesDiario = (p.SaldoActual * p.TasaInteres / 100.0) / 30.0;
-            const interesGeneradoHoy = interesDiario * diasTranscurridos;
-            const nuevoAcumulado = p.InteresPendienteAcumulado + interesGeneradoHoy;
+            const interesGenerado = interesDiario * diasTranscurridos;
+            const nuevoAcumulado = p.InteresPendienteAcumulado + interesGenerado;
             
-            // Acumular antes de cualquier pago
+            // Acumular antes de cualquier pago - ✅ Persistencia garantizada
             await pool.request()
                 .input('idP', sql.Int, idPrestamo)
                 .input('nuevoAcum', sql.Decimal(18, 2), nuevoAcumulado)
-                .query("UPDATE Prestamos SET InteresPendienteAcumulado = @nuevoAcum WHERE ID_Prestamo = @idP");
+                .input('fAporte', sql.Date, fAporte)
+                .query("UPDATE Prestamos SET InteresPendienteAcumulado = @nuevoAcum, FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
 
-            console.log(`>>> Acumulado intereses: +$${interesGeneradoHoy.toFixed(2)} (total: $${nuevoAcumulado.toFixed(2)})`);
+            console.log(`>>> Acumulado intereses hasta ${fAporte}: +$${interesGenerado.toFixed(2)} (total: $${nuevoAcumulado.toFixed(2)})`);
 
             const capitalPendiente = p.SaldoActual;  // Use SaldoActual as current capital
             // Calcular interés pendiente actual (legacy for validation)
-            const interesPendiente = Math.max(0, interesGeneradoHoy - p.InteresesPagados);
+            const interesPendiente = Math.max(0, interesGenerado - p.InteresesPagados);
             
             // Validar explícitamente el destino del abono
             if (destinoAbono === 'capital') {
@@ -803,13 +805,13 @@ app.post('/procesar-movimiento', async (req, res) => {
                 
                 if (nuevoSaldo <= 0) {
                     // El préstamo quedó pagado completamente - guardar fecha de pago completo
-                    await pool.request()
-                        .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte).input('fPago', sql.Date, fAporte)
-                        .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = 0, Estado = 'Pagado', FechaUltimoAbonoCapital = @fAporte, FechaPagoCompleto = @fPago WHERE ID_Prestamo = @idP");
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte).input('fPago', sql.Date, fAporte)
+                    .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = 0, Estado = 'Pagado', FechaUltimoAbonoCapital = @fAporte, FechaPagoCompleto = @fPago WHERE ID_Prestamo = @idP");
                 } else {
-                    await pool.request()
-                        .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
-                        .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END, Estado = 'Activo', FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
+                    .query("UPDATE Prestamos SET MontoPagado = ISNULL(MontoPagado, 0) + @m, SaldoActual = CASE WHEN (SaldoActual - @m) < 0 THEN 0 ELSE SaldoActual - @m END, Estado = 'Activo', FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
                 }
             } else if (destinoAbono === 'interes') {
                 // Abono a INTERÉS: se suma a InteresesPagados (el saldo total se recalcula dinámicamente)
@@ -821,11 +823,12 @@ app.post('/procesar-movimiento', async (req, res) => {
                 }
                 
                 await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado)
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado).input('fAporte', sql.Date, fAporte)
                     .query(`
                         UPDATE Prestamos 
                         SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m,
-                            InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END 
+                            InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END,
+                            FechaUltimoAbonoCapital = @fAporte
                         WHERE ID_Prestamo = @idP
                     `);
             } else if (destinoAbono === 'interesAnticipado') {
@@ -834,8 +837,8 @@ app.post('/procesar-movimiento', async (req, res) => {
                 
                 // Para interés anticipado, permitimos un monto más flexible (no validamos contra interés pendiente)
                 await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
-                    .query("UPDATE Prestamos SET InteresAnticipado = ISNULL(InteresAnticipado, 0) + @m WHERE ID_Prestamo = @idP");
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
+                    .query("UPDATE Prestamos SET InteresAnticipado = ISNULL(InteresAnticipado, 0) + @m, FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
             } else {
                 // Si destinoAbono es undefined, null o cualquier otro valor -> SE TRATA COMO INTERÉS (sin tocar el SaldoActual)
                 console.log(">>> Abono a INTERÉS (default)", destinoAbono);
@@ -846,8 +849,14 @@ app.post('/procesar-movimiento', async (req, res) => {
                 }
                 
                 await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
-                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado).input('fAporte', sql.Date, fAporte)
+                    .query(`
+                        UPDATE Prestamos 
+                        SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m,
+                            InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END,
+                            FechaUltimoAbonoCapital = @fAporte
+                        WHERE ID_Prestamo = @idP
+                    `);
             }
             
             await pool.request()
