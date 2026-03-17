@@ -598,13 +598,12 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
         
-        // 1. PROCESO DE AUTO-CONSUMO DE ANTICIPADOS
+        // 1. PROCESO DE AUTO-CONSUMO (Se mantiene igual)
         const prestamosData = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
                 SELECT 
-                    ID_Prestamo, 
-                    MontoPrestado, 
+                    ID_Prestamo, MontoPrestado, 
                     ISNULL(MontoPagado, 0) as MontoPagado, 
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
@@ -619,67 +618,67 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         for (const p of prestamosData.recordset) {
             const capitalPendiente = p.MontoPrestado - p.MontoPagado;
             const dias = Math.max(0, Math.floor((new Date() - new Date(p.FechaCalculo)) / (1000 * 60 * 60 * 24)));
-            
             const interesGenerado = p.InteresAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
             const anticipadoDisponible = Math.max(0, p.InteresAnticipado - p.InteresAnticipadoUsado);
             const interesPendiente = Math.max(0, interesGenerado - (p.InteresesPagados + p.InteresAnticipadoUsado));
             
             if (anticipadoDisponible > 0 && interesPendiente > 0) {
                 const nuevoConsumo = Math.min(anticipadoDisponible, interesPendiente);
-                const nuevoUsado = p.InteresAnticipadoUsado + nuevoConsumo;
                 await pool.request()
                     .input('idP', sql.Int, p.ID_Prestamo)
-                    .input('usado', sql.Decimal(18, 2), nuevoUsado)
+                    .input('usado', sql.Decimal(18, 2), p.InteresAnticipadoUsado + nuevoConsumo)
                     .query("UPDATE Prestamos SET InteresAnticipadoUsado = @usado WHERE ID_Prestamo = @idP");
             }
         }
 
-        // 2. CONSULTA FINAL PARA EL FRONTEND (Corregida coma y sintaxis)
+        // 2. CONSULTA FINAL (Traemos los datos limpios para evitar el Error 500)
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
                 SELECT 
-                    ID_Prestamo, 
-                    MontoPrestado, 
+                    ID_Prestamo, MontoPrestado, TasaInteres, Estado,
                     ISNULL(MontoPagado, 0) as MontoPagado, 
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
                     ISNULL(InteresAcumulado, 0) as InteresAcumulado,
-                    TasaInteres, 
-                    Estado,
-                    FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
-                    DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
-                    
-                    -- Interés Generado
-                    CAST(
-                        ISNULL(InteresAcumulado, 0) +
-                        (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
-                    AS DECIMAL(18,2)) as InteresGenerado,
-                    
-                    -- Interés Pendiente
-                    CAST(
-                        (ISNULL(InteresAcumulado, 0) + 
-                        (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
-                        - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
-                    AS DECIMAL(18,2)) as InteresPendiente,
-                    
-                    (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
-                    
-                    -- Saldo Total
-                    CAST(
-                        (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                        ((ISNULL(InteresAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
-                        - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)))
-                    AS DECIMAL(18,2)) as saldoHoy
-
+                    ISNULL(FechaInicio, Fecha) as FechaRef,
+                    ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaCalculo,
+                    FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada
                 FROM Prestamos 
-                WHERE ID_Persona = @id AND Estado = 'Activo'
+                WHERE ID_Persona = @id 
                 ORDER BY ID_Prestamo ASC
             `);
 
-        res.json(result.recordset);
+        // 3. MATEMÁTICA EN JAVASCRIPT (Aquí calculamos los 46 días y el saldo)
+        const hoy = new Date();
+        const finalData = result.recordset.map(row => {
+            const capitalHoy = row.MontoPrestado - row.MontoPagado;
+            const diasTotales = Math.max(0, Math.floor((hoy - new Date(row.FechaRef)) / (1000 * 60 * 60 * 24)));
+            const diasDesdeAbono = Math.max(0, Math.floor((hoy - new Date(row.FechaCalculo)) / (1000 * 60 * 60 * 24)));
+
+            // Interés Generado = Acumulado + (Capital * % / 30 * días)
+            const interesNuevo = ((capitalHoy * (row.TasaInteres / 100.0)) / 30.0) * diasDesdeAbono;
+            const totalGenerado = row.InteresAcumulado + interesNuevo;
+
+            // Interés Pendiente
+            const yaPagado = row.InteresesPagados + row.InteresAnticipadoUsado;
+            const pendiente = Math.max(0, totalGenerado - yaPagado);
+
+            return {
+                ...row,
+                DiasTranscurridos: diasTotales, // Aquí verás tus 46 días
+                InteresGenerado: Math.round(totalGenerado),
+                InteresPendiente: Math.round(pendiente),
+                capitalHoy: capitalHoy,
+                saldoHoy: Math.round(capitalHoy + pendiente)
+            };
+        });
+
+        res.json(finalData);
+
     } catch (err) { 
+        console.error("Error detalle-prestamo:", err.message);
         res.status(500).json({ error: err.message }); 
     }
 });
