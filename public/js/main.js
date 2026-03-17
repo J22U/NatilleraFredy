@@ -577,10 +577,10 @@ async function verHistorialFechas(id, nombre) {
         const renderPrestamos = (data) => {
     if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin préstamos</p>';
     
-    // Ordenar préstamos por fecha de inicio (más antiguo primero)
+    // Ordenar préstamos por fecha de inicio ASC (más antiguo = #1)
     const prestamosOrdenados = [...data].sort((a, b) => 
-        new Date(a.FechaInicio || a.FechaPrestamo || 0) - 
-        new Date(b.FechaInicio || b.FechaPrestamo || 0)
+        new Date(a.FechaInicio || a.FechaPrestamo || '1970-01-01') - 
+        new Date(b.FechaInicio || b.FechaPrestamo || '1970-01-01')
     );
     
     return prestamosOrdenados.map((m, index) => {
@@ -1547,8 +1547,8 @@ async function toggleDeudas() {
             const deudas = await res.json();
 
             if (deudas && Array.isArray(deudas) && deudas.length > 0) {
-                // Ordenar por fecha y mapear a los nombres exactos de tu DB (SaldoActual)
-                const deudasOrdenadas = deudas.sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
+        // Ordenar por fecha ASC (más antiguo = #1)
+        const deudasOrdenadas = deudas.sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
                 
                 select.innerHTML = deudasOrdenadas.map((d, index) => `
                     <option value="${d.ID_Prestamo}">
