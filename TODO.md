@@ -1,49 +1,62 @@
-# PLAN Lista de Cobro - Deuda Exacta del Historial
+# Natillera - TODO Lista de Cobro Exacta
 
 ## 🔍 Información Recopilada
-**Endpoint actual:** `/listar-miembros` → `verListaRapidaDeudores()`
-**Cálculo actual:** `saldoPendiente` (aproximado)
-**Objetivo:** Usar **exactamente** el `saldoHoy` del historial (`/detalle-prestamo/:id`)
+- **Endpoint:** `/listar-miembros` → 500 "Error al obtener miembros"
+- **Problema:** Query SUM compleja (saldoHoy calculation) en SELECT, HAVING, ORDER BY → timeout/error SQL Server
+- **Frontend:** main.js maneja errores correctamente (no crash)
+- **Query actual:** LEFT JOIN Personas-Prestamos + cálculo inline saldoHoy en múltiples lugares
+- **Dependencias:** Personas, Prestamos tablas OK
 
-**Flujo actual:**
+## 🛠️ Plan de Edición (server.js)
+
+### 1. Simplificar `/listar-miembros` → Usar CTE
 ```
-Frontend → GET /listar-miembros → saldoPendiente → Lista cobro
-Frontend → GET /detalle-prestamo/:id → saldoHoy → Historial individual ✓
+ANTES: SUM(complex calculation) en SELECT + HAVING + ORDER BY
+DESPUÉS: 
+WITH Saldos AS (
+    SELECT ID_Persona, 
+           CAST((...) AS DECIMAL(18,2)) as saldoHoy 
+    FROM Prestamos WHERE Estado = 'Activo'
+)
+SELECT per.id, per.nombre, per.documento, ISNULL(SUM(s.saldoHoy), 0) as saldoHistoricoDetallado
+FROM Personas per LEFT JOIN Saldos s ON per.id = s.ID_Persona
+GROUP BY per.id, per.nombre, per.documento
+HAVING ISNULL(SUM(s.saldoHoy), 0) > 0
+ORDER BY ISNULL(SUM(s.saldoHoy), 0) DESC
 ```
 
-## 🛠️ Plan Detallado
-
-### 1. Modificar endpoint `/listar-miembros` (server.js)
+### 2. Manejo robusto pool.request()
 ```
-ANTES: saldoPendiente = fórmula simplificada
-DESPUÉS: saldoHistorico = JOIN con cálculo EXACTO de detalle-prestamo
-```
-
-### 2. Frontend sin cambios
-```
-verListaRapidaDeudores() sigue usando saldoPendiente 
-→ Renombrar a saldoHistoricoDetallado (mismo valor que historial)
+if (!pool || !pool.request) {
+    res.status(500).json({ error: "Pool no disponible" });
+    return;
+}
 ```
 
-### 3. Query Nueva (copiar lógica de detalle-prestamo)
+### 3. Log error detallado
 ```
-SELECT per.id, per.nombre, SUM(saldoHoy) as saldoHistoricoDetallado
-FROM Personas per 
-JOIN (
-  SELECT ID_Persona, saldoHoy FROM detalle-prestamo-logic
-) d ON per.id = d.ID_Persona
-WHERE saldoHistoricoDetallado > 0
+catch (err) {
+    console.error("Error /listar-miembros:", err.message, err.stack);
+    res.status(500).json({ error: "Error al obtener miembros" });
+}
 ```
 
 ## 📁 Archivos a editar
 - `server.js` (endpoint `/listar-miembros`)
-- `public/js/main.js` (renombrar saldoPendiente → saldoHistorico)
 
-## ⏭️ Próximos pasos
-1. ✅ Leer server.js (query actual)
-2. ✏️ Editar `/listar-miembros` con cálculo exacto
-3. 🔄 Reiniciar servidor
-4. ✅ Test lista cobro = historial
+## ✅ PASOS COMPLETADOS
+1. ✅ Crear TODO.md
+2. ✅ Editar server.js → Query CTE simplificada ✓
+3. 🔄 **Reiniciar servidor:** `taskkill /IM node.exe /F && node server.js`
+4. ✅ Test Dashboard → "Lista de Cobro"
 
-**¿Procedo con la edición?**
+## 🚀 Resultado esperado
+```
+✅ /listar-miembros devuelve array válido (no crash frontend)
+✅ Lista ordenada por deuda DESC
+✅ Manejo errores 500 graceful (main.js)
+✅ Logs detallados en consola servidor
+```
+
+**Ejecuta el reinicio y prueba!**
 

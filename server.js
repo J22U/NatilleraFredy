@@ -1061,38 +1061,32 @@ app.get('/listar-miembros', async (req, res) => {
             return res.status(500).json({ error: "Pool no disponible" });
         }
         const result = await pool.request().query(`
-            SELECT 
-                per.ID_Persona as id,
-                per.Nombre as nombre, 
-                per.Documento as documento,
-                ISNULL(SUM(
+            WITH SaldosPrestamos AS (
+                SELECT 
+                    p.ID_Persona,
                     CAST(
                         (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
                         ((ISNULL(p.InteresPendienteAcumulado, 0) + (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE()))) 
                         - (ISNULL(p.InteresesPagados, 0) + ISNULL(p.InteresAnticipadoUsado, 0))
-                    AS DECIMAL(18,2))
-                ), 0) as saldoHistoricoDetallado
+                    AS DECIMAL(18,2)
+                    ) as saldoHoy
+                FROM Prestamos p
+                WHERE p.Estado = 'Activo'
+            )
+            SELECT 
+                per.ID_Persona as id,
+                per.Nombre as nombre, 
+                per.Documento as documento,
+                ISNULL(SUM(sp.saldoHoy), 0) as saldoHistoricoDetallado
             FROM Personas per
-            LEFT JOIN Prestamos p ON per.ID_Persona = p.ID_Persona AND p.Estado = 'Activo'
+            LEFT JOIN SaldosPrestamos sp ON per.ID_Persona = sp.ID_Persona
             GROUP BY per.ID_Persona, per.Nombre, per.Documento
-            HAVING ISNULL(SUM(
-                CAST(
-                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
-                    ((ISNULL(p.InteresPendienteAcumulado, 0) + (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE()))) 
-                    - (ISNULL(p.InteresesPagados, 0) + ISNULL(p.InteresAnticipadoUsado, 0))
-                AS DECIMAL(18,2))
-            ), 0) > 0
-            ORDER BY ISNULL(SUM(
-                CAST(
-                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
-                    ((ISNULL(p.InteresPendienteAcumulado, 0) + (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE()))) 
-                    - (ISNULL(p.InteresesPagados, 0) + ISNULL(p.InteresAnticipadoUsado, 0))
-                AS DECIMAL(18,2))
-            ), 0) DESC
+            HAVING ISNULL(SUM(sp.saldoHoy), 0) > 0
+            ORDER BY ISNULL(SUM(sp.saldoHoy), 0) DESC
         `);
         res.json(result.recordset);
     } catch (err) { 
-        console.error("Error en /listar-miembros:", err.message);
+        console.error("Error en /listar-miembros:", err.message, err.stack);
         res.status(500).json({ error: "Error al obtener miembros" }); 
     }
 });
