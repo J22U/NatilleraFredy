@@ -750,14 +750,15 @@ app.post('/procesar-movimiento', async (req, res) => {
                 idPersona, monto: m, tipoMovimiento, idPrestamo, destinoAbono, MesesCorrespondientes
             });
             
-            // OBTENER DATOS ACTUALES DEL PRÉSTAMO PARA VALIDAR
+            // OBTENER DATOS ACTUALES DEL PRÉSTAMO PARA VALIDAR + ACCUMULATE INTEREST
             const prestamoActual = await pool.request()
                 .input('idP', sql.Int, idPrestamo)
                 .query(`
                     SELECT 
-                        MontoPrestado, 
+                        SaldoActual,
                         ISNULL(MontoPagado, 0) as MontoPagado, 
                         ISNULL(InteresesPagados, 0) as InteresesPagados,
+                        ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
                         DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as DiasTranscurridos,
                         TasaInteres
                     FROM Prestamos 
@@ -769,9 +770,24 @@ app.post('/procesar-movimiento', async (req, res) => {
             }
 
             const p = prestamoActual.recordset[0];
-            const capitalPendiente = p.MontoPrestado - p.MontoPagado;
-            // Calcular interés pendiente actual
-            const interesPendiente = Math.max(0, ((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * p.DiasTranscurridos - p.InteresesPagados);
+            
+            // 🎯 STEP 2: CALCULAR Y ACUMULAR INTERÉS PENDIENTE
+            const diasTranscurridos = p.DiasTranscurridos;
+            const interesDiario = (p.SaldoActual * p.TasaInteres / 100.0) / 30.0;
+            const interesGeneradoHoy = interesDiario * diasTranscurridos;
+            const nuevoAcumulado = p.InteresPendienteAcumulado + interesGeneradoHoy;
+            
+            // Acumular antes de cualquier pago
+            await pool.request()
+                .input('idP', sql.Int, idPrestamo)
+                .input('nuevoAcum', sql.Decimal(18, 2), nuevoAcumulado)
+                .query("UPDATE Prestamos SET InteresPendienteAcumulado = @nuevoAcum WHERE ID_Prestamo = @idP");
+
+            console.log(`>>> Acumulado intereses: +$${interesGeneradoHoy.toFixed(2)} (total: $${nuevoAcumulado.toFixed(2)})`);
+
+            const capitalPendiente = p.SaldoActual;  // Use SaldoActual as current capital
+            // Calcular interés pendiente actual (legacy for validation)
+            const interesPendiente = Math.max(0, interesGeneradoHoy - p.InteresesPagados);
             
             // Validar explícitamente el destino del abono
             if (destinoAbono === 'capital') {
@@ -805,8 +821,13 @@ app.post('/procesar-movimiento', async (req, res) => {
                 }
                 
                 await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
-                    .query("UPDATE Prestamos SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m WHERE ID_Prestamo = @idP");
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado)
+                    .query(`
+                        UPDATE Prestamos 
+                        SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m,
+                            InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END 
+                        WHERE ID_Prestamo = @idP
+                    `);
             } else if (destinoAbono === 'interesAnticipado') {
                 // Abono a INTERÉS ANTICIPADO: se suma a InteresAnticipado (adelanto de intereses)
                 console.log(">>> Abono a INTERÉS ANTICIPADO (ADELANTO)");
@@ -1855,6 +1876,13 @@ async function inicializarBaseDeDatos() {
             .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'FechaPagoCompleto')
             BEGIN
                 ALTER TABLE Prestamos ADD FechaPagoCompleto DATETIME NULL
+            END`);
+
+        // ✅ NEW: InteresPendienteAcumulado para acumular intereses generados
+        await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'InteresPendienteAcumulado')
+            BEGIN
+                ALTER TABLE Prestamos ADD InteresPendienteAcumulado DECIMAL(18,2) DEFAULT 0
             END`);
 
         // Verificar si existe la tabla Rifas_Info
