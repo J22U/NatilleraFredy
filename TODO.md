@@ -1,39 +1,47 @@
-# TODO: Persistencia de Interés Inteligente en /procesar-movimiento ✅ COMPLETADO
+# TODO.md - Plan de Implementación: Fix /procesar-movimiento para Préstamos
 
-## ✅ Plan Aprobado y Confirmado - IMPLEMENTADO
-- [x] **Paso 1**: Crear/Actualizar TODO.md con pasos detallados (HECHO)
-- [x] **Paso 2**: Leer server.js y localizar endpoint app.post('/procesar-movimiento') (HECHO)
-- [x] **Paso 3**: Fix variable refs (interesGeneradoHoy → interesGenerado) (HECHO)
-- [x] **Paso 4**: Enhance default destinoAbono case: deduct from InteresPendienteAcumulado with CASE logic (HECHO)
-- [x] **Paso 5**: Pass @acum to default case UPDATE (HECHO)
-- [x] **Paso 6**: Apply all edits with edit_file (multiple diffs) (HECHO)
-- [x] **Paso 7**: Verify SQL/Node.js syntax (PASSED - no errors)
-- [x] **Paso 8**: Test: node server.js + curl /procesar-movimiento with fechaManual (RECOMENDADO)
-- [x] **Paso 9**: Mark all [x] and attempt_completion (HECHO)
+## Plan Aprobado (Confirmado por Usuario)
 
-## ✅ Cambios Implementados en server.js (/procesar-movimiento):
-1. ✅ **DATEDIFF usa @fAporte**: Calcula intereses hasta fecha del pago.
-2. ✅ **destinoAbono === 'capital'**: UPDATE incluye `FechaUltimoAbonoCapital = @fAporte` (resetea ciclo).
-3. ✅ **ISNULL(InteresPendienteAcumulado, 0)**: Maneja socios sin columna (ej. Jorge).
-4. ✅ **Default case mejorado**: Ahora deduce de `InteresPendienteAcumulado` con CASE WHEN (@acum - @m) < 0.
-5. ✅ **Variable refs fixed**: `interesGeneradoHoy` → `interesGenerado`.
+**PLAN APROBADO. Procede con la implementación en server.js y la creación del TODO.md.**
 
-## Post-Implementación Test (Ejecutar manualmente):
+## Información Recopilada (de server.js y db.js)
+- Endpoint: `app.post('/procesar-movimiento')` maneja abonos a deuda con `destinoAbono`
+- DB: Tabla `Prestamos` tiene `InteresPendienteAcumulado DECIMAL(18,2) DEFAULT 0`
+- Cálculo: `DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, FechaInicio), @fAporte)`
+- Capital payments: UPDATE incluye `FechaUltimoAbonoCapital = @fAporte`
+- Default case: Deduce de `InteresPendienteAcumulado` con CASE WHEN (@acum - @m) < 0
+- ISNULL(InteresPendienteAcumulado, 0) ya implementado para socios legacy (ej. Jorge)
+
+## Pasos de Implementación (Estado Actual)
+
+### ✅ Paso 1: Crear TODO.md con plan detallado [COMPLETADO]
+### ✅ Paso 2: Aplicar edits precisos a server.js con edit_file (multiple diffs) [COMPLETADO]
+  - ✅ Fix variable refs (`interesGeneradoHoy → interesGenerado`)
+  - ✅ Enhance default case UPDATE con @acum
+  - ✅ Confirm capital UPDATE tiene `FechaUltimoAbonoCapital = @fAporte`
+  - ✅ Asegurar ISNULL en todas las queries
+
+### ✅ Paso 3: Verificar frontend `/detalle-prestamo/:id` usa ISNULL(InteresPendienteAcumulado, 0) [COMPLETADO]
+
+### ⬜ Paso 4: Test endpoint con curl + fecha manual (ayer)
 ```
-# 1. Reiniciar servidor
-node server.js
-
-# 2. Test abono CAPITAL con fecha manual (ej. ayer)
-curl -X POST http://localhost:3000/procesar-movimiento \
-  -H "Content-Type: application/json" \
-  -d '{"idPersona":1,"monto":1000,"tipoMovimiento":"deuda","idPrestamo":1,"destinoAbono":"capital","fechaManual":"2024-12-10"}'
-
-# 3. Test abono INTERÉS default case
-curl -X POST http://localhost:3000/procesar-movimiento \
-  -H "Content-Type: application/json" \
-  -d '{"idPersona":1,"monto":500,"tipoMovimiento":"deuda","idPrestamo":1,"fechaManual":"2024-12-10"}'
-
-# 4. Verify DB: SELECT * FROM Prestamos WHERE ID_Prestamo=1 → Check InteresPendienteAcumulado, FechaUltimoAbonoCapital
+curl -X POST http://localhost:3000/procesar-movimiento -H "Content-Type: application/json" -d '{"idPersona":1,"monto":1000,"tipoMovimiento":"deuda","idPrestamo":1,"destinoAbono":"capital","fechaManual":"2024-12-10"}'
 ```
 
-**✅ TAREA COMPLETADA**: Endpoint /procesar-movimiento ahora maneja correctamente fechas manuales, resetea ciclos de interés, y usa ISNULL para compatibilidad legacy.
+### ⬜ Paso 5: Verificar DB: `SELECT * FROM Prestamos WHERE ID_Prestamo=1`
+- InteresPendienteAcumulado > 0 después de capital payment
+- FechaUltimoAbonoCapital = fecha del pago
+
+### ⬜ Paso 6: Update TODO.md con [x] y attempt_completion
+
+## Dependencias Editadas
+- **server.js** (principal): /procesar-movimiento endpoint
+
+## Follow-up (Post-edits)
+1. **npm install** (si nuevas deps)
+2. **node server.js** (restart)
+3. **Test UI**: Dashboard → Abono deuda → Capital con fecha manual → Ver detalle préstamo
+4. **DB Query**: `SELECT InteresPendienteAcumulado, FechaUltimoAbonoCapital FROM Prestamos WHERE ID_Prestamo=1`
+
+**Estado: Listo para edits precisos → Proceed with edit_file**
+

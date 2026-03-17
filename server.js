@@ -667,6 +667,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaUltimoAbonoCapital,
                     ISNULL(FechaInicio, Fecha) as FechaPrestamo,
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
+                    ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
                     SaldoActual,
                     Estado,
                     -- Si está Pagado, usar FechaPagoCompleto; si está Activo, usar GETDATE()
