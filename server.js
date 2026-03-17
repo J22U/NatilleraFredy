@@ -692,16 +692,22 @@ app.get('/api/cobro-general', async (req, res) => {
             SELECT 
                 p.ID_Persona, 
                 per.Nombre, 
-                -- SUMA TOTAL: Capital + Intereses del periodo actual + Intereses acumulados viejos
+                -- ESTA ES LA SUMA QUE DA LOS $420.990
                 SUM(
-                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + -- Capital actual
+                    -- Capital Pendiente (Capital Inicial - Lo pagado a capital)
+                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
+                    
+                    -- Interés del periodo actual (desde el último abono hasta hoy)
                     (
                         ((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE())
-                    ) + -- Interés generado estos días
-                    ISNULL(p.InteresPendienteAcumulado, 0) - -- Lo que debe de antes
-                    ISNULL(p.InteresesPagados, 0) - -- Restamos lo que ya pagó de interés
-                    ISNULL(p.InteresAnticipadoUsado, 0) -- Restamos lo que se consumió de anticipos
-                ) as TotalDeuda 
+                    ) + 
+                    
+                    -- Interés viejo que ya estaba guardado
+                    ISNULL(p.InteresPendienteAcumulado, 0) - 
+                    
+                    -- Descontamos lo que ya pagó de interés o anticipó
+                    (ISNULL(p.InteresesPagados, 0) + ISNULL(p.InteresAnticipadoUsado, 0))
+                ) as TotalCapital 
             FROM Prestamos p 
             INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona 
             WHERE p.Estado = 'Activo' 
