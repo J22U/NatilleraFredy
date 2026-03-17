@@ -598,7 +598,6 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
         
-        // Primero, obtener los datos actuales incluyendo el InteresPendienteAcumulado
         const prestamosData = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -610,18 +609,16 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
                     ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
-TasaInteres, 
-                    FORMAT(ISNULL(FechaInicio, ISNULL(Fecha, GETDATE())), 'dd/MM/yyyy') as FechaInicioFormateada,
-                    ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, ISNULL(Fecha, GETDATE()))) as FechaUltimoAbonoCapital,
+                    TasaInteres, 
+                    ISNULL(FechaInicio, Fecha) as FechaInicio,
+                    ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaUltimoAbonoCapital,
                     DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()) as DiasTranscurridos
                 FROM Prestamos 
                 WHERE ID_Persona = @id AND Estado = 'Activo'
             `);
 
-        // Procesar auto-consumo de intereses anticipados
         for (const p of prestamosData.recordset) {
             const capitalPendiente = p.MontoPrestado - p.MontoPagado;
-            // CORRECCIÓN: Sumamos el interés acumulado al generado por los días actuales
             const interesGenerado = (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * p.DiasTranscurridos) + p.InteresPendienteAcumulado;
             
             const anticipadoDisponible = Math.max(0, p.InteresAnticipado - p.InteresAnticipadoUsado);
@@ -639,12 +636,9 @@ TasaInteres,
                     .input('idP', sql.Int, p.ID_Prestamo)
                     .input('usado', sql.Decimal(18, 2), nuevoUsado)
                     .query("UPDATE Prestamos SET InteresAnticipadoUsado = @usado WHERE ID_Prestamo = @idP");
-                
-                console.log(`>>> Auto-consumo de anticipado: Préstamo #${p.ID_Prestamo}, Consumido: $${nuevoConsumo.toLocaleString()}`);
             }
         }
 
-        // Obtener datos finales para el Frontend
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -658,24 +652,24 @@ TasaInteres,
                     TasaInteres, 
                     ISNULL(FechaInicio, Fecha) as FechaInicio,
                     ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaUltimoAbonoCapital,
-                    ISNULL(FechaInicio, Fecha) as FechaPrestamo,
-                    -- CORRECCIÓN S/F: Si todo es NULL usamos la fecha de hoy para el formato
                     FORMAT(ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, ISNULL(Fecha, GETDATE()))), 'dd/MM/yyyy') as FechaInicioFormateada,
                     ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
                     SaldoActual,
                     Estado,
+                    
+                    -- CORRECCIÓN: Los días deben contar desde el ÚLTIMO ABONO para que coincidan con el cobro
                     CASE 
-                        WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), FechaPagoCompleto)
-                        ELSE DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
+                        WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
+                        ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                     END as DiasTranscurridos,
                     
-                    -- 1. Interés generado sumando el acumulado de la base de datos
+                    -- Interés generado (Días desde último abono * tasa) + Acumulado
                     (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * CASE 
                         WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
                         ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                     END) + ISNULL(InteresPendienteAcumulado, 0) as InteresGenerado,
                     
-                    -- 2. Interés pendiente incluyendo el acumulado
+                    -- Interés pendiente corregido
                     CASE 
                         WHEN ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * CASE 
                             WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
@@ -687,7 +681,7 @@ TasaInteres,
                         END) + ISNULL(InteresPendienteAcumulado, 0)) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0)
                     END as InteresPendiente,
                     
-                    -- 3. Saldo total hoy corregido
+                    -- Saldo total hoy
                     ISNULL(SaldoActual, (MontoPrestado - ISNULL(MontoPagado, 0))) + 
                     CASE 
                         WHEN ((((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * CASE 
@@ -700,7 +694,6 @@ TasaInteres,
                         END) + ISNULL(InteresPendienteAcumulado, 0)) - ISNULL(InteresAnticipadoUsado, 0) - ISNULL(InteresesPagados, 0)
                     END as saldoHoy,
                     
-                    -- CORRECCIÓN CAPITAL: Priorizamos SaldoActual de la DB
                     ISNULL(SaldoActual, (MontoPrestado - ISNULL(MontoPagado, 0))) as capitalHoy
                 FROM Prestamos 
                 WHERE ID_Persona = @id 
@@ -708,7 +701,6 @@ TasaInteres,
             `);
         res.json(result.recordset);
     } catch (err) { 
-        console.error("Error en detalle-prestamo:", err.message);
         res.status(500).json({ error: err.message }); 
     }
 });
