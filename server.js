@@ -664,10 +664,15 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     END as DiasTranscurridos,
                     
                     -- Interés generado (Días desde último abono * tasa) + Acumulado
-                    (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * CASE 
+                    CASE 
                         WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
                         ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
-                    END) + ISNULL(InteresPendienteAcumulado, 0) as InteresGenerado,
+                    END * ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) as InteresDiarioReciente,
+                    ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
+                    ISNULL(InteresPendienteAcumulado, 0) + (CASE 
+                        WHEN Estado = 'Pagado' AND FechaPagoCompleto IS NOT NULL THEN DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), FechaPagoCompleto)
+                        ELSE DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
+                    END * ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0)) as InteresGenerado,
                     
                     -- Interés pendiente corregido
                     CASE 
