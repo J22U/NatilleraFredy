@@ -780,10 +780,9 @@ app.post('/procesar-movimiento', async (req, res) => {
             
             // Acumular antes de cualquier pago - ✅ Persistencia garantizada
             await pool.request()
-                .input('idP', sql.Int, idPrestamo)
-                .input('nuevoAcum', sql.Decimal(18, 2), nuevoAcumulado)
-                .input('fAporte', sql.Date, fAporte)
-                .query("UPDATE Prestamos SET InteresPendienteAcumulado = @nuevoAcum, FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
+    .input('idP', sql.Int, idPrestamo)
+    .input('nuevoAcum', sql.Decimal(18, 2), nuevoAcumulado)
+    .query("UPDATE Prestamos SET InteresPendienteAcumulado = @nuevoAcum WHERE ID_Prestamo = @idP");
 
             console.log(`>>> Acumulado intereses hasta ${fAporte}: +$${interesGenerado.toFixed(2)} (total: $${nuevoAcumulado.toFixed(2)})`);
 
