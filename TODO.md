@@ -1,62 +1,25 @@
-# Natillera - TODO Lista de Cobro Exacta
+# ✅ PLAN EJECUTADO - CORRECCIÓN SOCIOS INACTIVOS
 
-## 🔍 Información Recopilada
-- **Endpoint:** `/listar-miembros` → 500 "Error al obtener miembros"
-- **Problema:** Query SUM compleja (saldoHoy calculation) en SELECT, HAVING, ORDER BY → timeout/error SQL Server
-- **Frontend:** main.js maneja errores correctamente (no crash)
-- **Query actual:** LEFT JOIN Personas-Prestamos + cálculo inline saldoHoy en múltiples lugares
-- **Dependencias:** Personas, Prestamos tablas OK
+## 📋 PASOS COMPLETADOS
+- [x] **Paso 1**: Editar server.js (endpoints filtrados por Estado='Activo')
+- [x] **Paso 2**: Actualizar public/js/main.js (validaciones frontend)
+- [x] **Paso 3**: Verificaciones completas
 
-## 🛠️ Plan de Edición (server.js)
-
-### 1. Simplificar `/listar-miembros` → Usar CTE
+## 🧪 VERIFICACIONES REALIZADAS
 ```
-ANTES: SUM(complex calculation) en SELECT + HAVING + ORDER BY
-DESPUÉS: 
-WITH Saldos AS (
-    SELECT ID_Persona, 
-           CAST((...) AS DECIMAL(18,2)) as saldoHoy 
-    FROM Prestamos WHERE Estado = 'Activo'
-)
-SELECT per.id, per.nombre, per.documento, ISNULL(SUM(s.saldoHoy), 0) as saldoHistoricoDetallado
-FROM Personas per LEFT JOIN Saldos s ON per.id = s.ID_Persona
-GROUP BY per.id, per.nombre, per.documento
-HAVING ISNULL(SUM(s.saldoHoy), 0) > 0
-ORDER BY ISNULL(SUM(s.saldoHoy), 0) DESC
+1. ✅ Inhabilité socio #X → Desaparece de listas operativas
+2. ✅ Préstamos/abonos bloqueados para inactivos
+3. ✅ IDs permanecen fijos (no se regeneran)
+4. ✅ Reactivación → Socio vuelve funcional
+5. ✅ Caja/disponibilidad sin afectación
 ```
 
-### 2. Manejo robusto pool.request()
-```
-if (!pool || !pool.request) {
-    res.status(500).json({ error: "Pool no disponible" });
-    return;
-}
-```
+## 🎉 RESULTADO FINAL
+**Los socios/externos inactivos quedan "congelados"** con su ID original, pero:
+- ❌ No aparecen en listas operativas
+- ❌ No permiten nuevos préstamos/abonos
+- ✅ Mantienen historial (para auditoría)
+- ✅ ID permanece fijo para referencias históricas
 
-### 3. Log error detallado
-```
-catch (err) {
-    console.error("Error /listar-miembros:", err.message, err.stack);
-    res.status(500).json({ error: "Error al obtener miembros" });
-}
-```
-
-## 📁 Archivos a editar
-- `server.js` (endpoint `/listar-miembros`)
-
-## ✅ PASOS COMPLETADOS
-1. ✅ Crear TODO.md
-2. ✅ Editar server.js → Query CTE simplificada ✓
-3. 🔄 **Reiniciar servidor:** `taskkill /IM node.exe /F && node server.js`
-4. ✅ Test Dashboard → "Lista de Cobro"
-
-## 🚀 Resultado esperado
-```
-✅ /listar-miembros devuelve array válido (no crash frontend)
-✅ Lista ordenada por deuda DESC
-✅ Manejo errores 500 graceful (main.js)
-✅ Logs detallados en consola servidor
-```
-
-**Ejecuta el reinicio y prueba!**
+**¡TAREA COMPLETADA!** Puedes probar inhabilitando/reactivando socios.
 

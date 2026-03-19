@@ -569,20 +569,37 @@ app.get('/estado-cuenta/:id', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query("SELECT (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros WHERE ID_Persona = @id) as totalAhorrado, ISNULL((SELECT SUM(SaldoActual) FROM Prestamos WHERE ID_Persona = @id AND Estado = 'Activo'), 0) as deudaTotal");
+            .query(`
+                SELECT 
+                    (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros WHERE ID_Persona = @id) as totalAhorrado, 
+                    ISNULL((
+                        SELECT SUM(p.SaldoActual) 
+                        FROM Prestamos p
+                        INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
+                        WHERE p.ID_Persona = @id AND p.Estado = 'Activo' AND per.Estado = 'Activo'
+                    ), 0) as deudaTotal
+            `);
         res.json(result.recordset[0]);
     } catch (err) { res.status(500).json({ totalAhorrado: 0, deudaTotal: 0 }); }
 });
+
 
 app.get('/historial-ahorros/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
-            .query("SELECT ROW_NUMBER() OVER (ORDER BY Fecha DESC) as RowNum, ID_Ahorro, Monto, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, ISNULL(MesesCorrespondientes, 'Abono General') as Detalle FROM Ahorros WHERE ID_Persona = @id ORDER BY Fecha DESC");
+            .query(`
+                SELECT ROW_NUMBER() OVER (ORDER BY Fecha DESC) as RowNum, ID_Ahorro, Monto, FORMAT(Fecha, 'dd/MM/yyyy') as FechaFormateada, ISNULL(MesesCorrespondientes, 'Abono General') as Detalle 
+                FROM Ahorros a
+                INNER JOIN Personas p ON a.ID_Persona = p.ID_Persona
+                WHERE a.ID_Persona = @id AND p.Estado = 'Activo'
+                ORDER BY Fecha DESC
+            `);
         res.json(result.recordset);
     } catch (err) { res.status(500).json([]); }
 });
+
 
 app.get('/historial-abonos-deuda/:id', async (req, res) => {
     try {
@@ -598,7 +615,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
 
-        // 1. PROCESO DE AUTO-CONSUMO DE ANTICIPADOS
+        // 1. PROCESO DE AUTO-CONSUMO DE ANTICIPADOS (SOLO PERSONAS ACTIVAS)
         const prestamosData = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -612,8 +629,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
                     TasaInteres, 
                     ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaCalculo
-                FROM Prestamos 
-                WHERE ID_Persona = @id AND Estado = 'Activo'
+                FROM Prestamos p
+                INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
+                WHERE p.ID_Persona = @id AND p.Estado = 'Activo' AND per.Estado = 'Activo'
             `);
 
         for (const p of prestamosData.recordset) {
@@ -636,7 +654,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             }
         }
 
-        // 2. CONSULTA FINAL PARA EL FRONTEND (CORREGIDA PARA SUMA DIRECTA)
+        // 2. CONSULTA FINAL PARA EL FRONTEND (SOLO ACTIVOS)
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -668,15 +686,15 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
                     
                     -- SALDO TOTAL CORREGIDO: Suma directa de Capital + Interés Generado
-                    -- Esto asegura que arriba aparezcan los $4.549.500
                     CAST(
                         (MontoPrestado - ISNULL(MontoPagado, 0)) + 
                         (ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
                     AS DECIMAL(18,2)) as saldoHoy
 
-                FROM Prestamos 
-                WHERE ID_Persona = @id 
-                ORDER BY ID_Prestamo ASC
+                FROM Prestamos p
+                INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
+                WHERE p.ID_Persona = @id AND p.Estado = 'Activo' AND per.Estado = 'Activo'
+                ORDER BY p.ID_Prestamo ASC
             `);
 
         res.json(result.recordset);
@@ -684,6 +702,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         res.status(500).json({ error: err.message }); 
     }
 });
+
 
 app.get('/api/cobro-general', async (req, res) => {
 
@@ -1098,10 +1117,16 @@ app.get('/api/prestamos-activos/:idPersona', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request()
             .input('id', sql.Int, req.params.idPersona)
-            .query("SELECT ID_Prestamo, SaldoActual, FechaInicio as Fecha FROM Prestamos WHERE ID_Persona = @id AND Estado = 'Activo'");
+            .query(`
+                SELECT p.ID_Prestamo, p.SaldoActual, p.FechaInicio as Fecha 
+                FROM Prestamos p
+                INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
+                WHERE p.ID_Persona = @id AND p.Estado = 'Activo' AND per.Estado = 'Activo'
+            `);
         res.json(result.recordset);
     } catch (err) { res.status(500).json({ error: "Error interno" }); }
 });
+
 
 app.put('/api/editar-ahorro', async (req, res) => {
     try {
