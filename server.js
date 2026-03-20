@@ -667,11 +667,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     -- 💰 NUEVO: Interés generado hasta hoy
                     ISNULL(p.InteresPendienteAcumulado, 0) + 
                     (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE())) as InteresGenerado,
-                    -- ⚖️ Interés pendiente neto
-                    (
-                        ISNULL(p.InteresPendienteAcumulado, 0) + 
-                        (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE()))
-                    ) - ISNULL(p.InteresesPagados, 0) as InteresPendiente
+                    -- ⚖️ Interés pendiente neto (SIEMPRE ≥ 0)
+                    GREATEST(0, 
+                        (
+                            ISNULL(p.InteresPendienteAcumulado, 0) + 
+                            (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE()))
+                        ) - ISNULL(p.InteresesPagados, 0)
+                    ) as InteresPendiente
                 FROM Prestamos p
                 WHERE p.ID_Persona = @id
                 ORDER BY p.FechaInicio ASC
@@ -802,7 +804,7 @@ app.post('/procesar-movimiento', async (req, res) => {
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado).input('fAporte', sql.Date, fAporte)
                     .query(`
                         UPDATE Prestamos 
-                        SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m,
+                        SET InteresesPagados = GREATEST(0, ISNULL(InteresesPagados, 0) + @m),
                             InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END,
                             FechaUltimoAbonoCapital = @fAporte
                         WHERE ID_Prestamo = @idP

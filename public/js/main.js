@@ -672,7 +672,7 @@ async function verHistorialFechas(id, nombre) {
     return prestamosOrdenados.map((m, index) => {
           // Ahora usamos los valores que envía el servidor directamente
           const interesGenerado = Number(m.InteresGenerado || 0);
-          const interesPendiente = Number(m.InteresPendiente || 0);
+          const interesPendiente = Math.max(0, Number(m.InteresPendiente || 0));
           const interesAnticipado = Number(m.InteresAnticipado || 0);
           const interesAnticipadoUsado = Number(m.InteresAnticipadoUsado || 0);
           const interesesPagados = Number(m.InteresesPagados || 0);
