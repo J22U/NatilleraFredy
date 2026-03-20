@@ -671,13 +671,15 @@ async function verHistorialFechas(id, nombre) {
     
     return prestamosOrdenados.map((m, index) => {
           // Ahora usamos los valores que envía el servidor directamente
-          const interesGenerado = Number(m.InteresGenerado || 0);
-          const interesPendiente = Math.max(0, Number(m.InteresPendiente || 0));
+          const interesAcumulado = Number(m.InteresPendienteAcumulado || 0);
+          const interesGeneradoDiario = Number(m.InteresGenerado || 0) - interesAcumulado;
+          const interesPendienteBruto = interesAcumulado + interesGeneradoDiario;
+          const interesPendienteNeto = Math.max(0, Number(m.InteresPendiente || 0));
           const interesAnticipado = Number(m.InteresAnticipado || 0);
           const interesAnticipadoUsado = Number(m.InteresAnticipadoUsado || 0);
           const interesesPagados = Math.max(0, Number(m.InteresesPagados || 0));
-          
-          // El anticipado剩余 disponible es: Total Anticipado - Anticipado Usado
+
+          // El anticipado restante disponible es: Total Anticipado - Anticipado Usado
           const interesPrepagadoConsumido = interesAnticipadoUsado;
           const interesPrepagadoRestante = Math.max(0, interesAnticipado - interesAnticipadoUsado);
         const capitalOriginal = Number(m.MontoPrestado || 0);
@@ -714,9 +716,17 @@ async function verHistorialFechas(id, nombre) {
         // Mostrar detalle de intereses: generado, prepagado usado, pagos realizados
         const mostrarDetalleInteres = `
             <div class="text-[8px] mt-1 space-y-0.5">
+                <div class="flex justify-between bg-indigo-50/50 px-1 rounded">
+                    <span class="text-slate-500">Int. Acumulado:</span>
+                    <span class="font-medium text-indigo-600">$${interesAcumulado.toLocaleString()}</span>
+                </div>
                 <div class="flex justify-between">
-                    <span class="text-slate-500">Int. Generado:</span>
-                    <span class="font-medium">$${interesGenerado.toLocaleString()}</span>
+                    <span class="text-slate-500">+ Int. Generado Hoy:</span>
+                    <span class="font-medium text-amber-600">$${interesGeneradoDiario.toLocaleString()}</span>
+                </div>
+                <div class="flex justify-between bg-rose-50/50 px-1 rounded font-bold">
+                    <span class="text-rose-600">= Int. Pend. Bruto:</span>
+                    <span class="text-rose-700">$${interesPendienteBruto.toLocaleString()}</span>
                 </div>
                 ${interesPrepagadoConsumido > 0 ? `
                 <div class="flex justify-between text-emerald-600">
@@ -726,7 +736,7 @@ async function verHistorialFechas(id, nombre) {
                 ` : ''}
                 ${interesPrepagadoRestante > 0 ? `
                 <div class="flex justify-between text-indigo-600">
-                    <span>+ Int. Prepagado Disponible:</span>
+                    <span>+ Int. Prepagado Disp.:</span>
                     <span class="font-medium">+$${interesPrepagadoRestante.toLocaleString()}</span>
                 </div>
                 ` : ''}
@@ -736,9 +746,9 @@ async function verHistorialFechas(id, nombre) {
                     <span class="font-medium">-$${interesesPagados.toLocaleString()}</span>
                 </div>
                 ` : ''}
-                <div class="flex justify-between border-t border-slate-200 pt-0.5 font-bold">
-                    <span class="text-rose-500">= Int. Pendiente:</span>
-                    <span class="text-rose-600">$${interesPendiente.toLocaleString()}</span>
+                <div class="flex justify-between border-t border-slate-200 pt-0.5 font-bold bg-rose-100/50 px-1 rounded">
+                    <span class="text-rose-600">= Int. Pend. Neto:</span>
+                    <span class="text-rose-700 font-black">$${interesPendienteNeto.toLocaleString()}</span>
                 </div>
             </div>
         `;
