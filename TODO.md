@@ -1,31 +1,42 @@
-# Fix Member List Assignment Errors - TODO (Approved ✅)
+# Fix ModalPrestamoRapido ID Resolution Bug (ID 75 → Shows 76)
 
 ## Information Gathered
-- main.js already uses stable DB `m.id` + visual pos mapping (`m.posicion`).
-- Backend SQL `ROW_NUMBER(ORDER BY ID_Persona)` → stable positions.
-- onclick="${m.id}" → Correct.
-- No POS visual confusion spans found.
+- **main.js → modalPrestamoRapido()**: preConfirm computes `idReal = window.mapeoIdentificadores[p-id.value]` correctly.
+- **Bug**: Confirmation modal uses raw `formValues.idPersona` but **HTML shows raw input** (`#${formValues.idPersona}` mismatches if input was visual pos).
+- **`miembrosGlobal`** array has correct `{id, nombre}` for lookup.
+- Input `#p-id` accepts visual pos OR DB ID → needs resolution + name lookup.
 
-## Plan: Detailed code update plan
-**✅ Step 1: Create TODO.md** - COMPLETED
+## Plan
+**Step 1: Edit public/js/main.js** (modalPrestamoRapido)
+```
+OLD preConfirm:
+const idReal = window.mapeoIdentificadores[document.getElementById('p-id').value];
+return { idPersona: idReal, ... }
 
-**✅ Step 2: Edit public/js/main.js**  
-- Verified: CRITICAL COMMENTS present (multiple blocks)  
-- ✅ m.id used for ALL backend operations (onclick="${m.id}")  
-- ✅ visualPos/posicion = UI reference only (stable)  
-- ✅ mapeoIdentificadores fully implemented & documented  
-- ✅ Positions stable after disable/refresh ✓
+NEW preConfirm:
+const inputVal = document.getElementById('p-id').value;
+const idReal = window.mapeoIdentificadores[inputVal] || parseInt(inputVal);
+const nombreSocio = miembrosGlobal.find(m => m.id == idReal)?.nombre || `Socio #${idReal}`;
+return { idPersona: idReal, nombreSocio, ... }
+```
 
-**✅ Step 3: public/dashboard.html**  
-- Already shows `<strong>ID ${m.id}</strong>` - No changes.
+**OLD Confirmation HTML** (after formValues):
+```
+<span class="text-indigo-600 font-black">#${formValues.idPersona}</span>
+```
+**NEW**:
+```
+<span class="text-indigo-600 font-black">Socio: ${formValues.nombreSocio} <strong>#${formValues.idPersona}</strong></span>
+```
 
-**⏳ Step 4: Testing**  
-- Disable ID 18 → No visual shifts (positions stable).  
-- /mov_id input → Resolves correctly via mapping.  
-- Buttons → Use real DB onclick="${m.id}".  
-- Refresh `cargarTodo()`.
+**Step 2: Test**
+- Enter 75 → Confirmation: "Socio: [RealName] #75"
+- Visual pos → Resolves to real DB ID + name ✓
 
-**⏳ Step 5: attempt_completion**
+## Dependent Files: None
 
-*Backend confirmed stable - no changes.*
+## Followup Steps
+- `node server.js` → Test modal with ID 75.
+- Refresh dashboard → Verify miembrosGlobal loaded.
 
+✅ **Completed: Fixed modalPrestamoRapido ID resolution and confirmation display.**

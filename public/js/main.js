@@ -1177,18 +1177,23 @@ function filtrarSocios() {
             });
         },
         preConfirm: () => {
-            const idReal = window.mapeoIdentificadores[document.getElementById('p-id').value];
+            const inputVal = document.getElementById('p-id').value.trim();
+            const idReal = window.mapeoIdentificadores[inputVal] || parseInt(inputVal);
             const monto = parseFloat(document.getElementById('p-m').value);
             const tasa = parseFloat(document.getElementById('p-tasa').value);
             const fecha = document.getElementById('p-fecha').value;
 
-            if (!idReal) return Swal.showValidationMessage(`Socio no encontrado`);
+            const nombreSocio = miembrosGlobal.find(m => m.id == idReal)?.nombre || `Socio #${idReal}`;
+
+            if (!idReal || isNaN(idReal)) return Swal.showValidationMessage(`ID ${inputVal} no válido`);
+            if (!miembrosGlobal.find(m => m.id == idReal)) return Swal.showValidationMessage(`Socio ID ${idReal} no encontrado`);
             if (!monto || monto <= 0) return Swal.showValidationMessage(`Monto inválido`);
             if (!tasa || tasa <= 0) return Swal.showValidationMessage(`Tasa inválida`);
             if (!fecha) return Swal.showValidationMessage(`Seleccione una fecha`);
             
             return { 
-                idPersona: idReal, 
+                idPersona: idReal,
+                nombreSocio,
                 monto, 
                 tasaInteresMensual: tasa,
                 fechaInicio: fecha,
@@ -1237,9 +1242,9 @@ function filtrarSocios() {
             title: '¿Confirmar Préstamo?',
             html: `
                 <div class="text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-slate-500 text-xs font-bold uppercase">Socio ID:</span>
-                        <span class="text-indigo-600 font-black">#${formValues.idPersona}</span>
+                    <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-xl mb-3">
+                        <span class="text-indigo-700 font-bold">👤 ${formValues.nombreSocio}</span>
+                        <span class="text-indigo-600 font-black text-lg">#${formValues.idPersona}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-slate-500 text-xs font-bold uppercase">Monto:</span>
