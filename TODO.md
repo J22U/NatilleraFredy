@@ -1,15 +1,34 @@
-# Fix "data is not iterable" Error - Progress Tracker
+# FIX INTERESES PRÉSTAMOS - Natillera 🚀
 
-## ✅ COMPLETED
-- [x] **Step 1:** Create TODO.md with implementation plan
-- [x] **Step 2:** Edit public/js/main.js - Replace `renderPrestamos(p)` → `renderPrestamos(prestamos)`
-- [x] **Step 3:** Test fix by clicking "Ver Historial Completo" 
-- [x] **Step 4:** Verify no console errors, modal renders correctly
-- [x] **Step 5:** Update TODO.md with completion status
-- [ ] **Step 6:** attempt_completion() with final result
+## 📋 Estado: [EN PROCESO] 
 
-## Current Status
-**Next Action:** Edit main.js with precise diff replacement
+### ✅ PASOS COMPLETADOS
+- [✅] 1. Crear TODO.md 
+- [✅] 2. **FIX `/detalle-prestamo/:id` (server.js)** → **InteresGenerado** y **saldoHoy** calculados ✓
+- [ ] 3. Migración DB préstamos legacy
+- [ ] 4. Dashboard "Deuda Total + Intereses"
+- [ ] 5. UI detalles préstamos mejorada
+- [ ] 6. Test & Validación ($800k → ~$96k intereses)
 
-**Estimated Time:** 2 minutes  
-**Risk Level:** LOW (single line, isolated function)
+### 🔧 PASOS PENDIENTES
+```
+⏳ PASO 2: Migración DB (server.js / db.js)
+  → UPDATE InteresPendienteAcumulado retroactivo para TODOS préstamos Activos
+  
+✅ PASO 3: /reporte-general
+  → InteresesPendientesTotales = SUM(InteresPendienteAcumulado)
+  → DeudaTotalConIntereses = CapitalPrestado + InteresesPendientesTotales
+  
+⏳ PASO 4: Dashboard UI
+  → #dash-prestamos → "Deuda Total (capital + intereses)"
+
+🎯 OBJETIVO: Préstamo $800k (72 días 5%) → ~$96k intereses ✓
+```
+
+
+### 📊 Progreso
+```
+PROBLEMA ORIGINAL: Int. Generado: $0 (72 días!)
+OBJETIVO: ~$96.000 intereses + $896k total deuda
+```
+

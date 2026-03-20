@@ -555,12 +555,16 @@ app.get('/reporte-general', async (req, res) => {
         const result = await pool.request().query(`
             SELECT 
                 (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) as TotalAhorrado,
-                -- Solo préstamos ACTIVOS (no los pagados/completados)
+                -- Solo préstamos ACTIVOS (capital PENDIENTE)
                 (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
-                -- Solo intereses de préstamos ACTIVOS (blindado para que no sea negativo)
+                -- 💰 Ganancias: Intereses YA PAGADOS (no pendientes)
                 (SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) FROM Prestamos WHERE Estado = 'Activo') as GananciasBrutas,
-                -- Caja: Ahorros + Ganancias (blindadas) - Capital Préstamos Activos
-                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + (SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) FROM Prestamos WHERE Estado = 'Activo') - (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')) as CajaDisponible
+                -- 🏦 Caja real: Ahorros + Pagado - Capital Pendiente
+                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + (SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) FROM Prestamos WHERE Estado = 'Activo') - (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')) as CajaDisponible,
+                -- 🔥 NUEVO: Intereses pendientes TOTALES (para dashboard)
+                (SELECT ISNULL(SUM(ISNULL(InteresPendienteAcumulado, 0)), 0) FROM Prestamos WHERE Estado = 'Activo') as InteresesPendientesTotales,
+                -- 💎 Deuda TOTAL (capital + intereses pendientes)
+                (SELECT ISNULL(SUM(SaldoActual), 0) + ISNULL(SUM(ISNULL(InteresPendienteAcumulado, 0)), 0) FROM Prestamos WHERE Estado = 'Activo') as DeudaTotalConIntereses
         `);
         res.json(result.recordset[0]);
     } catch (err) { res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0, CajaDisponible: 0 }); }
@@ -639,12 +643,35 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             .input('id', sql.Int, memberId)
             .query(`
                 SELECT 
-                    p.ID_Prestamo, p.MontoPrestado, ISNULL(p.MontoPagado, 0) as MontoPagado,
-                    ISNULL(p.InteresesPagados, 0) as InteresesPagados, p.TasaInteres, p.Estado,
+                    p.ID_Prestamo, 
+                    p.MontoPrestado, 
+                    ISNULL(p.MontoPagado, 0) as MontoPagado,
+                    ISNULL(p.InteresesPagados, 0) as InteresesPagados,
+                    ISNULL(p.InteresAnticipado, 0) as InteresAnticipado,
+                    ISNULL(p.InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
+                    ISNULL(p.InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
+                    p.TasaInteres, 
+                    p.Estado,
+                    ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio) as FechaBaseInteres,
                     FORMAT(p.FechaInicio, 'dd/MM/yyyy') as FechaInicioFormateada,
-                    DATEDIFF(DAY, p.FechaInicio, GETDATE()) as DiasTranscurridos,
+                    FORMAT(ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), 'dd/MM/yyyy') as FechaUltimoAbonoFormateada,
+                    DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE()) as DiasTranscurridos,
                     (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) as capitalHoy,
-                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) as saldoHoy
+                    -- 🔧 FIX CRÍTICO: Saldo REAL = Capital Pendiente + Intereses Acumulados - Pagados
+                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
+                    (
+                        ISNULL(p.InteresPendienteAcumulado, 0) + 
+                        -- Cálculo dinámico diario desde último abono
+                        (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE()))
+                    ) - ISNULL(p.InteresesPagados, 0) - ISNULL(p.InteresAnticipadoUsado, 0) as saldoHoy,
+                    -- 💰 NUEVO: Interés generado hasta hoy
+                    ISNULL(p.InteresPendienteAcumulado, 0) + 
+                    (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE())) as InteresGenerado,
+                    -- ⚖️ Interés pendiente neto
+                    (
+                        ISNULL(p.InteresPendienteAcumulado, 0) + 
+                        (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE()))
+                    ) - ISNULL(p.InteresesPagados, 0) as InteresPendiente
                 FROM Prestamos p
                 WHERE p.ID_Persona = @id AND p.Estado = 'Activo'
                 ORDER BY p.ID_Prestamo ASC
