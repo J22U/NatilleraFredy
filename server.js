@@ -965,6 +965,105 @@ app.post('/api/ejecutar-reparto-masivo', async (req, res) => {
 });
 
 // Endpoint para obtener datos del reparto para PDF
+// 🆕 MIGRATION ENDPOINT: Populate InteresPendienteAcumulado retroactively for legacy loans
+app.post('/api/migrar-intereses-legacy', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Get ALL active loans without accumulated interest (or low values)
+        const loans = await pool.request()
+            .query(`
+                SELECT ID_Prestamo, MontoPrestado, TasaInteres, 
+                       ISNULL(MontoPagado, 0) as MontoPagado,
+                       ISNULL(FechaUltimoAbonoCapital, FechaInicio) as FechaBase,
+                       DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, FechaInicio), GETDATE()) as Dias,
+                       ISNULL(InteresPendienteAcumulado, 0) as AcumActual
+                FROM Prestamos 
+                WHERE Estado = 'Activo' 
+                AND (InteresPendienteAcumulado IS NULL OR InteresPendienteAcumulado < 100) -- Only legacy/low values
+            `);
+        
+        let updated = 0;
+        let skipped = 0;
+        
+        for (const loan of loans.recordset) {
+            const capitalPendiente = loan.MontoPrestado - loan.MontoPagado;
+            const interesDiario = (capitalPendiente * (loan.TasaInteres / 100.0)) / 30.0;
+            const interesRetro = interesDiario * loan.Dias;
+            
+            // SAFE: Only update if current acumulado is very low (<$100 = likely legacy)
+            if (loan.AcumActual < 100) {
+                await pool.request()
+                    .input('id', sql.Int, loan.ID_Prestamo)
+                    .input('acum', sql.Decimal(18,2), interesRetro)
+                    .query('UPDATE Prestamos SET InteresPendienteAcumulado = @acum WHERE ID_Prestamo = @id');
+                updated++;
+                console.log(`✅ Migrated loan ${loan.ID_Prestamo}: +$${interesRetro.toFixed(0)} (${loan.Dias} days)`);
+            } else {
+                skipped++;
+            }
+        }
+        
+        res.json({ 
+            success: true, 
+            message: `Migration complete: ${updated} loans updated, ${skipped} skipped (non-legacy)`,
+            loansProcessed: loans.recordset.length 
+        });
+    } catch (err) {
+        console.error('Migration error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// 🧪 TEST ENDPOINT: $800k @5% 72 days → ~$96k interests
+app.post('/api/test-interes-800k', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        
+        // Create test person if needed
+        await pool.request()
+            .input('nombre', sql.VarChar, 'TEST SOCIO 800K')
+            .input('doc', sql.VarChar, '999999999')
+            .input('esSocio', sql.Bit, 1)
+            .query('INSERT INTO Personas (Nombre, Documento, EsSocio, Estado) VALUES (@nombre, @doc, @esSocio, \'Activo\')');
+        
+        const testPersonIdResult = await pool.request()
+            .query('SELECT TOP 1 ID_Persona FROM Personas WHERE Nombre = \'TEST SOCIO 800K\' ORDER BY ID_Persona DESC');
+        const testPersonId = testPersonIdResult.recordset[0].ID_Persona;
+        
+        // Create test loan: $800k @5% from 72 days ago
+        const testDate = new Date();
+        testDate.setDate(testDate.getDate() - 72);
+        const fechaTest = testDate.toISOString().split('T')[0];
+        
+        await pool.request()
+            .input('idPersona', sql.Int, testPersonId)
+            .input('monto', sql.Decimal(18,2), 800000)
+            .input('tasa', sql.Decimal(5,2), 5.0)
+            .input('fecha', sql.Date, fechaTest)
+            .query(`
+                INSERT INTO Prestamos (ID_Persona, MontoPrestado, TasaInteres, FechaInicio, SaldoActual, Estado) 
+                VALUES (@idPersona, @monto, @tasa, @fecha, @monto, 'Activo')
+            `);
+        
+        // Verify calculation
+        const verification = await pool.request()
+            .input('idPersona', sql.Int, testPersonId)
+            .query('SELECT * FROM Prestamos WHERE ID_Persona = @idPersona');
+        
+        res.json({ 
+            success: true, 
+            message: 'Test loan created & verifiable',
+            testPersonId,
+            loan: verification.recordset[0],
+            expectedInterest: '~$96k (72d @5%)',
+            checkEndpoint: `/detalle-prestamo/${testPersonId}`
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 app.get('/api/datos-reparto', async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -1870,6 +1969,13 @@ async function inicializarBaseDeDatos() {
             .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'FechaPagoCompleto')
             BEGIN
                 ALTER TABLE Prestamos ADD FechaPagoCompleto DATETIME NULL
+            END`);
+
+        // 🎯 NEW: Migration-ready column check for InteresPendienteAcumulado (already exists but ensure)
+        await pool.request()
+            .query(`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Prestamos' AND COLUMN_NAME = 'InteresPendienteAcumulado')
+            BEGIN
+                ALTER TABLE Prestamos ADD InteresPendienteAcumulado DECIMAL(18,2) DEFAULT 0
             END`);
 
         // 🎯 FIX: Llenar fechas NULL en préstamos legacy para evitar "S/F" en frontend

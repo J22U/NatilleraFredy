@@ -791,11 +791,15 @@ async function verHistorialFechas(id, nombre) {
     if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin abonos realizados</p>';
     
     const prestamosSeguros = Array.isArray(listaPrestamos) ? listaPrestamos : [];
-    const prestamosOrdenados = [...prestamosSeguros].sort((a, b) => new Date(a.FechaInicio) - new Date(b.FechaInicio));
+    const prestamosOrdenados = [...prestamosSeguros].sort((a, b) => new Date(a.FechaInicio || a.FechaPrestamo || 0) - new Date(b.FechaInicio || b.FechaPrestamo || 0));
     
     return data.map(m => {
-        const indicePrestamo = prestamosOrdenados.findIndex(p => String(p.ID_Prestamo) === String(m.ID_Prestamo));
-        const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'Ref';
+        // ✅ FIXED: Robust numeric ID matching + fallback
+        const safeId = Number(m.ID_Prestamo);
+        const indicePrestamo = Number.isFinite(safeId) 
+            ? prestamosOrdenados.findIndex(p => Number(p.ID_Prestamo) === safeId)
+            : -1;
+        const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'N/A';
         
         // --- LÓGICA DE DESTINO ---
         // Verificar si es CAPITAL, INTERÉS ANTICIPADO, o INTERÉS regular

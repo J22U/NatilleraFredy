@@ -1,34 +1,41 @@
-# FIX INTERESES PRÉSTAMOS - Natillera 🚀
+# NATILLERRA - FIX INTERESES PRÉSTAMOS ✅ PROGRESS
 
-## 📋 Estado: [EN PROCESO] 
+## 📋 STEPS BREAKDOWN (Approved Plan)
 
-### ✅ PASOS COMPLETADOS
-- [✅] 1. Crear TODO.md 
-- [✅] 2. **FIX `/detalle-prestamo/:id` (server.js)** → **InteresGenerado** y **saldoHoy** calculados ✓
-- [ ] 3. Migración DB préstamos legacy
-- [ ] 4. Dashboard "Deuda Total + Intereses"
-- [ ] 5. UI detalles préstamos mejorada
-- [ ] 6. Test & Validación ($800k → ~$96k intereses)
+### ✅ COMPLETED
+- [✅] Duplicate var fixed in main.js (numeroAmigable)
+- [✅] /detalle-prestamo/:id dynamic calcs ✓ (saldoHoy, InteresGenerado)
+- [✅] /reporte-general returns InteresesPendientesTotales + DeudaTotalConIntereses ✓
 
-### 🔧 PASOS PENDIENTES
+### 🔄 IN PROGRESS - MIGRATION
+1. [✅] **ADD /api/migrar-intereses-legacy** (server.js)
+   ```
+   curl -X POST http://localhost:3000/api/migrar-intereses-legacy
+   ```
+   → Populate InteresPendienteAcumulado retroactively (SAFE: skip if >0)
+
+2. [✅] **ADD /api/test-interes-800k** (server.js)
+   → Create $800k@5% 72d loan → verify ~$96k interests
+
+3. [✅] **UPDATE dashboard.html**
+   → Show \"Deuda Total (Capital + Intereses): $X\" prominently (#dash-prestamos label added)
+
+### 🧪 TESTING
 ```
-⏳ PASO 2: Migración DB (server.js / db.js)
-  → UPDATE InteresPendienteAcumulado retroactivo para TODOS préstamos Activos
-  
-✅ PASO 3: /reporte-general
-  → InteresesPendientesTotales = SUM(InteresPendienteAcumulado)
-  → DeudaTotalConIntereses = CapitalPrestado + InteresesPendientesTotales
-  
-⏳ PASO 4: Dashboard UI
-  → #dash-prestamos → "Deuda Total (capital + intereses)"
-
-🎯 OBJETIVO: Préstamo $800k (72 días 5%) → ~$96k intereses ✓
+$800k préstamo (5%, 72 días):
+- Capital Pendiente: $800,000
+- Intereses Generados: ~$96,000  
+- Total Deuda: ~$896,000 ✓
 ```
 
+### 📊 EXECUTE ORDER
+```
+1. npm start (ensure columns exist via init)
+2. curl POST /api/migrar-intereses-legacy  
+3. Check dashboard totals
+4. Test /api/test-interes-800k
+5. ✅ Mark complete
+```
 
-### 📊 Progreso
-```
-PROBLEMA ORIGINAL: Int. Generado: $0 (72 días!)
-OBJETIVO: ~$96.000 intereses + $896k total deuda
-```
+**Next: Edit server.js → Migration endpoint**
 
