@@ -830,7 +830,7 @@ app.post('/procesar-movimiento', async (req, res) => {
                     .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado).input('fAporte', sql.Date, fAporte)
                     .query(`
                         UPDATE Prestamos 
-                        SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m,
+SET InteresesPagados = GREATEST(0, ISNULL(InteresesPagados, 0) + @m),
                             InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END,
                             FechaUltimoAbonoCapital = @fAporte
                         WHERE ID_Prestamo = @idP
