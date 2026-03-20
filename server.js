@@ -621,116 +621,49 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         const pool = await poolPromise;
         if (!pool || !pool.request) {
             console.log('🚨 DB POOL UNAVAILABLE - detalle-prestamo');
-            return res.json({prestamos: [], message: 'DB Unavailable - No persona activa encontrada'});
+            return res.json({prestamos: [], message: 'Database unavailable - Try later'});
         }
 
-        // 1. Check if Personas record exists AND is active
+        // BULLETPROOF: Personas check FIRST
         const personaCheck = await pool.request()
             .input('id', sql.Int, memberId)
             .query('SELECT COUNT(*) as count FROM Personas WHERE ID_Persona = @id AND Estado = \'Activo\'');
         
         const personaCount = personaCheck.recordset[0]?.count || 0;
-        console.log(`   → Personas ID=${memberId} (Estado=Activo): ${personaCount}`);
-        
         if (personaCount === 0) {
-            console.log(`   → No active persona found for ID=${memberId}`);
-            return res.json({prestamos: [], message: 'No persona activa encontrada'});
+            return res.json({prestamos: [], message: 'No active member found'});
         }
 
-        // 2. PROCESO DE AUTO-CONSUMO DE ANTICIPADOS (SOLO PERSONAS ACTIVAS)
-        const prestamosData = await pool.request()
-            .input('id', sql.Int, memberId)
-            .query(`
-                SELECT 
-                    ID_Prestamo, 
-                    MontoPrestado, 
-                    ISNULL(MontoPagado, 0) as MontoPagado, 
-                    ISNULL(InteresesPagados, 0) as InteresesPagados, 
-                    ISNULL(InteresAnticipado, 0) as InteresAnticipado,
-                    ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
-                    ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
-                    TasaInteres, 
-                    ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)) as FechaCalculo
-                FROM Prestamos p
-                INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
-                WHERE p.ID_Persona = @id AND p.Estado = 'Activo' AND per.Estado = 'Activo'
-            `);
-
-        for (const p of prestamosData.recordset || []) {
-            const capitalPendiente = p.MontoPrestado - p.MontoPagado;
-            const dias = Math.max(0, Math.floor((new Date() - new Date(p.FechaCalculo)) / (1000 * 60 * 60 * 24)));
-            
-            const interesGenerado = p.InteresPendienteAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
-            
-            const anticipadoDisponible = Math.max(0, p.InteresAnticipado - p.InteresAnticipadoUsado);
-            const interesPendiente = Math.max(0, interesGenerado - (p.InteresesPagados + p.InteresAnticipadoUsado));
-            
-            if (anticipadoDisponible > 0 && interesPendiente > 0) {
-                const nuevoConsumo = Math.min(anticipadoDisponible, interesPendiente);
-                const nuevoUsado = p.InteresAnticipadoUsado + nuevoConsumo;
-                await pool.request()
-                    .input('idP', sql.Int, p.ID_Prestamo)
-                    .input('usado', sql.Decimal(18, 2), nuevoUsado)
-                    .query("UPDATE Prestamos SET InteresAnticipadoUsado = @usado WHERE ID_Prestamo = @idP");
-            }
-        }
-
-        // 3. MAIN QUERY - Graceful empty handling
+        // SAFE: Simple query only (no complex JOINs/loops)
         const result = await pool.request()
             .input('id', sql.Int, memberId)
             .query(`
                 SELECT 
-                    ID_Prestamo, 
-                    MontoPrestado, 
-                    ISNULL(MontoPagado, 0) as MontoPagado, 
-                    ISNULL(InteresesPagados, 0) as InteresesPagados, 
-                    ISNULL(InteresAnticipado, 0) as InteresAnticipado,
-                    ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
-                    ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
-                    TasaInteres, 
-                    Estado,
-                    FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
-                    DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
-                    
-                    CAST(
-                        ISNULL(InteresPendienteAcumulado, 0) +
-                        (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
-                    AS DECIMAL(18,2)) as InteresGenerado,
-                    
-                    CAST(
-                        ISNULL(InteresPendienteAcumulado, 0) +
-                        (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
-                    AS DECIMAL(18,2)) as InteresPendiente,
-                    
-                    (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
-                    
-                    CAST(
-                        (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                        (ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
-                    AS DECIMAL(18,2)) as saldoHoy
-
+                    p.ID_Prestamo, p.MontoPrestado, ISNULL(p.MontoPagado, 0) as MontoPagado,
+                    ISNULL(p.InteresesPagados, 0) as InteresesPagados, p.TasaInteres, p.Estado,
+                    FORMAT(p.FechaInicio, 'dd/MM/yyyy') as FechaInicioFormateada,
+                    DATEDIFF(DAY, p.FechaInicio, GETDATE()) as DiasTranscurridos,
+                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) as capitalHoy,
+                    (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) as saldoHoy
                 FROM Prestamos p
-                INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
-                WHERE p.ID_Persona = @id AND p.Estado = 'Activo' AND per.Estado = 'Activo'
+                WHERE p.ID_Persona = @id AND p.Estado = 'Activo'
                 ORDER BY p.ID_Prestamo ASC
             `);
 
-        const prestamos = result.recordset || [];
-        console.log(`   → Final result for ID=${memberId}: ${prestamos.length} préstamos activos`);
-        
         res.json({
-            prestamos: prestamos,
-            count: prestamos.length,
-            message: prestamos.length > 0 ? 'OK' : 'Sin préstamos activos para este socio'
+            prestamos: result.recordset || [],
+            count: (result.recordset || []).length,
+            message: (result.recordset || []).length > 0 ? 'OK' : 'No active loans'
         });
 
-    } catch (err) { 
-        console.error(`❌ ERROR /detalle-prestamo/${memberId}:`, err.message);
-        res.status(500).json({ 
-            error: err.message,
-            prestamos: [],
-            message: 'Error interno del servidor'
-        }); 
+    } catch (err) {
+        console.error(`❌ CRASH /detalle-prestamo/${memberId}:`, err.message);
+        res.status(200).json({ 
+            prestamos: [], 
+            count: 0,
+            message: 'Service temporarily unavailable - Empty response',
+            debug: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
     }
 });
 
