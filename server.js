@@ -1904,4 +1904,3 @@ inicializarBaseDeDatos().then(() => {
     });
 });
 
-
