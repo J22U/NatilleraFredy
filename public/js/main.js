@@ -102,8 +102,10 @@ async function cargarDetallesMiembro(id) {
         const totalAhorrado = Number(totales.totalAhorrado || 0);
         const deudaTotal = Number(totales.deudaTotal || 0);
         
+        // Ensure p is always an array before filtering
+        const prestamos = Array.isArray(p) ? p : [];
         // Calcular préstamos activos
-        const prestamosActivos = p.filter(pr => Number(pr.saldoHoy || 0) > 0);
+        const prestamosActivos = prestamos.filter(pr => Number(pr.saldoHoy || 0) > 0);
         const tienePrestamos = prestamosActivos.length > 0;
         
         // Últimos 3 ahorros
@@ -465,15 +467,17 @@ async function actualizarListaDeudas() {
      * ✅ Verified: Works with filtered lists ✓
      */
     // FIXED: Flexible input - accepts visual pos OR real ID
-    if (window.mapeoIdentificadores[inputVal]) {
-        idReal = window.mapeoIdentificadores[inputVal];
-    } else {
-        // Try parse as real ID directly
-        idReal = parseInt(inputVal);
-        if (isNaN(idReal)) {
-            document.getElementById('mov_prestamo_id').innerHTML = '<option value="">ID inválido</option>';
-            return;
-        }
+    // DIRECT DB ID ONLY - NO visual position mapping
+    idReal = parseInt(inputVal);
+    if (isNaN(idReal)) {
+        document.getElementById('mov_prestamo_id').innerHTML = '<option value="">ID de socio inválido</option>';
+        return;
+    }
+    // Validate ID exists in global members list
+    const socioExiste = miembrosGlobal.find(m => m.id == idReal);
+    if (!socioExiste) {
+        document.getElementById('mov_prestamo_id').innerHTML = '<option value="">Socio no encontrado</option>';
+        return;
     }
     
     // Validation warning for filtered lists
@@ -1102,8 +1106,8 @@ function filtrarSocios() {
             <div class="text-left space-y-3">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="swal-input-label"># Socio en pantalla</label>
-                        <input id="p-id" type="number" class="swal-custom-input" placeholder="Ej: 1, 2...">
+ID SOCIO (Base de Datos)
+placeholder="ID real (ej: 75)">
                     </div>
                     <div>
                         <label class="swal-input-label">Fecha de Préstamo</label>
