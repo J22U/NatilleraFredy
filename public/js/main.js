@@ -1105,15 +1105,15 @@ function filtrarSocios() {
         html: `
             <div class="text-left space-y-3">
                 <div class="grid grid-cols-2 gap-4">
-                    <div>
-ID SOCIO (Base de Datos)
-placeholder="ID real (ej: 75)">
-                    </div>
-                    <div>
-                        <label class="swal-input-label">Fecha de Préstamo</label>
-                        <input id="p-fecha" type="date" class="swal-custom-input" value="${new Date().toISOString().split('T')[0]}">
-                    </div>
-                </div>
+    <div>
+        <label class="swal-input-label">ID SOCIO (Base de Datos)</label>
+        <input id="p-id" type="number" class="swal-custom-input" placeholder="ID real (ej: 75)">
+    </div>
+    <div>
+        <label class="swal-input-label">Fecha de Préstamo</label>
+        <input id="p-fecha" type="date" class="swal-custom-input" value="${new Date().toISOString().split('T')[0]}">
+    </div>
+</div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="swal-input-label">Monto Capital ($)</label>
