@@ -673,8 +673,8 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                         (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE()))
                     ) - ISNULL(p.InteresesPagados, 0) as InteresPendiente
                 FROM Prestamos p
-                WHERE p.ID_Persona = @id AND p.Estado = 'Activo'
-                ORDER BY p.ID_Prestamo ASC
+                WHERE p.ID_Persona = @id
+                ORDER BY p.FechaInicio ASC
             `);
 
         res.json({

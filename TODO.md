@@ -14,5 +14,16 @@
 
 **Resultado:** ✅ "Aplicado a: Préstamo #1" ahora coincide con detalles préstamo.
 
+**Estado:** 🔄 Nueva mejora solicitada
+
+# 🆕 Tarea 2: Mostrar préstamos PAGADOS
+
+**Estado:** 🚀 Pendiente
+
+## 📋 Pasos:
+- ✅ **1. Editar server.js** → Remover `AND p.Estado = 'Activo'` ✅ `/detalle-prestamo/:id` ahora devuelve TODOS
+- ✅ **2. Verificado** → Frontend renderiza pagados con "✅ PAGADO" automáticamente
+- ✅ **3. Completado** → Historial completo (activos + pagados)
+
 **Estado:** 🏁 COMPLETADO
 
