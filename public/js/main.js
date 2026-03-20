@@ -1177,23 +1177,22 @@ function filtrarSocios() {
             });
         },
         preConfirm: () => {
-            const inputVal = document.getElementById('p-id').value.trim();
-            const idReal = window.mapeoIdentificadores[inputVal] || parseInt(inputVal);
+            const idIngresado = document.getElementById('p-id').value;
+            const socioReal = miembrosGlobal.find(m => m.id == idIngresado);
+            
+            if (!socioReal) return Swal.showValidationMessage('Ese ID de socio no existe');
+            
             const monto = parseFloat(document.getElementById('p-m').value);
             const tasa = parseFloat(document.getElementById('p-tasa').value);
             const fecha = document.getElementById('p-fecha').value;
-
-            const nombreSocio = miembrosGlobal.find(m => m.id == idReal)?.nombre || `Socio #${idReal}`;
-
-            if (!idReal || isNaN(idReal)) return Swal.showValidationMessage(`ID ${inputVal} no válido`);
-            if (!miembrosGlobal.find(m => m.id == idReal)) return Swal.showValidationMessage(`Socio ID ${idReal} no encontrado`);
+            
             if (!monto || monto <= 0) return Swal.showValidationMessage(`Monto inválido`);
             if (!tasa || tasa <= 0) return Swal.showValidationMessage(`Tasa inválida`);
             if (!fecha) return Swal.showValidationMessage(`Seleccione una fecha`);
             
             return { 
-                idPersona: idReal,
-                nombreSocio,
+                idPersona: socioReal.id, 
+                nombreSocio: socioReal.nombre,
                 monto, 
                 tasaInteresMensual: tasa,
                 fechaInicio: fecha,
