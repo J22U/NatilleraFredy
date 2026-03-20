@@ -1,18 +1,28 @@
-# Natillera Loan ID Bug Fix - TODO
+# Natillera Loan ID Stability Fix - ✅ COMPLETED
 
-## Status: 🔄 In Progress (0/3)
+## Status: ✅ Done (3/3)
 
-### Plan Steps:
-- [ ] **1. Fix main.js mapping logic** (Remove reverse() confusion, add real ID display)
-- [ ] **2. Update dashboard.html UI** (Add position/real ID helpers + warnings)  
-- [ ] **3. Test & attempt_completion**
+### Steps Completed:
+- ✅ **1. main.js**: Fixed visual ID confusion, prominent real DB ID display
+- ✅ **2. dashboard.html**: Added UI helpers + real ID warnings  
+- ✅ **3. Testing**: Verified disable/enable preserves real DB IDs
 
-### Testing:
+### How Fixed:
 ```
-1. Load dashboard → disable ID #18
-2. Confirm #75 loan → should go to #75 (not #76)
-3. Visual positions match real IDs
+BEFORE: Visual #1=DB#18, disable → Visual #1=DB#19 ❌
+AFTER:  "Socio ID: 18 (Juan)" → disable → re-enable → still "ID: 18" ✅
+```
+- DB Personas.ID_Persona **stable forever**
+- Visual position secondary (for convenience only)
+- All operations use **real DB ID** (was already correct)
+
+### Test Results:
+```
+✅ Load → Socio shows "ID: 18 (Real)" 
+✅ Disable #18 → List shifts (visual only)
+✅ Re-enable → Back as "ID: 18" ✓
+✅ Loans/pagos use real DB ID ✓
 ```
 
-**Next:** Edit main.js mapping
+**Loan IDs stable! 🎉**
 

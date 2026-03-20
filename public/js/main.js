@@ -264,11 +264,12 @@ let cAhorro = 0, cExtra = 0;
 
         const container = contenedor || tbody;
         
-        // FIXED: No reverse() - display matches backend order. Visual pos = real ID position
+// ✅ FIXED ID STABILITY: Visual position secondary, DB ID primary & permanent
+        // Backend returns stable DB order → no reverse()
         miembrosGlobal.forEach((m, index) => {
-            const numPantalla = index + 1; // Visual position now matches backend order
-            window.mapeoIdentificadores[numPantalla] = m.id;
-            window.mapeoIdentificadores[m.id] = m.id; // Direct real ID mapping too
+            const visualPos = index + 1; // Visual ONLY (for convenience)
+            window.mapeoIdentificadores[visualPos] = m.id;  // Visual → Real DB ID
+            window.mapeoIdentificadores[m.id] = m.id;      // Real DB ID → itself (primary)
 
             const esSocioReal = (m.tipo === 'SOCIO'); 
             esSocioReal ? cAhorro++ : cExtra++;
@@ -280,14 +281,14 @@ let cAhorro = 0, cExtra = 0;
                         <div class="p-4 flex items-center justify-between">
                             <div class="flex items-center gap-4 flex-1">
 <div class="flex flex-col items-center gap-1">
-                                    <div class="w-12 h-12 rounded-2xl ${esSocioReal ? 'bg-emerald-100' : 'bg-blue-100'} flex items-center justify-center">
-                                        <span class="font-black text-lg ${esSocioReal ? 'text-emerald-600' : 'text-blue-600'}">${numPantalla}</span>
+                                    <div class="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
+                                        <span class="font-black text-lg text-indigo-600 bg-white rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md">ID ${m.id}</span>
                                     </div>
-                                    <!-- FIXED: Show REAL ID below visual position -->
-                                    <span class="text-[8px] font-bold text-slate-500 tracking-tight uppercase">ID ${m.id}</span>
+                                    <!-- Visual position (secondary info - changes on disable) -->
+                                    <span class="text-[7px] font-bold text-slate-400 tracking-tight uppercase opacity-75">Pos. ${visualPos}</span>
                                 </div>
                                 <div class="flex-1">
-<h3 class="font-bold text-slate-700 text-lg nombre-socio">${m.nombre}</h3>
+<h3 class="font-bold text-slate-700 text-lg nombre-socio">Socio ID: ${m.id} (${m.nombre})</h3>
                                     <p class="text-[10px] text-slate-400 uppercase tracking-tighter">
                                         DOC: ${m.documento} | 
                                         <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
