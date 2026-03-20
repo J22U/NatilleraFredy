@@ -266,9 +266,9 @@ let cAhorro = 0, cExtra = 0;
         
 // ✅ FIXED ID STABILITY: Visual position secondary, DB ID primary & permanent
         // Backend returns stable DB order → no reverse()
-        miembrosGlobal.forEach((m, index) => {
-            const visualPos = index + 1; // Visual ONLY (for convenience)
-            window.mapeoIdentificadores[visualPos] = m.id;  // Visual → Real DB ID
+miembrosGlobal.forEach((m, index) => {
+            const visualPos = m.posicion; // ✅ STABLE DB POSITION (no cambia al inhabilitar)
+            window.mapeoIdentificadores[visualPos] = m.id;  // POS ESTABLE → Real DB ID
             window.mapeoIdentificadores[m.id] = m.id;      // Real DB ID → itself (primary)
 
             const esSocioReal = (m.tipo === 'SOCIO'); 
@@ -284,8 +284,8 @@ let cAhorro = 0, cExtra = 0;
                                     <div class="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
                                         <span class="font-black text-lg text-indigo-600 bg-white rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md">ID ${m.id}</span>
                                     </div>
-                                    <!-- Visual position (secondary info - changes on disable) -->
-                                    <span class="text-[7px] font-bold text-slate-400 tracking-tight uppercase opacity-75">Pos. ${visualPos}</span>
+                                    <!-- ✅ STABLE POSITION from DB -->
+                                    <span class="text-[7px] font-bold text-slate-400 tracking-tight uppercase opacity-75">POS ${visualPos}</span>
                                 </div>
                                 <div class="flex-1">
 <h3 class="font-bold text-slate-700 text-lg nombre-socio">Socio ID: ${m.id} (${m.nombre})</h3>

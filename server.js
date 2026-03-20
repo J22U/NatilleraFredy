@@ -448,6 +448,7 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
         const pool = await poolPromise;
         const result = await pool.request().query(`
             SELECT 
+                ROW_NUMBER() OVER (ORDER BY P.ID_Persona) as posicion,
                 P.ID_Persona as id, 
                 P.Nombre as nombre, 
                 P.Documento as documento, 
@@ -469,6 +470,7 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
                 END as puntosEsfuerzo
             FROM Personas P 
             WHERE P.Estado = 'Activo'
+            ORDER BY P.ID_Persona
         `);
         res.json(result.recordset);
     } catch (err) {

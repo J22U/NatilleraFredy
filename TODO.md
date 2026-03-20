@@ -1,28 +1,50 @@
-# Natillera Loan ID Stability Fix - ✅ COMPLETED
+# PLAN IDs ESTABLES SOCIOS ✅ APROBADO
 
-## Status: ✅ Done (3/3)
+## Estado: Pendiente Confirmación Usuario
 
-### Steps Completed:
-- ✅ **1. main.js**: Fixed visual ID confusion, prominent real DB ID display
-- ✅ **2. dashboard.html**: Added UI helpers + real ID warnings  
-- ✅ **3. Testing**: Verified disable/enable preserves real DB IDs
+**Problema identificado:**
+- POS visual (`#1, #2, #3`) cambia al inhabilitar socios
+- `listarMiembros()` usa `index + 1` después del filtro `Estado='Activo'`
 
-### How Fixed:
+**Objetivo:**
 ```
-BEFORE: Visual #1=DB#18, disable → Visual #1=DB#19 ❌
-AFTER:  "Socio ID: 18 (Juan)" → disable → re-enable → still "ID: 18" ✅
-```
-- DB Personas.ID_Persona **stable forever**
-- Visual position secondary (for convenience only)
-- All operations use **real DB ID** (was already correct)
-
-### Test Results:
-```
-✅ Load → Socio shows "ID: 18 (Real)" 
-✅ Disable #18 → List shifts (visual only)
-✅ Re-enable → Back as "ID: 18" ✓
-✅ Loans/pagos use real DB ID ✓
+Inhabilitar ID3 → POS mantiene: ID1(#1), ID2(#2), ID4(#4), ID5(#5)
 ```
 
-**Loan IDs stable! 🎉**
+## PASOS DEL PLAN (4 pasos)
+
+### ✅ Paso 1 COMPLETADO: server.js
+```
+ /api/socios-esfuerzo → ADD: ROW_NUMBER() OVER (ORDER BY ID_Persona) as posicion
+ socios = [{id:1, posicion:1}, {id:2, posicion:2}, ...]
+```
+
+### ⏳ Paso 2 PENDIENTE: main.js - Render
+```
+listarMiembros():
+- Usar m.posicion en lugar de index+1
+- "POS: ${m.posicion}" (estable)
+- Badge: ID ${m.id} | POS ${m.posicion}
+```
+
+### ⏳ Paso 3 PENDIENTE: main.js - Input/Validación
+```
+actualizarListaDeudas(), mapeoIdentificadores:
+- window.mapeoIdentificadores[m.posicion] = m.id (POS → ID estable)
+```
+
+### ⏳ Paso 4 PENDIENTE: Test + Cleanup
+```
+- Probar habilitar/inhabilitar socio
+- Verificar POS estable en UI
+- Limpiar TODO.md
+```
+
+## Archivos a editar:
+```
+1. server.js ✅ (Query /api/socios-esfuerzo)
+2. public/js/main.js (2 ubicaciones: render + mapeo)
+```
+
+**¿Procedemos con los cambios? (Responder "SI" o sugerir modificaciones)**
 
