@@ -675,7 +675,7 @@ async function verHistorialFechas(id, nombre) {
           const interesPendiente = Math.max(0, Number(m.InteresPendiente || 0));
           const interesAnticipado = Number(m.InteresAnticipado || 0);
           const interesAnticipadoUsado = Number(m.InteresAnticipadoUsado || 0);
-          const interesesPagados = Number(m.InteresesPagados || 0);
+          const interesesPagados = Math.max(0, Number(m.InteresesPagados || 0));
           
           // El anticipado剩余 disponible es: Total Anticipado - Anticipado Usado
           const interesPrepagadoConsumido = interesAnticipadoUsado;
@@ -1489,7 +1489,7 @@ function generarPDFMovimientos(nombre, ahorros, prestamos, abonos, totales) {
             const interesAnticipadoUsado = Number(p.InteresAnticipadoUsado || 0);
             const interesAnticipadoTotal = Number(p.InteresAnticipado || 0);
             const interesAnticipadoDisp = Math.max(0, interesAnticipadoTotal - interesAnticipadoUsado);
-            const interesesPagados = Number(p.InteresesPagados || 0);
+            const interesesPagados = Math.max(0, Number(p.InteresesPagados || 0));
             const interesPendiente = Number(p.InteresPendiente || 0);
             const capitalRestante = Number(p.MontoPrestado) - Number(p.MontoPagado || 0);
             const saldoTotal = capitalRestante + interesPendiente;
