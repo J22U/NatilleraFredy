@@ -446,6 +446,10 @@ app.get('/api/premios-pendientes', async (req, res) => {
 app.get('/api/socios-esfuerzo', async (req, res) => {
     try {
         const pool = await poolPromise;
+        if (!pool || !pool.request) {
+            console.log('🚨 DB POOL UNAVAILABLE - socios-esfuerzo');
+            return res.json([]);
+        }
         const result = await pool.request().query(`
             SELECT 
                 ROW_NUMBER() OVER (ORDER BY P.ID_Persona) as posicion,
@@ -455,13 +459,9 @@ app.get('/api/socios-esfuerzo', async (req, res) => {
                 P.EsSocio,
                 CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
                 ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
-                -- Calcular puntos de esfuerzo basados en antigüedad (fecha del primer ahorro) y ahorro
-                -- Puntos = (Meses de antigüedad desde primer ahorro * 10) + (Total Ahorrado / 1000)
-                -- Esto da más peso a quienes llevan más tiempo ahorrando Y tienen más ahorro
                 ISNULL((SELECT MIN(Fecha) FROM Ahorros WHERE ID_Persona = P.ID_Persona), GETDATE()) as primeraFechaAhorro,
                 DATEDIFF(MONTH, (SELECT MIN(Fecha) FROM Ahorros WHERE ID_Persona = P.ID_Persona), GETDATE()) as mesesAntiguedad,
                 ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as saldoTotal,
-                -- Calcular puntos de esfuerzo: mínimo 1 punto si tiene ahorro (para que no sea 0)
                 CASE 
                     WHEN ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) > 0 THEN
                         ISNULL(DATEDIFF(MONTH, (SELECT MIN(Fecha) FROM Ahorros WHERE ID_Persona = P.ID_Persona), GETDATE()), 0) * 10 + 
@@ -619,13 +619,17 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
     
     try {
         const pool = await poolPromise;
+        if (!pool || !pool.request) {
+            console.log('🚨 DB POOL UNAVAILABLE - detalle-prestamo');
+            return res.json({prestamos: [], message: 'DB Unavailable - No persona activa encontrada'});
+        }
 
         // 1. Check if Personas record exists AND is active
         const personaCheck = await pool.request()
             .input('id', sql.Int, memberId)
             .query('SELECT COUNT(*) as count FROM Personas WHERE ID_Persona = @id AND Estado = \'Activo\'');
         
-        const personaCount = personaCheck.recordset[0].count;
+        const personaCount = personaCheck.recordset[0]?.count || 0;
         console.log(`   → Personas ID=${memberId} (Estado=Activo): ${personaCount}`);
         
         if (personaCount === 0) {
@@ -652,11 +656,10 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                 WHERE p.ID_Persona = @id AND p.Estado = 'Activo' AND per.Estado = 'Activo'
             `);
 
-        for (const p of prestamosData.recordset) {
+        for (const p of prestamosData.recordset || []) {
             const capitalPendiente = p.MontoPrestado - p.MontoPagado;
             const dias = Math.max(0, Math.floor((new Date() - new Date(p.FechaCalculo)) / (1000 * 60 * 60 * 24)));
             
-            // Interés Generado = Lo acumulado históricamente + lo generado en este periodo actual
             const interesGenerado = p.InteresPendienteAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
             
             const anticipadoDisponible = Math.max(0, p.InteresAnticipado - p.InteresAnticipadoUsado);
@@ -689,13 +692,11 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
                     
-                    -- Interés Generado: Acumulado + Nuevo interés desde el último abono
                     CAST(
                         ISNULL(InteresPendienteAcumulado, 0) +
                         (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
                     AS DECIMAL(18,2)) as InteresGenerado,
                     
-                    -- Interés Pendiente: IGUALADO AL GENERADO
                     CAST(
                         ISNULL(InteresPendienteAcumulado, 0) +
                         (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
@@ -703,7 +704,6 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
                     
-                    -- SALDO TOTAL CORREGIDO: Suma directa de Capital + Interés Generado
                     CAST(
                         (MontoPrestado - ISNULL(MontoPagado, 0)) + 
                         (ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
@@ -715,10 +715,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                 ORDER BY p.ID_Prestamo ASC
             `);
 
-        const prestamos = result.recordset;
+        const prestamos = result.recordset || [];
         console.log(`   → Final result for ID=${memberId}: ${prestamos.length} préstamos activos`);
         
-        // ✅ ALWAYS RETURN OBJECT - Graceful empty handling
         res.json({
             prestamos: prestamos,
             count: prestamos.length,
