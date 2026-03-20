@@ -582,6 +582,8 @@ function actualizarInfoInteres() {
 }
 
 async function verHistorialFechas(id, nombre) {
+    console.log(`📊 verHistorialFechas: Loading data for ID=${id} (${nombre})`);
+    
     Swal.fire({
         title: 'Cargando datos...',
         allowOutsideClick: false,
@@ -590,11 +592,20 @@ async function verHistorialFechas(id, nombre) {
 
     try {
         const fetchSeguro = async (url) => {
+            console.log(`   → Fetching: ${url}`);
             const res = await fetch(url);
-            if (!res.ok) return [];
+            if (!res.ok) {
+                console.warn(`   ❌ ${url}: ${res.status}`);
+                return [];
+            }
             const contentType = res.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/json")) return [];
-            return await res.json();
+            if (!contentType || !contentType.includes("application/json")) {
+                console.warn(`   ❌ ${url}: Invalid JSON`);
+                return [];
+            }
+            const data = await res.json();
+            console.log(`   ✅ ${url}: ${Array.isArray(data) ? data.length : Object.keys(data).length} items`);
+            return data;
         };
 
         const [a, p, ab, totales] = await Promise.all([
@@ -604,17 +615,25 @@ async function verHistorialFechas(id, nombre) {
             fetchSeguro(`/estado-cuenta/${id}`)
         ]);
 
+        console.log(`📊 Data loaded for ID=${id}: Ahorros=${a.length}, Préstamos=${p.length || p.prestamos?.length || 0}, Abonos=${ab.length}, Totales=OK`);
+
+        // Normalize préstamos response (handles both [] and {prestamos: []})
+        const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
+
         // --- CORRECCIÓN DE DEUDA DINÁMICA ---
         // Ahora usamos saldoHoy que ya viene calculado del servidor (Capital Pendiente + Interés Pendiente)
         // Solo incluimos préstamos con saldo mayor a 0
-        const deudaRealActualizada = p.reduce((acc, m) => {
+        const deudaRealActualizada = prestamos.reduce((acc, m) => {
             const saldo = Number(m.saldoHoy || 0);
             // Solo incluir si el saldo es mayor a 0 (excluir préstamos pagados)
             return acc + (saldo > 0 ? saldo : 0);
         }, 0);
 
+        console.log(`   → Deuda calculada: $${deudaRealActualizada.toLocaleString()}`);
+
         // Actualizamos el objeto totales para que el modal use el valor con intereses
         totales.deudaTotal = deudaRealActualizada;
+
 
         const renderSimple = (data, key, color) => {
             if (!data || data.length === 0) return '<p class="text-center py-2 text-slate-300 text-[10px] italic">Sin movimientos</p>';

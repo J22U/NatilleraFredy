@@ -614,12 +614,28 @@ app.get('/historial-abonos-deuda/:id', async (req, res) => {
 });
 
 app.get('/detalle-prestamo/:id', async (req, res) => {
+    const memberId = req.params.id;
+    console.log(`🔍 GET /detalle-prestamo/${memberId}`);
+    
     try {
         const pool = await poolPromise;
 
-        // 1. PROCESO DE AUTO-CONSUMO DE ANTICIPADOS (SOLO PERSONAS ACTIVAS)
+        // 1. Check if Personas record exists AND is active
+        const personaCheck = await pool.request()
+            .input('id', sql.Int, memberId)
+            .query('SELECT COUNT(*) as count FROM Personas WHERE ID_Persona = @id AND Estado = \'Activo\'');
+        
+        const personaCount = personaCheck.recordset[0].count;
+        console.log(`   → Personas ID=${memberId} (Estado=Activo): ${personaCount}`);
+        
+        if (personaCount === 0) {
+            console.log(`   → No active persona found for ID=${memberId}`);
+            return res.json({prestamos: [], message: 'No persona activa encontrada'});
+        }
+
+        // 2. PROCESO DE AUTO-CONSUMO DE ANTICIPADOS (SOLO PERSONAS ACTIVAS)
         const prestamosData = await pool.request()
-            .input('id', sql.Int, req.params.id)
+            .input('id', sql.Int, memberId)
             .query(`
                 SELECT 
                     ID_Prestamo, 
@@ -656,9 +672,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             }
         }
 
-        // 2. CONSULTA FINAL PARA EL FRONTEND (SOLO ACTIVOS)
+        // 3. MAIN QUERY - Graceful empty handling
         const result = await pool.request()
-            .input('id', sql.Int, req.params.id)
+            .input('id', sql.Int, memberId)
             .query(`
                 SELECT 
                     ID_Prestamo, 
@@ -699,11 +715,26 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                 ORDER BY p.ID_Prestamo ASC
             `);
 
-        res.json(result.recordset);
+        const prestamos = result.recordset;
+        console.log(`   → Final result for ID=${memberId}: ${prestamos.length} préstamos activos`);
+        
+        // ✅ ALWAYS RETURN OBJECT - Graceful empty handling
+        res.json({
+            prestamos: prestamos,
+            count: prestamos.length,
+            message: prestamos.length > 0 ? 'OK' : 'Sin préstamos activos para este socio'
+        });
+
     } catch (err) { 
-        res.status(500).json({ error: err.message }); 
+        console.error(`❌ ERROR /detalle-prestamo/${memberId}:`, err.message);
+        res.status(500).json({ 
+            error: err.message,
+            prestamos: [],
+            message: 'Error interno del servidor'
+        }); 
     }
 });
+
 
 
 app.get('/api/cobro-general', async (req, res) => {
