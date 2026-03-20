@@ -870,7 +870,7 @@ async function verHistorialFechas(id, nombre) {
                             <i class="fas fa-chevron-down text-blue-400 transition-transform duration-300"></i>
                         </button>
                         <div id="acc-prestamos" class="max-h-0 overflow-hidden transition-all duration-300 ease-in-out">
-                            <div class="p-3 border-t border-slate-50 bg-slate-50/30">${renderPrestamos(p)}</div>
+<div class="p-3 border-t border-slate-50 bg-slate-50/30">${renderPrestamos(prestamos)}</div>
                         </div>
                     </div>
                     <div class="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
