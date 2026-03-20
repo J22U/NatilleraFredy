@@ -799,7 +799,7 @@ async function verHistorialFechas(id, nombre) {
         const indicePrestamo = Number.isFinite(safeId) 
             ? prestamosOrdenados.findIndex(p => Number(p.ID_Prestamo) === safeId)
             : -1;
-        const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : 'N/A';
+        const numeroAmigable = indicePrestamo !== -1 ? (indicePrestamo + 1) : `ID ${safeId}`;
         
         // --- LÓGICA DE DESTINO ---
         // Verificar si es CAPITAL, INTERÉS ANTICIPADO, o INTERÉS regular
