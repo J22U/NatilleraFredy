@@ -518,7 +518,7 @@ app.post('/registrar-prestamo-diario', async (req, res) => {
         const { idPersona, monto, tasaInteresMensual, fechaInicio } = req.body;
         const pool = await poolPromise;
         await pool.request()
-            .input('id', sql.Int, id).input('monto', sql.Decimal(18, 2), monto)
+            .input('idPersona', sql.Int, idPersona).input('monto', sql.Decimal(18, 2), monto)
             .input('tasa', sql.Decimal(18, 2), tasaInteresMensual).input('fechaInicio', sql.Date, fechaInicio)
             .query("INSERT INTO Prestamos (ID_Persona, MontoPrestado, TasaInteres, FechaInicio, MontoPagado, SaldoActual, Estado, InteresesPagados) VALUES (@idPersona, @monto, @tasa, @fechaInicio, 0, @monto, 'Activo', 0)");
         res.json({ success: true });
@@ -1938,6 +1938,5 @@ inicializarBaseDeDatos().then(() => {
         console.log('SERVIDOR CORRIENDO EN PUERTO ' + PORT);
     });
 });
-
 
 

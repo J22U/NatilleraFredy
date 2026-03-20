@@ -1,25 +1,18 @@
-# ✅ PLAN EJECUTADO - CORRECCIÓN SOCIOS INACTIVOS
+# Natillera Loan ID Bug Fix - TODO
 
-## 📋 PASOS COMPLETADOS
-- [x] **Paso 1**: Editar server.js (endpoints filtrados por Estado='Activo')
-- [x] **Paso 2**: Actualizar public/js/main.js (validaciones frontend)
-- [x] **Paso 3**: Verificaciones completas
+## Status: 🔄 In Progress (0/3)
 
-## 🧪 VERIFICACIONES REALIZADAS
+### Plan Steps:
+- [ ] **1. Fix main.js mapping logic** (Remove reverse() confusion, add real ID display)
+- [ ] **2. Update dashboard.html UI** (Add position/real ID helpers + warnings)  
+- [ ] **3. Test & attempt_completion**
+
+### Testing:
 ```
-1. ✅ Inhabilité socio #X → Desaparece de listas operativas
-2. ✅ Préstamos/abonos bloqueados para inactivos
-3. ✅ IDs permanecen fijos (no se regeneran)
-4. ✅ Reactivación → Socio vuelve funcional
-5. ✅ Caja/disponibilidad sin afectación
+1. Load dashboard → disable ID #18
+2. Confirm #75 loan → should go to #75 (not #76)
+3. Visual positions match real IDs
 ```
 
-## 🎉 RESULTADO FINAL
-**Los socios/externos inactivos quedan "congelados"** con su ID original, pero:
-- ❌ No aparecen en listas operativas
-- ❌ No permiten nuevos préstamos/abonos
-- ✅ Mantienen historial (para auditoría)
-- ✅ ID permanece fijo para referencias históricas
-
-**¡TAREA COMPLETADA!** Puedes probar inhabilitando/reactivando socios.
+**Next:** Edit main.js mapping
 

@@ -259,14 +259,16 @@ async function listarMiembros() {
         if (contenedor) contenedor.innerHTML = '';
         window.mapeoIdentificadores = {}; 
 
-        let cAhorro = 0, cExtra = 0;
+let cAhorro = 0, cExtra = 0;
         const totalMiembros = miembrosGlobal.length;
 
         const container = contenedor || tbody;
         
-        [...miembrosGlobal].reverse().forEach((m, index) => {
-            const numPantalla = totalMiembros - index;
-            window.mapeoIdentificadores[numPantalla] = m.id; 
+        // FIXED: No reverse() - display matches backend order. Visual pos = real ID position
+        miembrosGlobal.forEach((m, index) => {
+            const numPantalla = index + 1; // Visual position now matches backend order
+            window.mapeoIdentificadores[numPantalla] = m.id;
+            window.mapeoIdentificadores[m.id] = m.id; // Direct real ID mapping too
 
             const esSocioReal = (m.tipo === 'SOCIO'); 
             esSocioReal ? cAhorro++ : cExtra++;
@@ -277,8 +279,12 @@ async function listarMiembros() {
                     <div id="card-${m.id}" class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-3" onclick="toggleExpandirMiembro(${m.id})">
                         <div class="p-4 flex items-center justify-between">
                             <div class="flex items-center gap-4 flex-1">
-                                <div class="w-12 h-12 rounded-2xl ${esSocioReal ? 'bg-emerald-100' : 'bg-blue-100'} flex items-center justify-center">
-                                    <span class="font-black text-lg ${esSocioReal ? 'text-emerald-600' : 'text-blue-600'}">#${m.id}</span>
+<div class="flex flex-col items-center gap-1">
+                                    <div class="w-12 h-12 rounded-2xl ${esSocioReal ? 'bg-emerald-100' : 'bg-blue-100'} flex items-center justify-center">
+                                        <span class="font-black text-lg ${esSocioReal ? 'text-emerald-600' : 'text-blue-600'}">${numPantalla}</span>
+                                    </div>
+                                    <!-- FIXED: Show REAL ID below visual position -->
+                                    <span class="text-[8px] font-bold text-slate-500 tracking-tight uppercase">ID ${m.id}</span>
                                 </div>
                                 <div class="flex-1">
 <h3 class="font-bold text-slate-700 text-lg nombre-socio">${m.nombre}</h3>
@@ -418,8 +424,28 @@ async function abrirModalRetiro(id, nombre) {
 }
 
 async function actualizarListaDeudas() {
-    const numPantalla = document.getElementById('mov_id').value;
-    const idReal = window.mapeoIdentificadores[numPantalla];
+    const inputVal = document.getElementById('mov_id').value.trim();
+    let idReal;
+    
+    // FIXED: Flexible input - accepts visual pos OR real ID
+    if (window.mapeoIdentificadores[inputVal]) {
+        idReal = window.mapeoIdentificadores[inputVal];
+    } else {
+        // Try parse as real ID directly
+        idReal = parseInt(inputVal);
+        if (isNaN(idReal)) {
+            document.getElementById('mov_prestamo_id').innerHTML = '<option value="">ID inválido</option>';
+            return;
+        }
+    }
+    
+    // Validation warning for filtered lists
+    if (Object.keys(miembrosGlobal).length < Object.keys(window.mapeoIdentificadores).length / 2) {
+        Toast.fire({
+            icon: 'warning',
+            title: '⚠️ Lista filtrada - usa ID real del socio'
+        });
+    }
     const select = document.getElementById('mov_prestamo_id');
     const inputMonto = document.getElementById('mov_monto'); 
     
