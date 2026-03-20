@@ -277,7 +277,7 @@ miembrosGlobal.forEach((m, index) => {
             if (contenedor) {
                 // Render as expandable cards
                 contenedor.innerHTML += `
-                    <div id="card-${m.id}" class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-3" onclick="toggleExpandirMiembro(${m.id})">
+<div id="card-${m.id}" data-socio-id="${m.id}" class="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-3" onclick="toggleExpandirMiembro(${m.id})">
                         <div class="p-4 flex items-center justify-between">
                             <div class="flex items-center gap-4 flex-1">
 <div class="flex flex-col items-center gap-1">
@@ -322,7 +322,7 @@ miembrosGlobal.forEach((m, index) => {
             } else {
                 // Render as table rows (fallback)
                 tbody.innerHTML += `
-                    <tr class="hover:bg-slate-50 transition-colors item-socio cursor-pointer" onclick="toggleExpandirMiembro(${m.id})">
+<tr class="hover:bg-slate-50 transition-colors item-socio cursor-pointer" data-socio-id="${m.id}" onclick="toggleExpandirMiembro(${m.id})">
                         <td class="px-4 py-5 text-center">
                             <button class="text-slate-400 hover:text-indigo-500 transition-colors">
                                 <i id="icon-expand-${m.id}" class="fas fa-chevron-down text-sm"></i>
@@ -1046,6 +1046,16 @@ function filtrarSocios() {
                 detalles.style.display = "none";
             }
         }
+    });
+    
+    // Rebuild mapeoIdentificadores for visible items only
+    window.mapeoIdentificadores = {};
+    const visibleCards = contenedor.querySelectorAll('[id^="card-"][style*="display: "]');
+    visibleCards.forEach(card => {
+        const idCard = card.id.replace("card-", "");
+        const socioId = card.getAttribute('data-socio-id') || idCard;
+        window.mapeoIdentificadores[idCard] = socioId;
+        window.mapeoIdentificadores[socioId] = socioId;
     });
 }
 
