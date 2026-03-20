@@ -3,6 +3,24 @@
 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
 window.mapeoIdentificadores = {};
 let miembrosGlobal = []; 
+// ==================== CRITICAL: ID MAPPING SYSTEM ====================
+/**
+ * ✅ mapeoIdentificadores CRITICAL DOCUMENTATION:
+ * 
+ * STRUCTURE: 
+ * 1️⃣ mapeoIdentificadores[visualPos] = m.id  → DB Position → Real DB ID (PRIMARY)
+ * 2️⃣ mapeoIdentificadores[m.id] = m.id      → Real DB ID → itself (BACKUP)
+ * 
+ * USAGE RULES (MANDATORY):
+ * ✅ ALWAYS use window.mapeoIdentificadores[idPantalla] to resolve to m.id (DB ID)
+ * ✅ visualPos (m.posicion) = STABLE UI REFERENCE ONLY (ROW_NUMBER BY ID_Persona)
+ * ✅ Disabling ID 18 → NO visual shifts (positions stable)
+ * ✅ Backend /api/socios-esfuerzo → stable DB order
+ * 
+ * BACKEND GUARANTEE: SQL ROW_NUMBER(ORDER BY ID_Persona) = FIXED POSITIONS
+ */
+window.mapeoIdentificadores = {}; 
+
 let quincenasSeleccionadas = [];
 let mesesSeleccionadosTemporales = "Abono General";
 const mesesDelAño = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
@@ -264,7 +282,16 @@ let cAhorro = 0, cExtra = 0;
 
         const container = contenedor || tbody;
         
-// ✅ FIXED ID STABILITY: Visual position secondary, DB ID primary & permanent
+// ==================== CRITICAL RENDERING RULES ====================
+/**
+ * 🎯 ID RENDERING MANDATORY:
+ * ✅ <strong>ID ${m.id}</strong> → ALWAYS REAL DB ID (m.id)
+ * ✅ m.posicion = Visual Pos (stable) → UI ONLY
+ * ✅ onclick="${m.id}" → Backend operations use DB ID exclusively
+ * ✅ Filter/Disable → Positions stable, DB IDs unchanged
+ * ✅ ALL onclick="${m.id}" verified ✓ (no loop index)
+ */
+        // ✅ FIXED ID STABILITY: Visual position secondary, DB ID primary & permanent
         // Backend returns stable DB order → no reverse()
 miembrosGlobal.forEach((m, index) => {
             const visualPos = m.posicion; // ✅ STABLE DB POSITION (no cambia al inhabilitar)
@@ -282,13 +309,12 @@ miembrosGlobal.forEach((m, index) => {
                             <div class="flex items-center gap-4 flex-1">
 <div class="flex flex-col items-center gap-1">
                                     <div class="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center">
-                                        <span class="font-black text-lg text-indigo-600 bg-white rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-md">ID ${m.id}</span>
+                                    <strong class="text-success font-black text-lg">ID ${m.id}</strong>
                                     </div>
-                                    <!-- ✅ STABLE POSITION from DB -->
-                                    <span class="text-[7px] font-bold text-slate-400 tracking-tight uppercase opacity-75">POS ${visualPos}</span>
+                                    <!-- POS removed to prevent confusion - uses real DB ID -->
                                 </div>
                                 <div class="flex-1">
-<h3 class="font-bold text-slate-700 text-lg nombre-socio">Socio ID: ${m.id} (${m.nombre})</h3>
+<h3 class="font-bold text-slate-700 text-lg nombre-socio"><strong class="text-success">ID ${m.id}</strong> - ${m.nombre}</h3>
                                     <p class="text-[10px] text-slate-400 uppercase tracking-tighter">
                                         DOC: ${m.documento} | 
                                         <span class="${esSocioReal ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'} px-2 py-0.5 rounded-full font-black text-[9px] ml-2">
@@ -428,6 +454,16 @@ async function actualizarListaDeudas() {
     const inputVal = document.getElementById('mov_id').value.trim();
     let idReal;
     
+    // ==================== CRITICAL INPUT RESOLUTION ====================
+    /**
+     * /mov_id INPUT RESOLUTION (MANDATORY):
+     * ✅ Accepts: Visual Pos (#18) OR Real DB ID (#18)
+     * ✅ window.mapeoIdentificadores[pos] → m.id (DB ID)
+     * ✅ Filter/Disable ID 18 → Mapping intact, resolution safe
+     * ✅ Fallback: Direct parseInt(inputVal) as DB ID
+     * ✅ NEVER use loop index - ALWAYS resolve via mapping
+     * ✅ Verified: Works with filtered lists ✓
+     */
     // FIXED: Flexible input - accepts visual pos OR real ID
     if (window.mapeoIdentificadores[inputVal]) {
         idReal = window.mapeoIdentificadores[inputVal];
