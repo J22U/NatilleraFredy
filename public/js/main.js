@@ -100,13 +100,12 @@ async function cargarDetallesMiembro(id) {
         ]);
 
         const totalAhorrado = Number(totales.totalAhorrado || 0);
-        // Ensure p is always an array before filtering
-        const prestamos = Array.isArray(p) ? p : [];
-        // ✅ SUMA MANUAL saldoHoy todos préstamos activos del socio
-        const deudaTotalManual = prestamos.reduce((sum, pr) => sum + Number(pr.saldoHoy || 0), 0);
-        const deudaTotal = Math.max(deudaTotalManual, Number(totales.deudaTotal || 0));
+        // ✅ p.prestamos = lista préstamos del socio (maneja objetos)
+        const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
+        // ✅ deudaTotal = suma estricta saldoHoy (sin Math.max, sin totales.deudaTotal)
+        const deudaTotal = prestamos.reduce((sum, pr) => sum + Number(pr.saldoHoy || 0), 0);
         
-        // Calcular préstamos activos
+        // ✅ prestamosActivos usa mismo array
         const prestamosActivos = prestamos.filter(pr => Number(pr.saldoHoy || 0) > 0);
         const tienePrestamos = prestamosActivos.length > 0;
         
