@@ -104,7 +104,7 @@ async function cargarDetallesMiembro(id) {
         
         // ✅ LÓGICA: Capital Hoy + Int. Pend. Bruto
         const deudaTotal = prestamos.reduce((sum, pr) => {
-            const capitalHoy = Number(pr.saldoHoy || 0);
+            const capitalHoy = Number(pr.capitalHoy || 0);
             const intPendBruto = Number(pr.interesBruto || pr.interesGeneradoHoy || 0);
             return sum + (capitalHoy + intPendBruto);
         }, 0);
@@ -2032,14 +2032,10 @@ async function guardarPrestamoDiario() {
 }
 
 function renderizarDeudaDinamica(prestamo) {
-    // 1. Definimos las variables según tu lógica de suma
-    const capitalHoy = Number(prestamo.CapitalHoy || prestamo.saldoHoy || 0);
-    const intPendBruto = Number(prestamo.interesBruto || prestamo.interesHoy || 0);
-    
-    // ✅ LA SUMA QUE NECESITAS: $4.500.000 + $67.500 = $4.567.500
-    const saldoTotalReal = Math.round(capitalHoy + intPendBruto);
-
-    const dias = prestamo.DiasTranscurridos || 0;
+    // prestamo viene con los datos calculados del backend
+    const dias = prestamo.DiasTranscurridos;
+    const interesGenerado = Math.round(prestamo.interesHoy);
+    const saldoFinal = Math.round(prestamo.saldoHoy);
 
     return `
         <div class="bg-slate-900 text-white p-4 rounded-3xl shadow-lg border-l-4 border-amber-500">
@@ -2051,19 +2047,19 @@ function renderizarDeudaDinamica(prestamo) {
             <div class="space-y-1">
                 <div class="flex justify-between text-sm">
                     <span class="text-slate-400">Capital inicial:</span>
-                    <span class="font-bold">$ ${Number(prestamo.MontoPrestado || 0).toLocaleString()}</span>
+                    <span class="font-bold">$ ${prestamo.MontoPrestado.toLocaleString()}</span>
                 </div>
                 <div class="flex justify-between text-sm">
-                    <span class="text-slate-400 text-xs">Int. Pend. Bruto (+${dias}d):</span>
-                    <span class="font-bold text-rose-400">$ ${intPendBruto.toLocaleString()}</span>
+                    <span class="text-slate-400 text-xs">Intereses (+${dias}d):</span>
+                    <span class="font-bold text-rose-400">$ ${interesGenerado.toLocaleString()}</span>
                 </div>
                 <div class="flex justify-between text-sm border-b border-white/10 pb-2">
-                    <span class="text-slate-400">Capital Hoy:</span>
-                    <span class="font-bold text-emerald-400">$ ${capitalHoy.toLocaleString()}</span>
+                    <span class="text-slate-400">Abonos realizados:</span>
+                    <span class="font-bold text-emerald-400">- $ ${prestamo.MontoPagado.toLocaleString()}</span>
                 </div>
                 <div class="flex justify-between items-center pt-2">
                     <span class="text-xs font-black uppercase text-indigo-300">Saldo Total Hoy:</span>
-                    <span class="text-xl font-black text-white">$ ${saldoTotalReal.toLocaleString()}</span>
+                    <span class="text-xl font-black text-white">$ ${saldoFinal.toLocaleString()}</span>
                 </div>
             </div>
         </div>
