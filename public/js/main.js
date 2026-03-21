@@ -685,6 +685,7 @@ const interesPendienteNeto = interesPendienteBruto;
         const capitalOriginal = Number(m.MontoPrestado || 0);
         const capitalHoy = Number(m.capitalHoy || 0);
         // Usar saldoHoy que ya viene calculado del servidor
+        const saldoCalculado = capitalHoy + interesPendienteNeto;
         const saldoTotal = Number(m.saldoHoy || 0);
         const estaPago = m.Estado === 'Pagado' || saldoTotal <= 0;
         
@@ -788,7 +789,10 @@ const interesPendienteNeto = interesPendienteBruto;
                 ${!estaPago ? `
                 <div class="flex flex-col text-right">
                     <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Total</span>
-                    <span class="text-[14px] font-black text-rose-600 tracking-tight">$${Math.max(0, saldoTotal).toLocaleString()}</span>
+                    <span class="text-[14px] font-black text-rose-600 tracking-tight">
+                      $${Math.max(0, saldoCalculado).toLocaleString()}
+                      <span class="text-[8px] text-rose-400 block">(DB: $${Math.max(0, saldoTotal).toLocaleString()})</span>
+                    </span>
                     ${breakdownCapital}
                 </div>` : `
                 <div class="text-right text-emerald-600 font-black text-[10px] pt-2">COMPLETADO ✓</div>`}
