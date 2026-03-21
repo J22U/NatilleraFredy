@@ -102,21 +102,22 @@ async function cargarDetallesMiembro(id) {
         const totalAhorrado = Number(totales.totalAhorrado || 0);
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
         
-        // ✅ LÓGICA SOLICITADA: Estrictamente (Capital Hoy + Int. Pend. Bruto)
-        // Esto hará que el $4.567.500 de la tarjeta coincida con el encabezado.
+        // ✅ LÓGICA: Capital Hoy + Int. Pend. Bruto
         const deudaTotal = prestamos.reduce((sum, pr) => {
             const capitalHoy = Number(pr.saldoHoy || 0);
             const intPendBruto = Number(pr.interesBruto || pr.interesGeneradoHoy || 0);
             return sum + (capitalHoy + intPendBruto);
         }, 0);
+
+        // 🔥 ESTO ES LO QUE ACTUALIZA LA TARJETA DE ARRIBA (LA ROJA) 🔥
+        const tarjetaDeuda = document.querySelector(`#card-${id} .text-rose-600.font-black, .deuda-total-header`);
+        if (tarjetaDeuda) {
+            tarjetaDeuda.textContent = `$${Math.round(deudaTotal).toLocaleString()}`;
+        }
         
-        const prestamosActivos = prestamos.filter(pr => {
-            const saldoReal = Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0);
-            return saldoReal > 0;
-        });
+        const prestamosActivos = prestamos.filter(pr => (Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0)) > 0);
         const tienePrestamos = prestamosActivos.length > 0;
         
-        // Últimos 3 ahorros
         const ultimosAhorros = a.slice(-3).reverse().map(ah => `
             <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-lg">
                 <span class="text-[10px] text-slate-500">${ah.FechaFormateada || ''}</span>
@@ -124,28 +125,17 @@ async function cargarDetallesMiembro(id) {
             </div>
         `).join('') || '<p class="text-[10px] text-slate-400 italic">Sin ahorros registrados</p>';
         
-        // Préstamos activos resumidos
-        let prestamosHTML = '';
-        if (tienePrestamos) {
-            prestamosHTML = prestamosActivos.slice(0, 2).map(pr => {
-                const saldoIndividual = Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0);
-                return `
-                <div class="p-2 bg-rose-50 rounded-lg">
-                    <div class="flex justify-between items-center">
-                        <span class="text-[9px] font-black text-rose-600">DÍA ${pr.diasActivo || pr.DiasTranscurridos || 0}</span>
-                        <span class="text-xs font-bold text-rose-600">$${Math.round(saldoIndividual).toLocaleString()}</span>
-                    </div>
+        let prestamosHTML = tienePrestamos ? prestamosActivos.slice(0, 2).map(pr => `
+            <div class="p-2 bg-rose-50 rounded-lg">
+                <div class="flex justify-between items-center">
+                    <span class="text-[9px] font-black text-rose-600">DÍA ${pr.diasActivo || pr.DiasTranscurridos || 0}</span>
+                    <span class="text-xs font-bold text-rose-600">$${Math.round(Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0)).toLocaleString()}</span>
                 </div>
-            `}).join('');
-        } else {
-            prestamosHTML = '<p class="text-[10px] text-emerald-500 italic">Sin deudas activas ✓</p>';
-        }
+            </div>
+        `).join('') : '<p class="text-[10px] text-emerald-500 italic">Sin deudas activas ✓</p>';
 
         const isCardContainer = rowDetails.tagName === 'DIV';
-        let detailsContent = '';
-        
-        // Template unificado para evitar duplicidad de lógica
-        const layoutFinanciero = `
+        const innerHTML = `
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                     <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -167,53 +157,24 @@ async function cargarDetallesMiembro(id) {
                     </div>
                 </div>
                 <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros
-                    </h4>
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros</h4>
                     <div class="space-y-1 max-h-32 overflow-y-auto">${ultimosAhorros}</div>
                 </div>
                 <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos
-                    </h4>
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos</h4>
                     <div class="space-y-1 max-h-32 overflow-y-auto">${prestamosHTML}</div>
                 </div>
             </div>
+            <div class="mt-3 flex gap-2 justify-end">
+                <button onclick="verHistorialFechas(${id}, '${totales.nombre || 'Socio'}')" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold">Ver Historial</button>
+                <button onclick="document.getElementById('mov_id').value = '${id}';" class="bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold">Movimiento</button>
+            </div>
         `;
+
+        rowDetails.innerHTML = isCardContainer ? innerHTML : `<td colspan="4" class="px-4 py-4 bg-slate-50">${innerHTML}</td>`;
         
-        if (isCardContainer) {
-            detailsContent = `
-                <div class="p-4">
-                    ${layoutFinanciero}
-                    <div class="mt-3 flex gap-2 justify-end">
-                        <button onclick="verHistorialFechas(${id}, document.querySelector('#card-${id} .nombre-socio')?.textContent || 'Socio')" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition-all">
-                            <i class="fas fa-history mr-1"></i> Ver Historial Completo
-                        </button>
-                        <button onclick="document.getElementById('mov_id').value = '${id}'; toggleExpandirMiembro(${id});" class="bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-600 hover:text-white transition-all">
-                            <i class="fas fa-plus mr-1"></i> Hacer Movimiento
-                        </button>
-                    </div>
-                </div>
-            `;
-        } else {
-            detailsContent = `
-                <td colspan="4" class="px-4 py-4 bg-slate-50">
-                    ${layoutFinanciero}
-                    <div class="mt-3 flex gap-2 justify-end">
-                        <button onclick="verHistorialFechas(${id}, this.closest('tr').previousElementSibling.querySelector('.nombre-socio').textContent)" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition-all">
-                            <i class="fas fa-history mr-1"></i> Ver Historial Completo
-                        </button>
-                        <button onclick="document.getElementById('mov_id').value = '${id}'; this.closest('[id^=\'detalles-\']').classList.add('hidden'); document.getElementById('icon-expand-${id}').classList.replace('fa-chevron-up', 'fa-chevron-down');" class="bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-600 hover:text-white transition-all">
-                            <i class="fas fa-plus mr-1"></i> Hacer Movimiento
-                        </button>
-                    </div>
-                </td>
-            `;
-        }
-        
-        rowDetails.innerHTML = detailsContent;
     } catch (err) {
-        console.error("Error cargando detalles:", err);
+        console.error("Error:", err);
     }
 }
 
