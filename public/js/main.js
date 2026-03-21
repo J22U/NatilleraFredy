@@ -103,13 +103,10 @@ async function cargarDetallesMiembro(id) {
         // ✅ p.prestamos = lista préstamos del socio (maneja objetos)
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
         
-        // ✅ CORRECCIÓN: deudaTotal calculada sumando (Capital + Interés Bruto - Interés Pagado)
-        // Esto garantiza que el encabezado coincida con el saldo real del préstamo
+        // ✅ SIMPLIFICADO: Usar directamente el saldoHoy del backend (ya incluye TODO)
+        // Backend ya calcula: Capital + IntAcum + IntDiario - Pagados - AnticipadoUsado
         const deudaTotal = prestamos.reduce((sum, pr) => {
-            const cap = Number(pr.saldoHoy || 0);
-            const intGen = Number(pr.interesBruto || pr.interesGeneradoHoy || 0);
-            const intPag = Number(pr.interesPagado || 0);
-            return sum + (cap + intGen - intPag);
+            return sum + Number(pr.saldoHoy || 0);
         }, 0);
         
         // ✅ prestamosActivos usa la misma lógica de saldo real
