@@ -100,10 +100,12 @@ async function cargarDetallesMiembro(id) {
         ]);
 
         const totalAhorrado = Number(totales.totalAhorrado || 0);
-        const deudaTotal = Number(totales.deudaTotal || 0);
-        
         // Ensure p is always an array before filtering
         const prestamos = Array.isArray(p) ? p : [];
+        // ✅ SUMA MANUAL saldoHoy todos préstamos activos del socio
+        const deudaTotalManual = prestamos.reduce((sum, pr) => sum + Number(pr.saldoHoy || 0), 0);
+        const deudaTotal = Math.max(deudaTotalManual, Number(totales.deudaTotal || 0));
+        
         // Calcular préstamos activos
         const prestamosActivos = prestamos.filter(pr => Number(pr.saldoHoy || 0) > 0);
         const tienePrestamos = prestamosActivos.length > 0;
@@ -791,7 +793,6 @@ const interesPendienteNeto = interesPendienteBruto;
                     <span class="text-[8px] uppercase font-black text-rose-500 leading-tight">Saldo Total</span>
                     <span class="text-[14px] font-black text-rose-600 tracking-tight">
                       $${Math.max(0, saldoCalculado).toLocaleString()}
-                      <span class="text-[8px] text-rose-400 block">(DB: $${Math.max(0, saldoTotal).toLocaleString()})</span>
                     </span>
                     ${breakdownCapital}
                 </div>` : `
