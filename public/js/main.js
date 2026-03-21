@@ -102,19 +102,16 @@ async function cargarDetallesMiembro(id) {
         const totalAhorrado = Number(totales.totalAhorrado || 0);
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
         
-// 🔥 FIXED: Pure gross debt = Capital Hoy + Interés Pendiente Bruto (NO subtract paid)
+// 🔥 GOLDEN RULE: Capital Hoy + Int. Pend. Bruto (NO restar Int. Pagado)
         const deudaTotal = prestamos.reduce((sum, pr) => {
-            // Capital Hoy (already net of capital payments)
             const capitalHoy = Number(pr.capitalHoy || 0);
-            // Interés Pendiente Bruto = Accumulated + Daily Generated (NO subtract paid)
-            const interesAcumulado = Number(pr.InteresPendienteAcumulado || 0);
-            const interesGenerado = Number(pr.InteresGenerado || 0);
-            const intPendBruto = interesAcumulado + interesGenerado;
+            const intPendBruto = Number(pr.interesBruto || pr.InteresGenerado || pr.InteresPendienteAcumulado || 0);
+            console.log(`Préstamo ${pr.ID_Prestamo}: capitalHoy=$${capitalHoy.toLocaleString()}, intPendBruto=$${intPendBruto.toLocaleString()}`);
             return sum + capitalHoy + intPendBruto;
         }, 0);
         
         const deudaTotalBackend = Number(totales.deudaTotal || 0);
-        console.log(`✅ CARLOS ESTRADA FIX: Gross=$${deudaTotal.toLocaleString()} (4.5M + 67.5k) | Backend(net)=$${deudaTotalBackend.toLocaleString()}`);
+console.log(`✅ GOLDEN RULE: Deuda Total=$${deudaTotal.toLocaleString()} | Carlos Estrada TARGET: $4.567.500`);
 
         // 🔥 FORCE TARJETA ROJA: $4,567,500
         const tarjetaDeuda = document.querySelector(`#card-${id} .text-rose-600.font-black, .deuda-total-header`);
