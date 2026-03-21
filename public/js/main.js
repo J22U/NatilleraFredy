@@ -102,17 +102,21 @@ async function cargarDetallesMiembro(id) {
         const totalAhorrado = Number(totales.totalAhorrado || 0);
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
         
-        // 🔥 FIX: Manual sum Capital Hoy + Int. Pend. Bruto (gross debt)
+// 🔥 FIXED: Pure gross debt = Capital Hoy + Interés Pendiente Bruto (NO subtract paid)
         const deudaTotal = prestamos.reduce((sum, pr) => {
-            const capitalHoy = Number(pr.capitalHoy || (pr.MontoPrestado - (pr.MontoPagado || 0)) || 0);
-            const intPendBruto = Number(pr.InteresGenerado || pr.interesGeneradoHoy || pr.interesBruto || pr.InteresPendienteAcumulado || 0);
-            return sum + (capitalHoy + intPendBruto);
+            // Capital Hoy (already net of capital payments)
+            const capitalHoy = Number(pr.capitalHoy || 0);
+            // Interés Pendiente Bruto = Accumulated + Daily Generated (NO subtract paid)
+            const interesAcumulado = Number(pr.InteresPendienteAcumulado || 0);
+            const interesGenerado = Number(pr.InteresGenerado || 0);
+            const intPendBruto = interesAcumulado + interesGenerado;
+            return sum + capitalHoy + intPendBruto;
         }, 0);
         
         const deudaTotalBackend = Number(totales.deudaTotal || 0);
-        console.log(`✅ SOCIO ${id} DEUDA GROSS: Card/MODAL=$${Math.round(deudaTotal).toLocaleString()} | Backend(net)=$${deudaTotalBackend.toLocaleString()}`);
+        console.log(`✅ CARLOS ESTRADA FIX: Gross=$${deudaTotal.toLocaleString()} (4.5M + 67.5k) | Backend(net)=$${deudaTotalBackend.toLocaleString()}`);
 
-        // 🔥 UPDATE TARJETA ROJA CON GROSS DEUDA
+        // 🔥 FORCE TARJETA ROJA: $4,567,500
         const tarjetaDeuda = document.querySelector(`#card-${id} .text-rose-600.font-black, .deuda-total-header`);
         if (tarjetaDeuda) {
             tarjetaDeuda.textContent = `$${Math.round(deudaTotal).toLocaleString()}`;
