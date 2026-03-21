@@ -104,9 +104,9 @@ async function cargarDetallesMiembro(id) {
         
         // ✅ LÓGICA: Capital Hoy + Int. Pend. Bruto
         const deudaTotal = prestamos.reduce((sum, pr) => {
-            const capitalHoy = Number(pr.capitalHoy || 0);
-            const intPendBruto = Number(pr.interesBruto || pr.interesGeneradoHoy || 0);
-            return sum + (capitalHoy + intPendBruto);
+            const capitalPendiente = Number(pr.MontoPrestado || 0) - Number(pr.MontoPagado || 0);
+            const intPendBruto = Number(pr.interesBruto || pr.interesGeneradoHoy || pr.InteresGenerado || 0);
+            return sum + (capitalPendiente + intPendBruto);
         }, 0);
 
         // 🔥 ESTO ES LO QUE ACTUALIZA LA TARJETA DE ARRIBA (LA ROJA) 🔥
