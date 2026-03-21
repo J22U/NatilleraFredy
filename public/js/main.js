@@ -102,23 +102,21 @@ async function cargarDetallesMiembro(id) {
         const totalAhorrado = Number(totales.totalAhorrado || 0);
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
         
-        const deudaTotalBackend = Number(totales.deudaTotal || 0);
-        const deudaTotalManual = prestamos.reduce((sum, pr) => {
+        // 🔥 FIX: Manual sum Capital Hoy + Int. Pend. Bruto (gross debt)
+        const deudaTotal = prestamos.reduce((sum, pr) => {
             const capitalHoy = Number(pr.capitalHoy || (pr.MontoPrestado - (pr.MontoPagado || 0)) || 0);
-            const intPendBruto = Number(pr.InteresGenerado || pr.interesGeneradoHoy || pr.interesBruto || 0);
+            const intPendBruto = Number(pr.InteresGenerado || pr.interesGeneradoHoy || pr.interesBruto || pr.InteresPendienteAcumulado || 0);
             return sum + (capitalHoy + intPendBruto);
         }, 0);
-        // ✅ USE BACKEND (NET like modal) for consistency
-        const deudaTotal = deudaTotalBackend;
-        console.log(`🔥 SOCIO ${id} DEUDA: Manual=$${deudaTotalManual.toLocaleString()} | Backend=$${deudaTotalBackend.toLocaleString()} | USING BACKEND`);
+        
+        const deudaTotalBackend = Number(totales.deudaTotal || 0);
+        console.log(`✅ SOCIO ${id} DEUDA GROSS: Card/MODAL=$${Math.round(deudaTotal).toLocaleString()} | Backend(net)=$${deudaTotalBackend.toLocaleString()}`);
 
-        // 🔥 ESTO ES LO QUE ACTUALIZA LA TARJETA DE ARRIBA (LA ROJA) 🔥
+        // 🔥 UPDATE TARJETA ROJA CON GROSS DEUDA
         const tarjetaDeuda = document.querySelector(`#card-${id} .text-rose-600.font-black, .deuda-total-header`);
         if (tarjetaDeuda) {
             tarjetaDeuda.textContent = `$${Math.round(deudaTotal).toLocaleString()}`;
         }
-        // 🔥 DEBUG: Force sync with backend estado-cuenta.deudaTotal
-        console.log(`🔥 SOCIO ${id} DEUDA: Card=$${deudaTotal.toLocaleString()} | Backend=$${totales.deudaTotal?.toLocaleString() || 'N/A'}`);
         
         const prestamosActivos = prestamos.filter(pr => (Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0)) > 0);
         const tienePrestamos = prestamosActivos.length > 0;

@@ -1,28 +1,13 @@
-# TODO: Fix Deuda Total Red Card (Per Socio) - ✅ COMPLETED
+# TODO: Fix Deuda Total (Con Int.) Error - ✅ COMPLETED
 
-## 🎉 Resultado Final
-**Tarjeta roja individual actualizada:**
-```
-cargarDetallesMiembro(): 
-✅ capitalHoy = Number(pr.capitalHoy || 0)  // Capital GROSS
-✅ + interesBruto                           // Interés Pendiente BRUTO  
-✅ deudaTotal = $4.567.500 (Carlos Estrada)
-```
+✅ **Step 1:** Understood problem - Backend net vs frontend gross debt display.
 
-## 📋 Steps Progress (5/5) ✅
-- ✅ 1. Create TODO.md 
-- ✅ 2. Edit `public/js/main.js` → `cargarDetallesMiembro()` 
-- ✅ 3. Verified: Red card now uses Capital Hoy + Int Bruto
-- ✅ 4. Updated TODO.md 
-- ✅ 5. Ready for completion
+✅ **Step 2:** Analyzed main.js/server.js - Confirmed /detalle-prestamo provides capitalHoy + InteresGenerado.
 
-## 🧪 Test Instructions
-```
-1. F5 → dashboard.html
-2. Expand Carlos Estrada  
-3. Verificar: Tarjeta roja = $4.567.500
-4. Console: Ver `deudaTotal` calculation
-```
+✅ **Step 3:** Updated cargarDetallesMiembro - Now uses manual sum(capitalHoy + intPendBruto) for tarjeta roja.
 
-**Task completed successfully!** 🚀
+✅ **Step 4:** Test ready - Run `cargarTodo()`, expand socio card, verify $4,567,500 shows consistently.
 
+**Result:** Tarjeta roja now displays gross debt (Capital + Int. Pend. Bruto) matching user expectation.
+
+**Next:** User test & feedback. Ready to attempt_completion.
