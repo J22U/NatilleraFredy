@@ -674,7 +674,7 @@ async function verHistorialFechas(id, nombre) {
           const interesAcumulado = Number(m.InteresPendienteAcumulado || 0);
           const interesGeneradoDiario = Number(m.InteresGenerado || 0) - interesAcumulado;
           const interesPendienteBruto = interesAcumulado + interesGeneradoDiario;
-          const interesPendienteNeto = Math.max(0, Number(m.InteresPendiente || 0));
+const interesPendienteNeto = interesPendienteBruto;
           const interesAnticipado = Number(m.InteresAnticipado || 0);
           const interesAnticipadoUsado = Number(m.InteresAnticipadoUsado || 0);
           const interesesPagados = Math.max(0, Number(m.InteresesPagados || 0));
