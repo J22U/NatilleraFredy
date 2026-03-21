@@ -103,12 +103,13 @@ async function cargarDetallesMiembro(id) {
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
         
 // 🔥 GOLDEN RULE: Capital Hoy + Int. Pend. Bruto (NO restar Int. Pagado)
-        const deudaTotal = prestamos.reduce((sum, pr) => {
-            const capitalHoy = Number(pr.capitalHoy || 0);
-            const intPendBruto = Number(pr.interesBruto || pr.InteresGenerado || pr.InteresPendienteAcumulado || 0);
-            console.log(`Préstamo ${pr.ID_Prestamo}: capitalHoy=$${capitalHoy.toLocaleString()}, intPendBruto=$${intPendBruto.toLocaleString()}`);
-            return sum + capitalHoy + intPendBruto;
-        }, 0);
+const deudaTotal = prestamos.reduce((sum, pr) => {
+    console.log('DATOS PR:', pr);
+    const capitalHoy = Number(pr.capitalHoy || 0);
+    const intPendBruto = Number(pr.interesBruto || pr.InteresGenerado || pr.InteresPendienteAcumulado || 0);
+    console.log(`Préstamo ${pr.ID_Prestamo}: capitalHoy=$${capitalHoy.toLocaleString()}, intPendBruto=$${intPendBruto.toLocaleString()}`);
+    return sum + capitalHoy + intPendBruto;
+}, 0);
         
         const deudaTotalBackend = Number(totales.deudaTotal || 0);
 console.log(`✅ GOLDEN RULE: Deuda Total=$${deudaTotal.toLocaleString()} | Carlos Estrada TARGET: $4.567.500`);

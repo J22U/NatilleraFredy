@@ -1,13 +1,13 @@
-# TODO: Fix Deuda Total (Con Int.) Error - ✅ COMPLETED
+# Task Progress: Fix Tarjeta Roja Logic
 
-✅ **Step 1:** Understood problem - Backend net vs frontend gross debt display.
+**✅ Debug Logging Added** ✓
 
-✅ **Step 2:** Analyzed main.js/server.js - Confirmed /detalle-prestamo provides capitalHoy + InteresGenerado.
+## TODO Steps (2/6):
+- [x] 1. Create TODO.md ✓
+- [x] 2. Add console.log('DATOS PR:', pr) ✓
+- [ ] 3. **Test debug**: Open DevTools Console → Click socio card → Copy/paste console output
+- [ ] 4. Backend dashboard fix (if DeudaTotalConIntereses is pre-subtracted)
+- [ ] 5. Remove debug console.log
+- [ ] 6. Final completion
 
-✅ **Step 3:** Updated cargarDetallesMiembro - Now uses manual sum(capitalHoy + intPendBruto) for tarjeta roja.
-
-✅ **Step 4:** Test ready - Run `cargarTodo()`, expand socio card, verify $4,567,500 shows consistently.
-
-**Result:** Tarjeta roja now displays gross debt (Capital + Int. Pend. Bruto) matching user expectation.
-
-**Next:** User test & feedback. Ready to attempt_completion.
+**Next:** Test in browser & share console `DATOS PR:` output
