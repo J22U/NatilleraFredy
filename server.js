@@ -579,7 +579,14 @@ app.get('/estado-cuenta/:id', async (req, res) => {
                 SELECT 
                     (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros WHERE ID_Persona = @id) as totalAhorrado, 
                     ISNULL((
-                        SELECT SUM(p.SaldoActual) 
+                        SELECT SUM(
+                            (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
+                            (
+                                ISNULL(p.InteresPendienteAcumulado, 0) + 
+                                (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * 
+                                    DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, p.FechaInicio), GETDATE()))
+                            ) - ISNULL(p.InteresesPagados, 0) - ISNULL(p.InteresAnticipadoUsado, 0)
+                        ) 
                         FROM Prestamos p
                         INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
                         WHERE p.ID_Persona = @id AND p.Estado = 'Activo' AND per.Estado = 'Activo'

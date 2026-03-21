@@ -621,14 +621,35 @@ async function verHistorialFechas(id, nombre) {
         // Normalize préstamos response (handles both [] and {prestamos: []})
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
 
-        // --- CORRECCIÓN DE DEUDA DINÁMICA ---
-        // Ahora usamos saldoHoy que ya viene calculado del servidor (Capital Pendiente + Interés Pendiente)
-        // Solo incluimos préstamos con saldo mayor a 0
-        const deudaRealActualizada = prestamos.reduce((acc, m) => {
-            const saldo = Number(m.saldoHoy || 0);
-            // Solo incluir si el saldo es mayor a 0 (excluir préstamos pagados)
-            return acc + (saldo > 0 ? saldo : 0);
-        }, 0);
+// --- CORRECCIÓN DE DEUDA DINÁMICA ---
+// ✅ DEBUG MODE ACTIVADO - Track exact values
+console.log('🔍 DEBUG DEUDA - prestamos raw:', prestamos.map(p => ({id: p.ID_Prestamo, saldoHoy: p.saldoHoy, capitalHoy: p.capitalHoy})));
+console.log('🔍 DEBUG DEUDA - totales.deudaTotal original:', totales.deudaTotal);
+
+// Ahora usamos saldoHoy que ya viene calculado del servidor (Capital Pendiente + Interés Pendiente)
+// Solo incluimos préstamos con saldo mayor a 0
+const deudaRealActualizada = prestamos.reduce((acc, m) => {
+    const saldo = Number(m.saldoHoy || 0);
+    // Solo incluir si el saldo es mayor a 0 (excluir préstamos pagados)
+    return acc + (saldo > 0 ? saldo : 0);
+}, 0);
+
+console.log('🔍 DEBUG DEUDA - suma saldoHoy:', deudaRealActualizada);
+console.log('🔍 DEBUG DEUDA - diferencia backend vs suma:', Math.abs(deudaRealActualizada - (totales.deudaTotal || 0)));
+
+// ✅ FIX: Force Math.round + WARNING si discrepancia >1000
+const deudaTotalFinal = Math.round(deudaRealActualizada);
+if (Math.abs(deudaTotalFinal - (totales.deudaTotal || 0)) > 1000) {
+    console.warn('🚨 INCONSISTENCIA DETECTADA!', {
+        backend: totales.deudaTotal,
+        calculada: deudaTotalFinal,
+        diferencia: deudaTotalFinal - (totales.deudaTotal || 0)
+    });
+}
+
+totales.deudaTotal = deudaTotalFinal;
+console.log('✅ DEBUG DEUDA - totales.deudaTotal FINAL:', totales.deudaTotal);
+
 
         console.log(`   → Deuda calculada: $${deudaRealActualizada.toLocaleString()}`);
 
