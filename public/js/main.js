@@ -100,18 +100,18 @@ async function cargarDetallesMiembro(id) {
         ]);
 
         const totalAhorrado = Number(totales.totalAhorrado || 0);
-        // ✅ p.prestamos = lista préstamos del socio (maneja objetos)
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
         
-        // ✅ SIMPLIFICADO: Usar directamente el saldoHoy del backend (ya incluye TODO)
-        // Backend ya calcula: Capital + IntAcum + IntDiario - Pagados - AnticipadoUsado
+        // ✅ LÓGICA SOLICITADA: Estrictamente (Capital Hoy + Int. Pend. Bruto)
+        // Esto hará que el $4.567.500 de la tarjeta coincida con el encabezado.
         const deudaTotal = prestamos.reduce((sum, pr) => {
-            return sum + Number(pr.saldoHoy || 0);
+            const capitalHoy = Number(pr.saldoHoy || 0);
+            const intPendBruto = Number(pr.interesBruto || pr.interesGeneradoHoy || 0);
+            return sum + (capitalHoy + intPendBruto);
         }, 0);
         
-        // ✅ prestamosActivos usa la misma lógica de saldo real
         const prestamosActivos = prestamos.filter(pr => {
-            const saldoReal = Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0) - Number(pr.interesPagado || 0);
+            const saldoReal = Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0);
             return saldoReal > 0;
         });
         const tienePrestamos = prestamosActivos.length > 0;
@@ -128,7 +128,7 @@ async function cargarDetallesMiembro(id) {
         let prestamosHTML = '';
         if (tienePrestamos) {
             prestamosHTML = prestamosActivos.slice(0, 2).map(pr => {
-                const saldoIndividual = Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0) - Number(pr.interesPagado || 0);
+                const saldoIndividual = Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0);
                 return `
                 <div class="p-2 bg-rose-50 rounded-lg">
                     <div class="flex justify-between items-center">
@@ -141,54 +141,50 @@ async function cargarDetallesMiembro(id) {
             prestamosHTML = '<p class="text-[10px] text-emerald-500 italic">Sin deudas activas ✓</p>';
         }
 
-        // Detect if we're in a card container or a table row
         const isCardContainer = rowDetails.tagName === 'DIV';
-        
         let detailsContent = '';
         
-        if (isCardContainer) {
-            // Render for card container (div)
-            detailsContent = `
-                <div class="p-4">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <i class="fas fa-wallet text-indigo-500"></i> Estado de Cuenta
-                            </h4>
-                            <div class="space-y-2">
-                                <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-xl">
-                                    <span class="text-xs font-medium text-slate-600">Ahorros</span>
-                                    <span class="text-sm font-black text-emerald-600">$${totalAhorrado.toLocaleString()}</span>
-                                </div>
-                                <div class="flex justify-between items-center p-2 bg-rose-50 rounded-xl">
-                                    <span class="text-xs font-medium text-slate-600">Deuda</span>
-                                    <span class="text-sm font-black text-rose-600">$${Math.round(deudaTotal).toLocaleString()}</span>
-                                </div>
-                                <div class="flex justify-between items-center p-2 ${deudaTotal > totalAhorrado ? 'bg-amber-50' : 'bg-indigo-50'} rounded-xl">
-                                    <span class="text-xs font-medium text-slate-600">Neto</span>
-                                    <span class="text-sm font-black ${deudaTotal > totalAhorrado ? 'text-amber-600' : 'text-indigo-600'}">$${Math.round(totalAhorrado - deudaTotal).toLocaleString()}</span>
-                                </div>
-                            </div>
+        // Template unificado para evitar duplicidad de lógica
+        const layoutFinanciero = `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <i class="fas fa-wallet text-indigo-500"></i> Estado de Cuenta
+                    </h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-xl">
+                            <span class="text-xs font-medium text-slate-600">Ahorros</span>
+                            <span class="text-sm font-black text-emerald-600">$${totalAhorrado.toLocaleString()}</span>
                         </div>
-                        
-                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros
-                            </h4>
-                            <div class="space-y-1 max-h-32 overflow-y-auto">
-                                ${ultimosAhorros}
-                            </div>
+                        <div class="flex justify-between items-center p-2 bg-rose-50 rounded-xl">
+                            <span class="text-xs font-medium text-slate-600">Deuda</span>
+                            <span class="text-sm font-black text-rose-600">$${Math.round(deudaTotal).toLocaleString()}</span>
                         </div>
-                        
-                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos
-                            </h4>
-                            <div class="space-y-1 max-h-32 overflow-y-auto">
-                                ${prestamosHTML}
-                            </div>
+                        <div class="flex justify-between items-center p-2 ${deudaTotal > totalAhorrado ? 'bg-amber-50' : 'bg-indigo-50'} rounded-xl">
+                            <span class="text-xs font-medium text-slate-600">Neto</span>
+                            <span class="text-sm font-black ${deudaTotal > totalAhorrado ? 'text-amber-600' : 'text-indigo-600'}">$${Math.round(totalAhorrado - deudaTotal).toLocaleString()}</span>
                         </div>
                     </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros
+                    </h4>
+                    <div class="space-y-1 max-h-32 overflow-y-auto">${ultimosAhorros}</div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos
+                    </h4>
+                    <div class="space-y-1 max-h-32 overflow-y-auto">${prestamosHTML}</div>
+                </div>
+            </div>
+        `;
+        
+        if (isCardContainer) {
+            detailsContent = `
+                <div class="p-4">
+                    ${layoutFinanciero}
                     <div class="mt-3 flex gap-2 justify-end">
                         <button onclick="verHistorialFechas(${id}, document.querySelector('#card-${id} .nombre-socio')?.textContent || 'Socio')" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition-all">
                             <i class="fas fa-history mr-1"></i> Ver Historial Completo
@@ -200,48 +196,9 @@ async function cargarDetallesMiembro(id) {
                 </div>
             `;
         } else {
-            // Render for table row (td)
             detailsContent = `
                 <td colspan="4" class="px-4 py-4 bg-slate-50">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <i class="fas fa-wallet text-indigo-500"></i> Estado de Cuenta
-                            </h4>
-                            <div class="space-y-2">
-                                <div class="flex justify-between items-center p-2 bg-emerald-50 rounded-xl">
-                                    <span class="text-xs font-medium text-slate-600">Ahorros</span>
-                                    <span class="text-sm font-black text-emerald-600">$${totalAhorrado.toLocaleString()}</span>
-                                </div>
-                                <div class="flex justify-between items-center p-2 bg-rose-50 rounded-xl">
-                                    <span class="text-xs font-medium text-slate-600">Deuda</span>
-                                    <span class="text-sm font-black text-rose-600">$${Math.round(deudaTotal).toLocaleString()}</span>
-                                </div>
-                                <div class="flex justify-between items-center p-2 ${deudaTotal > totalAhorrado ? 'bg-amber-50' : 'bg-indigo-50'} rounded-xl">
-                                    <span class="text-xs font-medium text-slate-600">Neto</span>
-                                    <span class="text-sm font-black ${deudaTotal > totalAhorrado ? 'text-amber-600' : 'text-indigo-600'}">$${Math.round(totalAhorrado - deudaTotal).toLocaleString()}</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <i class="fas fa-piggy-bank text-emerald-500"></i> Últimos Ahorros
-                            </h4>
-                            <div class="space-y-1 max-h-32 overflow-y-auto">
-                                ${ultimosAhorros}
-                            </div>
-                        </div>
-                        
-                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <i class="fas fa-hand-holding-usd text-rose-500"></i> Préstamos Activos
-                            </h4>
-                            <div class="space-y-1 max-h-32 overflow-y-auto">
-                                ${prestamosHTML}
-                            </div>
-                        </div>
-                    </div>
+                    ${layoutFinanciero}
                     <div class="mt-3 flex gap-2 justify-end">
                         <button onclick="verHistorialFechas(${id}, this.closest('tr').previousElementSibling.querySelector('.nombre-socio').textContent)" class="bg-indigo-100 text-indigo-600 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-600 hover:text-white transition-all">
                             <i class="fas fa-history mr-1"></i> Ver Historial Completo
@@ -257,10 +214,6 @@ async function cargarDetallesMiembro(id) {
         rowDetails.innerHTML = detailsContent;
     } catch (err) {
         console.error("Error cargando detalles:", err);
-        const rowDetails = document.getElementById(`detalles-${id}`);
-        if (rowDetails) {
-            rowDetails.innerHTML = '<td colspan="4" class="px-4 py-4 text-center text-red-500">Error al cargar detalles</td>';
-        }
     }
 }
 
