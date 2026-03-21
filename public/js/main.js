@@ -102,25 +102,23 @@ async function cargarDetallesMiembro(id) {
         const totalAhorrado = Number(totales.totalAhorrado || 0);
         const prestamos = Array.isArray(p) ? p : (p.prestamos || []);
         
-        // ✅ LÓGICA: Capital Hoy + Int. Pend. Bruto
-        const deudaTotal = prestamos.reduce((sum, pr) => {
-            // DEBUG: Log fields disponibles
-            console.log('DEUDA DEBUG:', { 
-                ID_Prestamo: pr.ID_Prestamo, 
-                capitalPendiente: Number(pr.MontoPrestado || 0) - Number(pr.MontoPagado || 0),
-                intPendBruto: Number(pr.interesBruto || pr.interesGeneradoHoy || pr.InteresGenerado || 0),
-                saldoHoy: pr.saldoHoy 
-            });
+        const deudaTotalBackend = Number(totales.deudaTotal || 0);
+        const deudaTotalManual = prestamos.reduce((sum, pr) => {
             const capitalHoy = Number(pr.capitalHoy || (pr.MontoPrestado - (pr.MontoPagado || 0)) || 0);
             const intPendBruto = Number(pr.InteresGenerado || pr.interesGeneradoHoy || pr.interesBruto || 0);
             return sum + (capitalHoy + intPendBruto);
         }, 0);
+        // ✅ USE BACKEND (NET like modal) for consistency
+        const deudaTotal = deudaTotalBackend;
+        console.log(`🔥 SOCIO ${id} DEUDA: Manual=$${deudaTotalManual.toLocaleString()} | Backend=$${deudaTotalBackend.toLocaleString()} | USING BACKEND`);
 
         // 🔥 ESTO ES LO QUE ACTUALIZA LA TARJETA DE ARRIBA (LA ROJA) 🔥
         const tarjetaDeuda = document.querySelector(`#card-${id} .text-rose-600.font-black, .deuda-total-header`);
         if (tarjetaDeuda) {
             tarjetaDeuda.textContent = `$${Math.round(deudaTotal).toLocaleString()}`;
         }
+        // 🔥 DEBUG: Force sync with backend estado-cuenta.deudaTotal
+        console.log(`🔥 SOCIO ${id} DEUDA: Card=$${deudaTotal.toLocaleString()} | Backend=$${totales.deudaTotal?.toLocaleString() || 'N/A'}`);
         
         const prestamosActivos = prestamos.filter(pr => (Number(pr.saldoHoy || 0) + Number(pr.interesBruto || 0)) > 0);
         const tienePrestamos = prestamosActivos.length > 0;
