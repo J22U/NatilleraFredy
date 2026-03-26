@@ -659,10 +659,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                         (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
                     AS DECIMAL(18,2)) as InteresGenerado,
                     
-                    -- Interés Pendiente: IGUALADO AL GENERADO
+                    -- Interés Pendiente: Generado MENOS lo ya pagado
                     CAST(
-                        ISNULL(InteresPendienteAcumulado, 0) +
-                        (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
+                        GREATEST(0,
+                            ISNULL(InteresPendienteAcumulado, 0) +
+                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
+                            - ISNULL(InteresesPagados, 0)
+                        )
                     AS DECIMAL(18,2)) as InteresPendiente,
                     
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
