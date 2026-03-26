@@ -264,8 +264,8 @@ async function listarMiembros() {
 
         const container = contenedor || tbody;
         
-        [...miembrosGlobal].reverse().forEach((m, index) => {
-            const numPantalla = totalMiembros - index;
+        [...miembrosGlobal].sort((a, b) => a.id - b.id).forEach((m, index) => {
+            const numPantalla = index + 1;
             window.mapeoIdentificadores[numPantalla] = m.id; 
 
             const esSocioReal = (m.tipo === 'SOCIO'); 
@@ -418,8 +418,8 @@ async function abrirModalRetiro(id, nombre) {
 }
 
 async function actualizarListaDeudas() {
-    const numPantalla = document.getElementById('mov_id').value;
-    const idReal = window.mapeoIdentificadores[numPantalla];
+    let inputId = document.getElementById('mov_id').value.trim();
+    const idReal = inputId.startsWith('#') ? parseInt(inputId.substring(1)) : parseInt(inputId);
     const select = document.getElementById('mov_prestamo_id');
     const inputMonto = document.getElementById('mov_monto'); 
     
@@ -845,12 +845,12 @@ function toggleAcordeon(id, btn) {
 }
 
      async function registrarMovimiento() {
-    const numPantalla = document.getElementById('mov_id').value;
+    let inputId = document.getElementById('mov_id').value.trim();
+    const idReal = inputId.startsWith('#') ? parseInt(inputId.substring(1)) : parseInt(inputId);
     const montoInput = document.getElementById('mov_monto');
     const monto = parseFloat(montoInput.value);
     const tipo = document.getElementById('mov_tipo').value;
     const selectDeuda = document.getElementById('mov_prestamo_id');
-    const idReal = window.mapeoIdentificadores[numPantalla];
     // Capturamos la fecha manual que agregamos al HTML
     const fechaManual = document.getElementById('mov_fecha_manual')?.value || new Date().toISOString().split('T')[0];
 
@@ -1100,7 +1100,8 @@ function filtrarSocios() {
             });
         },
         preConfirm: () => {
-            const idReal = window.mapeoIdentificadores[document.getElementById('p-id').value];
+            let inputId = document.getElementById('p-id').value.trim();
+            const idReal = inputId.startsWith('#') ? parseInt(inputId.substring(1)) : parseInt(inputId);
             const monto = parseFloat(document.getElementById('p-m').value);
             const tasa = parseFloat(document.getElementById('p-tasa').value);
             const fecha = document.getElementById('p-fecha').value;
@@ -1559,19 +1560,20 @@ async function verListaRapidaDeudores() {
 }
 
 async function toggleDeudas() {
-    const numPantalla = document.getElementById('mov_id').value;
+    let inputId = document.getElementById('mov_id').value.trim();
+    const idValue = inputId.startsWith('#') ? parseInt(inputId.substring(1)) : parseInt(inputId);
     const tipo = document.getElementById('mov_tipo').value;
     const select = document.getElementById('mov_prestamo_id');
     const divSelector = document.getElementById('div_selector_deuda');
 
-    // 1. Obtener ID real desde el mapeo
-    let idValue = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
+    // 1. Obtener ID real
+    let idReal = idValue;
     
     // Si el id viene como "2:1", tomamos solo el "2" (ID_Persona)
-    const idReal = idValue && String(idValue).includes(':') ? idValue.split(':')[0] : idValue;
+    idReal = idReal && String(idReal).includes(':') ? idReal.split(':')[0] : idReal;
 
     // LOG DE DEPURACIÓN: Mira esto en la consola del navegador
-    console.log(`Intentando buscar deudas para Persona ID: ${idReal} (Num Pantalla: ${numPantalla})`);
+    console.log(`Intentando buscar deudas para Persona ID: ${idReal} (Input: ${inputId})`);
 
     if (tipo === 'deuda' && idReal) {
         try {
@@ -1707,8 +1709,8 @@ function cargarMesesEnInterfaz() {
 }
 
 async function abrirModalMeses() {
-    const numPantalla = document.getElementById('mov_id').value;
-    const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
+    let inputId = document.getElementById('mov_id').value.trim();
+    const idReal = inputId.startsWith('#') ? parseInt(inputId.substring(1)) : parseInt(inputId);
 
     if (!idReal) {
         return Swal.fire('Atención', 'Primero ingresa el ID del socio para ver su historial.', 'warning');
@@ -1926,8 +1928,8 @@ function calcularInteresDiario() {
 }
 
 async function guardarPrestamoDiario() {
-    const idSocNum = document.getElementById('pre_id_socio').value;
-    const idReal = window.mapeoIdentificadores[idSocNum];
+    let inputId = document.getElementById('pre_id_socio').value.trim();
+    const idReal = inputId.startsWith('#') ? parseInt(inputId.substring(1)) : parseInt(inputId);
     const monto = parseFloat(document.getElementById('pre_monto').value);
     const tasa = parseFloat(document.getElementById('pre_tasa_mensual').value);
     const fecha = document.getElementById('pre_fecha')?.value || new Date().toISOString().split('T')[0];
@@ -2086,9 +2088,9 @@ async function abrirVentanaInactivos() {
 
 // --- 1. PAGO PARCIAL (CAPITALIZAR A UN SOCIO ESPECÍFICO) ---
 async function liquidarInteresParcial() {
-    // 1. Obtener el ID de la pantalla como ya lo haces
-    const numPantalla = document.getElementById('mov_id').value;
-    const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : null;
+    // 1. Obtener el ID
+    let inputId = document.getElementById('mov_id').value.trim();
+    const idReal = inputId.startsWith('#') ? parseInt(inputId.substring(1)) : parseInt(inputId);
 
     if (!idReal) {
         return Swal.fire('Atención', 'Ingresa el ID del socio en el campo de Abonos para procesar su interés.', 'warning');
@@ -2458,14 +2460,14 @@ async function registrarGastoGanancias(monto, detalle) {
 // Usamos window. para que el onclick del HTML lo encuentre sin errores
 window.ejecutarCruceCuentas = async function() {
     // 1. Obtener los identificadores
-    const numPantalla = document.getElementById('mov_id').value;
+    let inputId = document.getElementById('mov_id').value.trim();
     
     // Validar que el campo no esté vacío
-    if (!numPantalla) {
-        return Swal.fire('Atención', 'Por favor ingresa un ID de socio (#1, #2...)', 'info');
+    if (!inputId) {
+        return Swal.fire('Atención', 'Por favor ingresa un ID de socio (#123, #456...)', 'info');
     }
 
-    const idReal = window.mapeoIdentificadores ? window.mapeoIdentificadores[numPantalla] : numPantalla;
+    const idReal = inputId.startsWith('#') ? parseInt(inputId.substring(1)) : parseInt(inputId);
 
     if (!idReal) {
         return Swal.fire('Error', 'ID de socio no válido', 'warning');
