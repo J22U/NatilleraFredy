@@ -436,14 +436,12 @@ async function actualizarListaDeudas() {
         // Ordenar préstamos por fecha de inicio (mismo orden que en renderPrestamos y renderAbonosDetallados)
         const prestamosOrdenados = [...prestamos].sort((a, b) => new Date(a.FechaInicio || a.FechaPrestamo || 0) - new Date(b.FechaInicio || b.FechaPrestamo || 0));
         
-        // Filtramos solo los que tengan deuda según el SaldoActual de la DB
-        const activos = prestamosOrdenados.filter(p => Number(p.SaldoActual) > 0);
+        // Filtramos solo los que tengan deuda según el SaldoActual/saldoHoy
+        const activos = prestamosOrdenados.filter(p => Number(p.SaldoActual || p.saldoHoy || 0) > 0);
         
         if (activos.length > 0) {
             select.innerHTML = activos.map((p, index) => {
-                // AQUÍ ESTÁ EL ARREGLO: 
-                // No restamos nada a mano, usamos el saldo que manda SQL
-                const saldoReal = Number(p.SaldoActual); 
+                const saldoReal = Number(p.SaldoActual || p.saldoHoy || 0); 
                 const numPrestamoSocio = index + 1; 
                 
                 // Guardamos el INTERÉS PENDIENTE (no generado) en atributo data para validación correcta
@@ -1592,7 +1590,7 @@ async function toggleDeudas() {
             const deudas = await res.json();
 
             const deudasActivas = Array.isArray(deudas)
-                ? deudas.filter(p => Number(p.SaldoActual) > 0)
+                ? deudas.filter(p => Number(p.SaldoActual || p.saldoHoy || 0) > 0)
                 : [];
 
             if (deudasActivas.length > 0) {
@@ -1600,9 +1598,10 @@ async function toggleDeudas() {
 
                 select.innerHTML = deudasOrdenadas.map((d, index) => {
                     const interesPendiente = Number(d.InteresPendiente || 0);
+                    const saldoReal = Number(d.SaldoActual || d.saldoHoy || 0);
                     return `
-                        <option value="${d.ID_Prestamo}" data-saldo="${Number(d.SaldoActual || 0)}" data-interes="${interesPendiente}">
-                            Préstamo #${index + 1} - Saldo: $${Number(d.SaldoActual || 0).toLocaleString()}
+                        <option value="${d.ID_Prestamo}" data-saldo="${saldoReal}" data-interes="${interesPendiente}">
+                            Préstamo #${index + 1} - Saldo: $${saldoReal.toLocaleString()}
                         </option>`;
                 }).join('');
 

@@ -647,24 +647,26 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresesPagados, 0) as InteresesPagados, 
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
+                    ISNULL(SaldoActual, 0) as SaldoActual,
                     ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
                     TasaInteres, 
                     Estado,
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
                     
-                    -- Interés Generado: Acumulado + Nuevo interés desde el último abono
+                    -- Interés Generado: desde el inicio del préstamo (sin añadir acumulado, para que 70 días a 3% den ~105.000)
                     CAST(
-                        ISNULL(InteresPendienteAcumulado, 0) +
-                        (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
+                        ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                        DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
                     AS DECIMAL(18,2)) as InteresGenerado,
                     
-                    -- Interés Pendiente: Generado MENOS lo ya pagado
+                    -- Interés Pendiente: Interés generado - intereses pagados - intereses anticipados usados
                     CAST(
                         GREATEST(0,
-                            ISNULL(InteresPendienteAcumulado, 0) +
-                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())) 
+                            ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                            DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
                             - ISNULL(InteresesPagados, 0)
+                            - ISNULL(InteresAnticipadoUsado, 0)
                         )
                     AS DECIMAL(18,2)) as InteresPendiente,
                     
@@ -674,8 +676,10 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     CAST(
                         (MontoPrestado - ISNULL(MontoPagado, 0)) + 
                         GREATEST(0,
-                            ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))
+                            ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                            DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
                             - ISNULL(InteresesPagados, 0)
+                            - ISNULL(InteresAnticipadoUsado, 0)
                         )
                     AS DECIMAL(18,2)) as saldoHoy
 
