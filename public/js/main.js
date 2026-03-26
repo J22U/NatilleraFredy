@@ -1577,8 +1577,8 @@ async function toggleDeudas() {
 
     if (tipo === 'deuda' && idReal) {
         try {
-            // Ajustamos la petición
-            const res = await fetch(`/api/prestamos-activos/${idReal}`);
+            // Traemos información completa para incluir interés pendiente
+            const res = await fetch(`/detalle-prestamo/${idReal}`);
             
             if (res.status === 404) {
                 Swal.fire('Sin deudas', 'No se encontraron préstamos activos para este ID en el servidor.', 'info');
@@ -1591,16 +1591,33 @@ async function toggleDeudas() {
 
             const deudas = await res.json();
 
-            if (deudas && Array.isArray(deudas) && deudas.length > 0) {
-        // Ordenar por fecha ASC (más antiguo = #1)
-        const deudasOrdenadas = deudas.sort((a, b) => new Date(a.Fecha) - new Date(b.Fecha));
-                
-                select.innerHTML = deudasOrdenadas.map((d, index) => `
-                    <option value="${d.ID_Prestamo}">
-                        Préstamo #${index + 1} - Saldo: $${Number(d.SaldoActual).toLocaleString()}
-                    </option>
-                `).join('');
-                
+            const deudasActivas = Array.isArray(deudas)
+                ? deudas.filter(p => Number(p.SaldoActual) > 0)
+                : [];
+
+            if (deudasActivas.length > 0) {
+                const deudasOrdenadas = deudasActivas.sort((a, b) => new Date(a.FechaInicio || a.Fecha || '1970-01-01') - new Date(b.FechaInicio || b.Fecha || '1970-01-01'));
+
+                select.innerHTML = deudasOrdenadas.map((d, index) => {
+                    const interesPendiente = Number(d.InteresPendiente || 0);
+                    return `
+                        <option value="${d.ID_Prestamo}" data-saldo="${Number(d.SaldoActual || 0)}" data-interes="${interesPendiente}">
+                            Préstamo #${index + 1} - Saldo: $${Number(d.SaldoActual || 0).toLocaleString()}
+                        </option>`;
+                }).join('');
+
+                select.onchange = () => {
+                    const saldo = Number(select.options[select.selectedIndex].getAttribute('data-saldo') || 0);
+                    const interes = Number(select.options[select.selectedIndex].getAttribute('data-interes') || 0);
+                    const inputMonto = document.getElementById('mov_monto');
+                    if (inputMonto) inputMonto.placeholder = `Máximo: $${saldo.toLocaleString()}`;
+                    window.interesActualPrestamo = interes;
+                    actualizarInfoInteres();
+                };
+
+                // Forzar la actualización en selección inicial
+                select.onchange();
+
                 divSelector.classList.remove('hidden');
             } else {
                 Swal.fire('Atención', 'Este socio no tiene deudas activas.', 'info');
