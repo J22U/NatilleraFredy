@@ -762,8 +762,11 @@ app.post('/procesar-movimiento', async (req, res) => {
             console.log(`>>> Acumulado intereses hasta ${fAporte}: +$${interesGenerado.toFixed(2)} (total: $${nuevoAcumulado.toFixed(2)})`);
 
             const capitalPendiente = p.SaldoActual;  // Use SaldoActual as current capital
-            // Calcular interés pendiente actual (legacy for validation)
-            const interesPendiente = Math.max(0, interesGenerado - p.InteresesPagados);
+            
+            // Calcular interés pendiente: usar InteresPendienteAcumulado (ya persistido) + interés reciente
+            // en lugar de recalcular desde 0, que puede dar 0 si diasTranscurridos es pequeño
+            const interesReciente = interesDiario * diasTranscurridos;
+            const interesPendiente = Math.max(0, (p.InteresPendienteAcumulado + interesReciente) - p.InteresesPagados);
             
             // Validar explícitamente el destino del abono
             if (destinoAbono === 'capital') {
