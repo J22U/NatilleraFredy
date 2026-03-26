@@ -446,10 +446,10 @@ async function actualizarListaDeudas() {
                 const saldoReal = Number(p.SaldoActual); 
                 const numPrestamoSocio = index + 1; 
                 
-                // Guardamos el interés generado en un atributo data para usarlo después
-                const interesGenerado = Number(p.InteresGenerado || 0);
+                // Guardamos el INTERÉS PENDIENTE (no generado) en atributo data para validación correcta
+                const interesPendiente = Number(p.InteresPendiente || 0);
 
-                return `<option value="${p.ID_Prestamo}" data-saldo="${saldoReal}" data-index="${index}" data-interes="${interesGenerado}">
+                return `<option value="${p.ID_Prestamo}" data-saldo="${saldoReal}" data-index="${index}" data-interes="${interesPendiente}">
                     Préstamo #${numPrestamoSocio} (Saldo: $${saldoReal.toLocaleString()})
                 </option>`;
             }).join('');
