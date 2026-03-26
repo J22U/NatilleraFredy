@@ -670,11 +670,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
                     
-                    -- SALDO TOTAL CORREGIDO: Suma directa de Capital + Interés Generado
-                    -- Esto asegura que arriba aparezcan los $4.549.500
+                    -- SALDO TOTAL CORREGIDO: Capital pendiente + Interés pendiente (neto)
                     CAST(
                         (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                        (ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
+                        GREATEST(0,
+                            ISNULL(InteresPendienteAcumulado, 0) + (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))
+                            - ISNULL(InteresesPagados, 0)
+                        )
                     AS DECIMAL(18,2)) as saldoHoy
 
                 FROM Prestamos 
