@@ -684,23 +684,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
                     
-                    -- SALDO TOTAL: Capital pendiente + Interés pendiente (neto)
+                    -- SALDO TOTAL: Capital Hoy + Int. Pendiente GROSS (como pidió usuario)
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE (MontoPrestado - ISNULL(MontoPagado, 0)) + 
-                                  GREATEST(0,
-                                    ISNULL(InteresPendienteAcumulado, 0) +
-                                    ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                    DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
-                                    - ISNULL((
-                                        SELECT SUM(h.Monto)
-                                        FROM HistorialPagos h
-                                        WHERE h.ID_Prestamo = p.ID_Prestamo
-                                          AND h.TipoMovimiento = 'Abono Deuda'
-                                          AND UPPER(ISNULL(h.Detalle, '')) LIKE '%INTERES%'
-                                          AND h.Fecha >= ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha))
-                                    ), 0)
-                                  )
+                             ELSE (MontoPrestado - ISNULL(MontoPagado, 0)) +
+                                  (ISNULL(InteresPendienteAcumulado, 0) +
+                                   ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                   DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))
                         END
                     AS DECIMAL(18,2)) as saldoHoy
 
