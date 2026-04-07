@@ -654,17 +654,17 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
                     
-                    -- Interés Generado: desde el inicio del préstamo (sin añadir acumulado, para que 70 días a 3% den ~105.000)
+                    -- Interés Generado: basado en CAPITAL PENDIENTE desde la última fecha de cálculo
                     CAST(
                         ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                        DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
+                        DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                     AS DECIMAL(18,2)) as InteresGenerado,
                     
                     -- Interés Pendiente: Interés generado - intereses pagados - intereses anticipados usados
                     CAST(
                         GREATEST(0,
                             ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                            DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
+                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                             - ISNULL(InteresesPagados, 0)
                             - ISNULL(InteresAnticipadoUsado, 0)
                         )
@@ -672,12 +672,12 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
                     
-                    -- SALDO TOTAL CORREGIDO: Capital pendiente + Interés pendiente (neto)
+                    -- SALDO TOTAL: Capital pendiente + Interés pendiente (neto)
                     CAST(
                         (MontoPrestado - ISNULL(MontoPagado, 0)) + 
                         GREATEST(0,
                             ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                            DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE())
+                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                             - ISNULL(InteresesPagados, 0)
                             - ISNULL(InteresAnticipadoUsado, 0)
                         )
@@ -800,12 +800,11 @@ app.post('/procesar-movimiento', async (req, res) => {
                 }
                 
                 await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado).input('fAporte', sql.Date, fAporte)
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado)
                     .query(`
                         UPDATE Prestamos 
                         SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m,
-                            InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END,
-                            FechaUltimoAbonoCapital = @fAporte
+                            InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END
                         WHERE ID_Prestamo = @idP
                     `);
             } else if (destinoAbono === 'interesAnticipado') {
@@ -814,8 +813,8 @@ app.post('/procesar-movimiento', async (req, res) => {
                 
                 // Para interés anticipado, permitimos un monto más flexible (no validamos contra interés pendiente)
                 await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('fAporte', sql.Date, fAporte)
-                    .query("UPDATE Prestamos SET InteresAnticipado = ISNULL(InteresAnticipado, 0) + @m, FechaUltimoAbonoCapital = @fAporte WHERE ID_Prestamo = @idP");
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m)
+                    .query("UPDATE Prestamos SET InteresAnticipado = ISNULL(InteresAnticipado, 0) + @m WHERE ID_Prestamo = @idP");
             } else {
                 // Si destinoAbono es undefined, null o cualquier otro valor -> SE TRATA COMO INTERÉS (sin tocar el SaldoActual)
                 console.log(">>> Abono a INTERÉS (default)", destinoAbono);
@@ -826,12 +825,11 @@ app.post('/procesar-movimiento', async (req, res) => {
                 }
                 
                 await pool.request()
-                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado).input('fAporte', sql.Date, fAporte)
+                    .input('idP', sql.Int, idPrestamo).input('m', sql.Decimal(18, 2), m).input('acum', sql.Decimal(18, 2), nuevoAcumulado)
                     .query(`
                         UPDATE Prestamos 
                         SET InteresesPagados = ISNULL(InteresesPagados, 0) + @m,
-                            InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END,
-                            FechaUltimoAbonoCapital = @fAporte
+                            InteresPendienteAcumulado = CASE WHEN (@acum - @m) < 0 THEN 0 ELSE (@acum - @m) END
                         WHERE ID_Prestamo = @idP
                     `);
             }
