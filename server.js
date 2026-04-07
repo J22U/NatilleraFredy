@@ -673,22 +673,12 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                           AND h.Fecha >= ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha))
                     ), 0) as InteresPagadoDesdeUltimoCapital,
                     
-                    -- Interés pendiente del periodo actual + anterior
+                    -- Interés pendiente GROSS = generado total (igual a InteresGenerado como pidió usuario)
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE GREATEST(0,
-                                ISNULL(InteresPendienteAcumulado, 0) +
-                                ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
-                                - ISNULL((
-                                    SELECT SUM(h.Monto)
-                                    FROM HistorialPagos h
-                                    WHERE h.ID_Prestamo = p.ID_Prestamo
-                                      AND h.TipoMovimiento = 'Abono Deuda'
-                                      AND UPPER(ISNULL(h.Detalle, '')) LIKE '%INTERES%'
-                                      AND h.Fecha >= ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha))
-                                ), 0)
-                             )
+                             ELSE ISNULL(InteresPendienteAcumulado, 0) +
+                                  ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                  DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                         END
                     AS DECIMAL(18,2)) as InteresPendiente,
                     
