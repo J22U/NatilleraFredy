@@ -2812,9 +2812,6 @@ async function cargarListaRifas() {
             const option = document.createElement('option');
             option.value = rifa.id;
             option.textContent = rifa.nombre || 'Rifa #' + rifa.id;
-            if (rifa.fecha) {
-                option.textContent += ` (${rifa.fecha})`;
-            }
             selector.appendChild(option);
         });
         
