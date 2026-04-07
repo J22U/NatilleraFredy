@@ -115,9 +115,9 @@ app.get('/api/cargar-rifas', async (req, res) => {
         let result;
         
         if (fecha) {
-            // Buscar rifa por fecha específica
+            // Buscar rifa por fecha específica - Obtener todas las rifas ordenadas por ID DESC para filtrar
             result = await pool.request()
-                .query("SELECT TOP 1 ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+                .query("SELECT ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
             
             // Filtrar manualmente por fecha si hay datos
             let rifaEncontrada = null;
@@ -138,14 +138,14 @@ app.get('/api/cargar-rifas', async (req, res) => {
                 res.json(rifaEncontrada.datos);
                 return;
             } else {
-                // No se encontró rifa para esa fecha, buscar la más reciente
+                // No se encontró rifa para esa fecha, buscar la más reciente usando MAX(ID)
                 result = await pool.request()
-                    .query("SELECT TOP 1 ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+                    .query("SELECT ID, Datos FROM Rifas_Datos WHERE ID = (SELECT MAX(ID) FROM Rifas_Datos)");
             }
         } else {
-            // Sin fecha: cargar la rifa más reciente
+            // Sin fecha: cargar la rifa más reciente usando MAX(ID) para asegurar que obtenemos la de mayor ID
             result = await pool.request()
-                .query("SELECT TOP 1 ID, Datos FROM Rifas_Datos ORDER BY ID DESC");
+                .query("SELECT ID, Datos FROM Rifas_Datos WHERE ID = (SELECT MAX(ID) FROM Rifas_Datos)");
         }
         
         if (result.recordset.length === 0 || !result.recordset[0].Datos) {
