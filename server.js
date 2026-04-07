@@ -654,10 +654,11 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
                     
-                    -- Interés generado actual desde el último abono a capital
+                    -- Interés generado total: acumulado previo + actual desde el último abono a capital
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                             ELSE ISNULL(InteresPendienteAcumulado, 0) +
+                                  ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
                                   DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                         END
                     AS DECIMAL(18,2)) as InteresGenerado,
@@ -672,10 +673,11 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                           AND h.Fecha >= ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha))
                     ), 0) as InteresPagadoDesdeUltimoCapital,
                     
-                    -- Interés pendiente del periodo actual
+                    -- Interés pendiente del periodo actual + anterior
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
                              ELSE GREATEST(0,
+                                ISNULL(InteresPendienteAcumulado, 0) +
                                 ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
                                 DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                                 - ISNULL((
@@ -697,6 +699,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                         CASE WHEN Estado = 'Pagado' THEN 0
                              ELSE (MontoPrestado - ISNULL(MontoPagado, 0)) + 
                                   GREATEST(0,
+                                    ISNULL(InteresPendienteAcumulado, 0) +
                                     ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
                                     DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
                                     - ISNULL((
