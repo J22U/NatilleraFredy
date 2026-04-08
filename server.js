@@ -620,9 +620,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             const capitalPendiente = p.MontoPrestado - p.MontoPagado;
             const dias = Math.max(0, Math.floor((new Date() - new Date(p.FechaCalculo)) / (1000 * 60 * 60 * 24)));
 
-            // Interés Generado = Lo acumulado históricamente + lo generado en este periodo actual
             const interesGenerado = p.InteresPendienteAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
-
             const interesPendiente = Math.max(0, interesGenerado - (p.InteresesPagados + p.InteresAnticipadoUsado));
 
             if (p.InteresAnticipado > 0 && interesPendiente > 0) {
@@ -635,7 +633,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             }
         }
 
-        // 2. CONSULTA FINAL PARA EL FRONTEND (CORREGIDA PARA SUMA DIRECTA)
+        // 2. CONSULTA FINAL PARA EL FRONTEND (CORREGIDA)
         const result = await pool.request()
             .input('id', sql.Int, req.params.id)
             .query(`
@@ -647,44 +645,40 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(InteresAnticipado, 0) as InteresAnticipado,
                     ISNULL(InteresAnticipadoUsado, 0) as InteresAnticipadoUsado,
                     ISNULL(SaldoActual, 0) as SaldoActual,
-                    ISNULL(InteresPendienteAcumulado, 0) as InteresPendienteAcumulado,
                     TasaInteres, 
                     Estado,
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
-                    -- Interés generado total: acumulado previo + actual desde el último abono a capital
+
+                    -- Cálculo de Interés Generado Total (Real Time)
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
                              ELSE ISNULL(InteresPendienteAcumulado, 0) +
-                                  ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                  DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
+                                  (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                  DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))
                         END
                     AS DECIMAL(18,2)) as InteresGenerado,
-                    
-                    -- Intereses pagados desde el último abono a capital
-                    ISNULL((
-                        SELECT SUM(h.Monto)
-                        FROM HistorialPagos h
-                        WHERE h.ID_Prestamo = p.ID_Prestamo
-                          AND h.TipoMovimiento = 'Abono Deuda'
-                          AND UPPER(ISNULL(h.Detalle, '')) LIKE '%INTERES%'
-                          AND h.Fecha >= ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha))
-                    ), 0) as InteresPagadoDesdeUltimoCapital,
-                    
-                    -- Interés pendiente = generados - pagados (cambio único solicitado)
+
+                    -- Interés Pendiente = (Generado Total) - (Pagados + Anticipados Usados)
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE ISNULL(InteresPendienteAcumulado, 0) - ISNULL(InteresesPagados, 0)
+                             ELSE (ISNULL(InteresPendienteAcumulado, 0) +
+                                  (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                  DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
+                                  - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
                         END AS DECIMAL(18,2)
                     ) as InteresPendiente,
-                    
+
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
-                    
-                    -- SALDO TOTAL: Capital Hoy + Int. Pendiente GROSS (como pidió usuario)
+
+                    -- Saldo Hoy = Capital Pendiente + Interés Pendiente Real
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
                              ELSE (MontoPrestado - ISNULL(MontoPagado, 0)) +
-                                  (ISNULL(InteresPendienteAcumulado, 0) - ISNULL(InteresesPagados, 0))
+                                  ((ISNULL(InteresPendienteAcumulado, 0) +
+                                  (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                  DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
+                                  - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)))
                         END AS DECIMAL(18,2)
                     ) as saldoHoy
 
