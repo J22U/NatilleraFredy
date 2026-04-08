@@ -619,15 +619,14 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         for (const p of prestamosData.recordset) {
             const capitalPendiente = p.MontoPrestado - p.MontoPagado;
             const dias = Math.max(0, Math.floor((new Date() - new Date(p.FechaCalculo)) / (1000 * 60 * 60 * 24)));
-            
+
             // Interés Generado = Lo acumulado históricamente + lo generado en este periodo actual
             const interesGenerado = p.InteresPendienteAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
-            
-            const anticipadoDisponible = Math.max(0, p.InteresAnticipado - p.InteresAnticipadoUsado);
+
             const interesPendiente = Math.max(0, interesGenerado - (p.InteresesPagados + p.InteresAnticipadoUsado));
-            
-            if (anticipadoDisponible > 0 && interesPendiente > 0) {
-                const nuevoConsumo = Math.min(anticipadoDisponible, interesPendiente);
+
+            if (p.InteresAnticipado > 0 && interesPendiente > 0) {
+                const nuevoConsumo = Math.min(p.InteresAnticipado, interesPendiente);
                 const nuevoUsado = p.InteresAnticipadoUsado + nuevoConsumo;
                 await pool.request()
                     .input('idP', sql.Int, p.ID_Prestamo)
@@ -653,7 +652,6 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     Estado,
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
                     DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
-                    
                     -- Interés generado total: acumulado previo + actual desde el último abono a capital
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
