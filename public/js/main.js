@@ -624,11 +624,15 @@ async function verHistorialFechas(id, nombre) {
         ` : '';
 
         // Mostrar detalle de intereses: generado, prepagado usado, pagos realizados
-        const mostrarDetalleInteres = `
+const mostrarDetalleInteres = `
             <div class="text-[8px] mt-1 space-y-0.5">
                 <div class="flex justify-between">
                     <span class="text-slate-500">Int. Generado:</span>
                     <span class="font-medium">$${interesGenerado.toLocaleString()}</span>
+                </div>
+                <div class="flex justify-between text-emerald-600">
+                    <span>Int. Pagado:</span>
+                    <span class="font-medium">-${interesesPagados.toLocaleString()}</span>
                 </div>
                 ${interesPrepagadoConsumido > 0 ? `
                 <div class="flex justify-between text-emerald-600">
@@ -640,12 +644,6 @@ async function verHistorialFechas(id, nombre) {
                 <div class="flex justify-between text-indigo-600">
                     <span>+ Int. Prepagado Disponible:</span>
                     <span class="font-medium">+$${interesPrepagadoRestante.toLocaleString()}</span>
-                </div>
-                ` : ''}
-                ${interesesPagados > 0 ? `
-                <div class="flex justify-between text-emerald-600">
-                    <span>- Int. Pagado:</span>
-                    <span class="font-medium">-$${interesesPagados.toLocaleString()}</span>
                 </div>
                 ` : ''}
                 <div class="flex justify-between border-t border-slate-200 pt-0.5 font-bold">
