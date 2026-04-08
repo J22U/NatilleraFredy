@@ -673,14 +673,12 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                           AND h.Fecha >= ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha))
                     ), 0) as InteresPagadoDesdeUltimoCapital,
                     
-                    -- Interés pendiente GROSS = generado total (igual a InteresGenerado como pidió usuario)
+                    -- Interés pendiente = generados - pagados (cambio único solicitado)
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE ISNULL(InteresPendienteAcumulado, 0) +
-                                  ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                  DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())
-                        END
-                    AS DECIMAL(18,2)) as InteresPendiente,
+                             ELSE ISNULL(InteresPendienteAcumulado, 0) - ISNULL(InteresesPagados, 0)
+                        END AS DECIMAL(18,2)
+                    ) as InteresPendiente,
                     
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
                     
@@ -688,11 +686,9 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
                              ELSE (MontoPrestado - ISNULL(MontoPagado, 0)) +
-                                  (ISNULL(InteresPendienteAcumulado, 0) +
-                                   ((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                   DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))
-                        END
-                    AS DECIMAL(18,2)) as saldoHoy
+                                  (ISNULL(InteresPendienteAcumulado, 0) - ISNULL(InteresesPagados, 0))
+                        END AS DECIMAL(18,2)
+                    ) as saldoHoy
 
                 FROM Prestamos p 
                 WHERE p.ID_Persona = @id 
@@ -1087,12 +1083,8 @@ app.get('/listar-miembros', async (req, res) => {
                     p.ID_Persona,
                     CAST(
                         (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
-                        (
-                          (ISNULL(p.InteresPendienteAcumulado, 0) + 
-                          (((p.MontoPrestado - ISNULL(p.MontoPagado, 0)) * (p.TasaInteres / 100.0) / 30.0) * DATEDIFF(DAY, ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)), GETDATE()))) 
-                          - (ISNULL(p.InteresesPagados, 0) + ISNULL(p.InteresAnticipadoUsado, 0))
-                        ) -- <-- Este paréntesis cierra el bloque de intereses
-                    AS DECIMAL(18,2)) as saldoHoy -- <-- Ahora el CAST cierra correctamente
+                        (ISNULL(p.InteresPendienteAcumulado, 0) - ISNULL(p.InteresesPagados, 0))
+                    AS DECIMAL(18,2)) as saldoHistoricoDetallado
                 FROM Prestamos p
                 WHERE p.Estado = 'Activo'
             )

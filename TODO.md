@@ -1,11 +1,12 @@
-# TODO: Fix Loan Interest Deduction Bug
+# TODO: Implementar cambio único para intereses pendientes = generados - pagados
 
-## Approved Plan Steps:
-- [ ] 1. Fix SQL query in server.js /detalle-prestamo/:id to compute total InteresPagado from ALL HistorialPagos 'INTERES%' (not period-specific)
-- [ ] 2. Update InteresPendiente = total InteresGenerado - total InteresPagado
-- [ ] 3. Update public/js/main.js renderPrestamos() to display "Int. Pagado: -$540k\n= Int. Pendiente: $144k"
-- [ ] 4. Test: Refresh dashboard, check loan details show correct pending ($144k)
-- [ ] 5. attempt_completion
+## Pendientes:
+- [ ] 5. Completar ✅
 
-**Status:** Starting edits...
+## Completados:
+✅ 1. Identificado /detalle-prestamo/:id y /listar-miembros  
+✅ 2. Localizado cálculo InteresPendiente  
+✅ 3. Reemplazado por InteresPendienteAcumulado - InteresesPagados  
+✅ 4. Simplificado saldoHoy para evitar errores de préstamos no visibles
+
 
