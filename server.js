@@ -677,7 +677,8 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         const calculaDias = (desde, hasta) => {
             const inicio = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
             const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
-            return Math.max(0, Math.round((fin - inicio) / (1000 * 60 * 60 * 24)));
+            const dias = Math.floor((fin - inicio) / (1000 * 60 * 60 * 24));
+            return Math.max(0, dias);
         };
 
         const prestamosConInteres = result.recordset.map(p => {
