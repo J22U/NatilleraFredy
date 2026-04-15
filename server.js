@@ -598,24 +598,41 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
 
-        const parseFechaLocal = (valor) => {
+        const toColombiaDate = (valor) => {
             if (!valor) return null;
+            let fecha;
+            let dateOnly = false;
+
             if (valor instanceof Date) {
-                return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
-            }
-            const fechaTexto = String(valor).trim();
-            const partes = fechaTexto.split(/[-\/]/);
-            if (partes.length >= 3) {
-                const year = Number(partes[0]);
-                const month = Number(partes[1]) - 1;
-                const day = Number(partes[2]);
-                if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
-                    return new Date(year, month, day);
+                fecha = valor;
+            } else {
+                const fechaTexto = String(valor).trim();
+                const partes = fechaTexto.split(/[-\/]/);
+                if (partes.length >= 3) {
+                    const year = Number(partes[0]);
+                    const month = Number(partes[1]) - 1;
+                    const day = Number(partes[2]);
+                    if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+                        fecha = new Date(year, month, day);
+                        dateOnly = true;
+                    }
+                }
+                if (!fecha || Number.isNaN(fecha.getTime())) {
+                    fecha = new Date(fechaTexto);
                 }
             }
-            const fecha = new Date(fechaTexto);
-            return fecha && !Number.isNaN(fecha.getTime()) ? new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()) : null;
+
+            if (!fecha || Number.isNaN(fecha.getTime())) return null;
+            if (dateOnly) {
+                return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+            }
+
+            const colombiaTs = fecha.getTime() - 5 * 60 * 60 * 1000;
+            const colombia = new Date(colombiaTs);
+            return new Date(colombia.getUTCFullYear(), colombia.getUTCMonth(), colombia.getUTCDate());
         };
+
+        const fechaActual = toColombiaDate(new Date()) || new Date();
 
         // 1. PROCESO DE AUTO-CONSUMO DE ANTICIPADOS
         const prestamosData = await pool.request()
@@ -637,9 +654,8 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
 
         for (const p of prestamosData.recordset) {
             const capitalPendiente = p.MontoPrestado - p.MontoPagado;
-            const fechaCalculo = parseFechaLocal(p.FechaCalculo) || new Date();
-            const hoyBase = new Date();
-            const dias = Math.max(0, Math.floor((hoyBase - fechaCalculo) / (1000 * 60 * 60 * 24)));
+            const fechaCalculo = toColombiaDate(p.FechaCalculo) || fechaActual;
+            const dias = Math.max(0, Math.floor((fechaActual - fechaCalculo) / (1000 * 60 * 60 * 24)));
 
             const interesGenerado = p.InteresPendienteAcumulado + (((capitalPendiente * p.TasaInteres / 100.0) / 30.0) * dias);
             const interesPendiente = Math.max(0, interesGenerado - (p.InteresesPagados + p.InteresAnticipadoUsado));
@@ -692,9 +708,6 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             return acc;
         }, {});
 
-        const hoy = new Date();
-        const fechaActual = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-
         const calculaDias = (desde, hasta) => {
             const inicio = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
             const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
@@ -704,13 +717,13 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
 
         const prestamosConInteres = result.recordset.map(p => {
             let balance = Number(p.MontoPrestado || 0);
-            let lastDate = parseFechaLocal(p.FechaInicioReal) || fechaActual;
+            let lastDate = toColombiaDate(p.FechaInicioReal) || fechaActual;
             let interesGenerado = 0;
             let interesPagado = 0;
 
             const pagos = pagosPorPrestamo[p.ID_Prestamo] || [];
             for (const pago of pagos) {
-                const fechaPagoRaw = pago.Fecha ? parseFechaLocal(pago.Fecha) : lastDate;
+                const fechaPagoRaw = pago.Fecha ? toColombiaDate(pago.Fecha) : lastDate;
                 const fechaPago = fechaPagoRaw ? new Date(fechaPagoRaw.getFullYear(), fechaPagoRaw.getMonth(), fechaPagoRaw.getDate()) : lastDate;
                 const dias = calculaDias(lastDate, fechaPago);
                 interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * dias;
@@ -729,12 +742,14 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
 
             const diasFinales = calculaDias(lastDate, fechaActual);
             interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * diasFinales;
+            const diasActivo = calculaDias(toColombiaDate(p.FechaInicioReal) || fechaActual, fechaActual);
 
             const interesPendiente = Math.max(0, interesGenerado - interesPagado);
             const saldoHoy = Math.max(0, balance + interesPendiente);
 
             return {
                 ...p,
+                diasActivo,
                 InteresGenerado: Number(interesGenerado.toFixed(2)),
                 InteresPendiente: Number(interesPendiente.toFixed(2)),
                 saldoHoy: Number(saldoHoy.toFixed(2)),
