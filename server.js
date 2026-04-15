@@ -672,17 +672,26 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
         }, {});
 
         const hoy = new Date();
+        const fechaActual = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+        const calculaDias = (desde, hasta) => {
+            const inicio = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+            const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+            return Math.max(0, Math.round((fin - inicio) / (1000 * 60 * 60 * 24)));
+        };
 
         const prestamosConInteres = result.recordset.map(p => {
             let balance = Number(p.MontoPrestado || 0);
             let lastDate = p.FechaInicioReal ? new Date(p.FechaInicioReal) : new Date();
+            lastDate = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
             let interesGenerado = 0;
             let interesPagado = 0;
 
             const pagos = pagosPorPrestamo[p.ID_Prestamo] || [];
             for (const pago of pagos) {
-                const fechaPago = pago.Fecha ? new Date(pago.Fecha) : lastDate;
-                const dias = Math.max(0, Math.floor((fechaPago - lastDate) / (1000 * 60 * 60 * 24)));
+                const fechaPagoRaw = pago.Fecha ? new Date(pago.Fecha) : lastDate;
+                const fechaPago = new Date(fechaPagoRaw.getFullYear(), fechaPagoRaw.getMonth(), fechaPagoRaw.getDate());
+                const dias = calculaDias(lastDate, fechaPago);
                 interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * dias;
 
                 const detalle = String(pago.Detalle || '').toLowerCase();
@@ -697,7 +706,7 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                 lastDate = fechaPago;
             }
 
-            const diasFinales = Math.max(0, Math.floor((hoy - lastDate) / (1000 * 60 * 60 * 24)));
+            const diasFinales = calculaDias(lastDate, fechaActual);
             interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * diasFinales;
 
             const interesPendiente = Math.max(0, interesGenerado - interesPagado);
