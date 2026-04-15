@@ -598,6 +598,25 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
     try {
         const pool = await poolPromise;
 
+        const parseFechaLocal = (valor) => {
+            if (!valor) return null;
+            if (valor instanceof Date) {
+                return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
+            }
+            const fechaTexto = String(valor).trim();
+            const partes = fechaTexto.split(/[-\/]/);
+            if (partes.length >= 3) {
+                const year = Number(partes[0]);
+                const month = Number(partes[1]) - 1;
+                const day = Number(partes[2]);
+                if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+                    return new Date(year, month, day);
+                }
+            }
+            const fecha = new Date(fechaTexto);
+            return fecha && !Number.isNaN(fecha.getTime()) ? new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()) : null;
+        };
+
         // 1. PROCESO DE AUTO-CONSUMO DE ANTICIPADOS
         const prestamosData = await pool.request()
             .input('id', sql.Int, req.params.id)
@@ -672,25 +691,6 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
             acc[idPre].push(pago);
             return acc;
         }, {});
-
-        const parseFechaLocal = (valor) => {
-            if (!valor) return null;
-            if (valor instanceof Date) {
-                return new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
-            }
-            const fechaTexto = String(valor).trim();
-            const partes = fechaTexto.split(/[-\/]/);
-            if (partes.length >= 3) {
-                const year = Number(partes[0]);
-                const month = Number(partes[1]) - 1;
-                const day = Number(partes[2]);
-                if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
-                    return new Date(year, month, day);
-                }
-            }
-            const fecha = new Date(fechaTexto);
-            return fecha && !Number.isNaN(fecha.getTime()) ? new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()) : null;
-        };
 
         const hoy = new Date();
         const fechaActual = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
