@@ -647,70 +647,73 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                     ISNULL(SaldoActual, 0) as SaldoActual,
                     TasaInteres, 
                     Estado,
+                    ISNULL(FechaInicio, Fecha) as FechaInicioReal,
                     FORMAT(ISNULL(FechaInicio, Fecha), 'dd/MM/yyyy') as FechaInicioFormateada,
-                    DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos,
-
-                    -- Interés Pendiente = (Generado Total) - (Pagados + Anticipados Usados), pero nunca negativo
-                    CAST(
-                        CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE CASE
-                                      WHEN (COALESCE(CASE WHEN FechaUltimoAbonoCapital IS NULL THEN 0 ELSE InteresPendienteAcumulado END, 0) +
-                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
-                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)) < 0
-                                      THEN 0
-                                      ELSE (COALESCE(CASE WHEN FechaUltimoAbonoCapital IS NULL THEN 0 ELSE InteresPendienteAcumulado END, 0) +
-                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
-                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
-                                  END
-                        END AS DECIMAL(18,2)
-                    ) as InteresPendiente,
-
-                    -- Interés Generado total: todo lo pagado + lo que aún está pendiente
-                    CAST(
-                        ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0) +
-                        CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE CASE
-                                      WHEN (COALESCE(CASE WHEN FechaUltimoAbonoCapital IS NULL THEN 0 ELSE InteresPendienteAcumulado END, 0) +
-                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
-                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)) < 0
-                                      THEN 0
-                                      ELSE (COALESCE(CASE WHEN FechaUltimoAbonoCapital IS NULL THEN 0 ELSE InteresPendienteAcumulado END, 0) +
-                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
-                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
-                                  END
-                        END AS DECIMAL(18,2)
-                    ) as InteresGenerado,
-
-                    (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
-
-                    -- Saldo Hoy = Capital Pendiente + Interés Pendiente Real (no negativo)
-                    CAST(
-                        CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE (MontoPrestado - ISNULL(MontoPagado, 0)) +
-                                  CASE
-                                      WHEN (COALESCE(CASE WHEN FechaUltimoAbonoCapital IS NULL THEN 0 ELSE InteresPendienteAcumulado END, 0) +
-                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
-                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)) < 0
-                                      THEN 0
-                                      ELSE (COALESCE(CASE WHEN FechaUltimoAbonoCapital IS NULL THEN 0 ELSE InteresPendienteAcumulado END, 0) +
-                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
-                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
-                                  END
-                        END AS DECIMAL(18,2)
-                    ) as saldoHoy
-
+                    DATEDIFF(DAY, ISNULL(FechaInicio, Fecha), GETDATE()) as DiasTranscurridos
                 FROM Prestamos p 
                 WHERE p.ID_Persona = @id 
                 ORDER BY p.ID_Prestamo ASC
             `);
 
-        res.json(result.recordset);
+        const pagosResult = await pool.request()
+            .input('id', sql.Int, req.params.id)
+            .query(`
+                SELECT ID_Prestamo, Monto, ISNULL(Detalle, '') as Detalle, Fecha
+                FROM HistorialPagos
+                WHERE ID_Persona = @id AND TipoMovimiento = 'Abono Deuda'
+                ORDER BY Fecha ASC, ID_Pago ASC
+            `);
+
+        const pagosPorPrestamo = pagosResult.recordset.reduce((acc, pago) => {
+            const idPre = pago.ID_Prestamo || 0;
+            if (!acc[idPre]) acc[idPre] = [];
+            acc[idPre].push(pago);
+            return acc;
+        }, {});
+
+        const hoy = new Date();
+
+        const prestamosConInteres = result.recordset.map(p => {
+            let balance = Number(p.MontoPrestado || 0);
+            let lastDate = p.FechaInicioReal ? new Date(p.FechaInicioReal) : new Date();
+            let interesGenerado = 0;
+            let interesPagado = 0;
+
+            const pagos = pagosPorPrestamo[p.ID_Prestamo] || [];
+            for (const pago of pagos) {
+                const fechaPago = pago.Fecha ? new Date(pago.Fecha) : lastDate;
+                const dias = Math.max(0, Math.floor((fechaPago - lastDate) / (1000 * 60 * 60 * 24)));
+                interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * dias;
+
+                const detalle = String(pago.Detalle || '').toLowerCase();
+                const esCapital = detalle.includes('capital');
+
+                if (esCapital) {
+                    balance = Math.max(0, balance - Number(pago.Monto || 0));
+                } else {
+                    interesPagado += Number(pago.Monto || 0);
+                }
+
+                lastDate = fechaPago;
+            }
+
+            const diasFinales = Math.max(0, Math.floor((hoy - lastDate) / (1000 * 60 * 60 * 24)));
+            interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * diasFinales;
+
+            const interesPendiente = Math.max(0, interesGenerado - interesPagado);
+            const saldoHoy = Math.max(0, balance + interesPendiente);
+
+            return {
+                ...p,
+                InteresGenerado: Number(interesGenerado.toFixed(2)),
+                InteresPendiente: Number(interesPendiente.toFixed(2)),
+                saldoHoy: Number(saldoHoy.toFixed(2)),
+                capitalHoy: Number(balance.toFixed(2)),
+                InteresesPagados: Number(interesPagado.toFixed(2))
+            };
+        });
+
+        res.json(prestamosConInteres);
     } catch (err) { 
         res.status(500).json({ error: err.message }); 
     }
