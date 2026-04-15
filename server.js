@@ -659,26 +659,40 @@ app.get('/detalle-prestamo/:id', async (req, res) => {
                         END
                     AS DECIMAL(18,2)) as InteresGenerado,
 
-                    -- Interés Pendiente = (Generado Total) - (Pagados + Anticipados Usados)
+                    -- Interés Pendiente = (Generado Total) - (Pagados + Anticipados Usados), pero nunca negativo
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
-                             ELSE (ISNULL(InteresPendienteAcumulado, 0) +
-                                  (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                  DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
-                                  - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
+                             ELSE CASE
+                                      WHEN (ISNULL(InteresPendienteAcumulado, 0) +
+                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
+                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)) < 0
+                                      THEN 0
+                                      ELSE (ISNULL(InteresPendienteAcumulado, 0) +
+                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
+                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
+                                  END
                         END AS DECIMAL(18,2)
                     ) as InteresPendiente,
 
                     (MontoPrestado - ISNULL(MontoPagado, 0)) as capitalHoy,
 
-                    -- Saldo Hoy = Capital Pendiente + Interés Pendiente Real
+                    -- Saldo Hoy = Capital Pendiente + Interés Pendiente Real (no negativo)
                     CAST(
                         CASE WHEN Estado = 'Pagado' THEN 0
                              ELSE (MontoPrestado - ISNULL(MontoPagado, 0)) +
-                                  ((ISNULL(InteresPendienteAcumulado, 0) +
-                                  (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
-                                  DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE()))) 
-                                  - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)))
+                                  CASE
+                                      WHEN (ISNULL(InteresPendienteAcumulado, 0) +
+                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
+                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0)) < 0
+                                      THEN 0
+                                      ELSE (ISNULL(InteresPendienteAcumulado, 0) +
+                                            (((MontoPrestado - ISNULL(MontoPagado, 0)) * (TasaInteres / 100.0) / 30.0) *
+                                            DATEDIFF(DAY, ISNULL(FechaUltimoAbonoCapital, ISNULL(FechaInicio, Fecha)), GETDATE())))
+                                           - (ISNULL(InteresesPagados, 0) + ISNULL(InteresAnticipadoUsado, 0))
+                                  END
                         END AS DECIMAL(18,2)
                     ) as saldoHoy
 
@@ -750,15 +764,19 @@ app.post('/procesar-movimiento', async (req, res) => {
             const diasTranscurridos = p.DiasTranscurridos;
             const interesDiario = (p.SaldoActual * p.TasaInteres / 100.0) / 30.0;
             const interesGenerado = interesDiario * diasTranscurridos;
-            const nuevoAcumulado = p.InteresPendienteAcumulado + interesGenerado;
-            
-            // Acumular antes de cualquier pago - ✅ Persistencia garantizada
-            await pool.request()
-    .input('idP', sql.Int, idPrestamo)
-    .input('nuevoAcum', sql.Decimal(18, 2), nuevoAcumulado)
-    .query("UPDATE Prestamos SET InteresPendienteAcumulado = @nuevoAcum WHERE ID_Prestamo = @idP");
 
-            console.log(`>>> Acumulado intereses hasta ${fAporte}: +$${interesGenerado.toFixed(2)} (total: $${nuevoAcumulado.toFixed(2)})`);
+            // Acumular solo cuando se abona a capital, para no duplicar el saldo de intereses
+            if (destinoAbono === 'capital') {
+                const nuevoAcumulado = p.InteresPendienteAcumulado + interesGenerado;
+                await pool.request()
+                    .input('idP', sql.Int, idPrestamo)
+                    .input('nuevoAcum', sql.Decimal(18, 2), nuevoAcumulado)
+                    .query("UPDATE Prestamos SET InteresPendienteAcumulado = @nuevoAcum WHERE ID_Prestamo = @idP");
+
+                console.log(`>>> Acumulado intereses hasta ${fAporte}: +$${interesGenerado.toFixed(2)} (total: $${nuevoAcumulado.toFixed(2)})`);
+            } else {
+                console.log(`>>> No se acumulan intereses en este movimiento (${destinoAbono}). Total generado actual: $${interesGenerado.toFixed(2)}`);
+            }
 
             const capitalPendiente = p.SaldoActual;  // Use SaldoActual as current capital
             
