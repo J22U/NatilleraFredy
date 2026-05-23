@@ -1481,12 +1481,12 @@ async function verListaRapidaDeudores() {
         // Usar saldoHistoricoDetallado (nuevo campo) o fallback a saldoPendiente
         const deudores = data
             .filter(m => {
-                const saldo = Number(m.saldoHistoricoDetallado || m.saldoPendiente || 0);
+                const saldo = Number(m.deudaTotal || m.saldoHistoricoDetallado || m.saldoPendiente || 0);
                 return !isNaN(saldo) && saldo > 0;
             })
             .sort((a, b) => {
-                const saldoA = Number(b.saldoHistoricoDetallado || b.saldoPendiente || 0);
-                const saldoB = Number(a.saldoHistoricoDetallado || a.saldoPendiente || 0);
+                const saldoA = Number(b.deudaTotal || b.saldoHistoricoDetallado || b.saldoPendiente || 0);
+                const saldoB = Number(a.deudaTotal || a.saldoHistoricoDetallado || a.saldoPendiente || 0);
                 return saldoA - saldoB;
             });
 
@@ -1500,7 +1500,7 @@ async function verListaRapidaDeudores() {
         }
 
         const totalCartera = deudores.reduce((sum, m) => {
-            const saldo = Number(m.saldoHistoricoDetallado || m.saldoPendiente || 0);
+            const saldo = Number(m.deudaTotal || m.saldoHistoricoDetallado || m.saldoPendiente || 0);
             return sum + saldo;
         }, 0);
 
@@ -1518,8 +1518,8 @@ async function verListaRapidaDeudores() {
                 </div>
                 <div class="space-y-3 max-h-[450px] overflow-y-auto pr-2">
                     ${deudores.map((d, index) => {
-                        const saldo = Number(d.saldoHistoricoDetallado || d.saldoPendiente || 0);
-                        const campoSaldo = d.saldoHistoricoDetallado ? 'saldoHistoricoDetallado' : 'saldoPendiente';
+                        const saldo = Number(d.deudaTotal || d.saldoHistoricoDetallado || d.saldoPendiente || 0);
+                        const campoSaldo = d.deudaTotal ? 'deudaTotal' : (d.saldoHistoricoDetallado ? 'saldoHistoricoDetallado' : 'saldoPendiente');
                         return `
                         <div class="bg-gradient-to-r from-white to-slate-50 border-2 border-slate-50 hover:border-indigo-200 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer" onclick="verHistorialFechas(${d.id}, '${d.nombre.replace(/'/g, "\\'")}')">
                             <div class="flex justify-between items-start gap-4">
@@ -1530,7 +1530,7 @@ async function verListaRapidaDeudores() {
                                     </p>
                                 </div>
                                 <div class="text-right flex-shrink-0">
-                                    <p class="text-[9px] uppercase font-bold text-rose-500 tracking-wider mb-1">Deuda Histórica Completa</p>
+                                    <p class="text-[9px] uppercase font-bold text-rose-500 tracking-wider mb-1">Deuda Total (con int.)</p>
                                     <p class="text-xl font-black text-rose-600">${saldo.toLocaleString()}</p>
                                 </div>
                             </div>
