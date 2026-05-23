@@ -1139,12 +1139,12 @@ app.get('/listar-miembros', async (req, res) => {
                 per.ID_Persona as id,
                 per.Nombre as nombre, 
                 per.Documento as documento,
-                ISNULL(SUM(sp.saldoHoy), 0) as saldoHistoricoDetallado
+                ISNULL(SUM(sp.saldoHistoricoDetallado), 0) as saldoHistoricoDetallado
             FROM Personas per
             LEFT JOIN SaldosPrestamos sp ON per.ID_Persona = sp.ID_Persona
             GROUP BY per.ID_Persona, per.Nombre, per.Documento
-            HAVING ISNULL(SUM(sp.saldoHoy), 0) > 0
-            ORDER BY ISNULL(SUM(sp.saldoHoy), 0) DESC
+            HAVING ISNULL(SUM(sp.saldoHistoricoDetallado), 0) > 0
+            ORDER BY ISNULL(SUM(sp.saldoHistoricoDetallado), 0) DESC
         `);
         res.json(result.recordset);
     } catch (err) { 
