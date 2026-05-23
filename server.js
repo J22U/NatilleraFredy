@@ -1124,33 +1124,139 @@ app.get('/listar-miembros', async (req, res) => {
         if (!pool || !pool.request) {
             return res.status(500).json({ error: "Pool no disponible" });
         }
-        const result = await pool.request().query(`
-            WITH SaldosPrestamos AS (
-                SELECT 
-                    p.ID_Persona,
-                    CAST(
-                        (p.MontoPrestado - ISNULL(p.MontoPagado, 0)) + 
-                        (ISNULL(p.InteresPendienteAcumulado, 0) - ISNULL(p.InteresesPagados, 0))
-                    AS DECIMAL(18,2)) as saldoHistoricoDetallado
-                FROM Prestamos p
-                WHERE p.Estado = 'Activo'
-            )
+
+        const prestamosResult = await pool.request().query(`
             SELECT 
-                per.ID_Persona as id,
-                per.Nombre as nombre, 
-                per.Documento as documento,
-                ISNULL(SUM(sp.saldoHistoricoDetallado), 0) as saldoHistoricoDetallado,
-                ISNULL(SUM(sp.saldoHistoricoDetallado), 0) as deudaTotal
-            FROM Personas per
-            LEFT JOIN SaldosPrestamos sp ON per.ID_Persona = sp.ID_Persona
-            GROUP BY per.ID_Persona, per.Nombre, per.Documento
-            HAVING ISNULL(SUM(sp.saldoHistoricoDetallado), 0) > 0
-            ORDER BY ISNULL(SUM(sp.saldoHistoricoDetallado), 0) DESC
+                p.ID_Prestamo,
+                p.ID_Persona,
+                p.MontoPrestado,
+                ISNULL(p.MontoPagado, 0) as MontoPagado,
+                ISNULL(p.TasaInteres, 0) as TasaInteres,
+                ISNULL(p.FechaInicio, p.Fecha) as FechaInicio,
+                per.Nombre,
+                per.Documento
+            FROM Prestamos p
+            INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
+            WHERE p.Estado = 'Activo'
         `);
-        res.json(result.recordset);
-    } catch (err) { 
+
+        const prestamos = prestamosResult.recordset;
+        const prestamosIds = prestamos.map(p => p.ID_Prestamo).filter(Boolean);
+
+        const pagosResult = prestamosIds.length > 0
+            ? await pool.request().query(`
+                SELECT ID_Prestamo, Monto, ISNULL(Detalle, '') as Detalle, Fecha
+                FROM HistorialPagos
+                WHERE ID_Prestamo IN (${prestamosIds.join(',')}) AND TipoMovimiento = 'Abono Deuda'
+                ORDER BY Fecha ASC, ID_Pago ASC
+            `)
+            : { recordset: [] };
+
+        const pagosPorPrestamo = pagosResult.recordset.reduce((acc, pago) => {
+            const idPre = pago.ID_Prestamo || 0;
+            if (!acc[idPre]) acc[idPre] = [];
+            acc[idPre].push(pago);
+            return acc;
+        }, {});
+
+        const toColombiaDate = (valor) => {
+            if (!valor) return null;
+            let fecha;
+            if (valor instanceof Date) {
+                fecha = valor;
+            } else {
+                const fechaTexto = String(valor).trim();
+                const partes = fechaTexto.split(/[-\/]/);
+                if (partes.length >= 3) {
+                    const year = Number(partes[0]);
+                    const month = Number(partes[1]) - 1;
+                    const day = Number(partes[2]);
+                    if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+                        fecha = new Date(year, month, day);
+                    }
+                }
+                if (!fecha || Number.isNaN(fecha.getTime())) {
+                    fecha = new Date(fechaTexto);
+                }
+            }
+            if (!fecha || Number.isNaN(fecha.getTime())) return null;
+            const colombiaTs = fecha.getTime() - 5 * 60 * 60 * 1000;
+            return new Date(colombiaTs);
+        };
+
+        const calculaDias = (desde, hasta) => {
+            const inicio = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+            const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+            const dias = Math.floor((fin - inicio) / (1000 * 60 * 60 * 24));
+            return Math.max(0, dias);
+        };
+
+        const fechaActual = toColombiaDate(new Date()) || new Date();
+
+        const calcularSaldoHoy = (prestamo) => {
+            let balance = Number(prestamo.MontoPrestado || 0) - Number(prestamo.MontoPagado || 0);
+            const pagos = pagosPorPrestamo[prestamo.ID_Prestamo] || [];
+            let lastDate = toColombiaDate(prestamo.FechaInicio) || fechaActual;
+            let interesGenerado = 0;
+            let interesPagado = 0;
+
+            for (const pago of pagos) {
+                const fechaPagoRaw = pago.Fecha ? toColombiaDate(pago.Fecha) : lastDate;
+                const fechaPago = fechaPagoRaw ? new Date(fechaPagoRaw.getFullYear(), fechaPagoRaw.getMonth(), fechaPagoRaw.getDate()) : lastDate;
+                const dias = calculaDias(lastDate, fechaPago);
+                interesGenerado += balance * (Number(prestamo.TasaInteres || 0) / 100.0 / 30.0) * dias;
+
+                const detalle = String(pago.Detalle || '').toLowerCase();
+                const esCapital = detalle.includes('capital');
+
+                if (esCapital) {
+                    balance = Math.max(0, balance - Number(pago.Monto || 0));
+                } else {
+                    interesPagado += Number(pago.Monto || 0);
+                }
+
+                lastDate = fechaPago;
+            }
+
+            const diasFinales = calculaDias(lastDate, fechaActual);
+            interesGenerado += balance * (Number(prestamo.TasaInteres || 0) / 100.0 / 30.0) * diasFinales;
+            const interesPendiente = Math.max(0, interesGenerado - interesPagado);
+            const saldoHoy = Math.max(0, balance + interesPendiente);
+            return Number(saldoHoy.toFixed(2));
+        };
+
+        const deudaPorPersona = new Map();
+
+        for (const prestamo of prestamos) {
+            const saldoHoy = calcularSaldoHoy(prestamo);
+            if (saldoHoy <= 0) continue;
+
+            const personaId = prestamo.ID_Persona;
+            const datosPersona = deudaPorPersona.get(personaId) || {
+                id: personaId,
+                nombre: prestamo.Nombre,
+                documento: prestamo.Documento,
+                saldoHistoricoDetallado: 0,
+                deudaTotal: 0
+            };
+
+            datosPersona.saldoHistoricoDetallado += saldoHoy;
+            datosPersona.deudaTotal += saldoHoy;
+            deudaPorPersona.set(personaId, datosPersona);
+        }
+
+        const resultado = Array.from(deudaPorPersona.values())
+            .map(p => ({
+                ...p,
+                saldoHistoricoDetallado: Number(p.saldoHistoricoDetallado.toFixed(2)),
+                deudaTotal: Number(p.deudaTotal.toFixed(2))
+            }))
+            .sort((a, b) => b.deudaTotal - a.deudaTotal);
+
+        res.json(resultado);
+    } catch (err) {
         console.error("Error en /listar-miembros:", err.message);
-        res.status(500).json({ error: "Error al obtener miembros", detalle: err.message }); 
+        res.status(500).json({ error: "Error al obtener miembros", detalle: err.message });
     }
 });
 
