@@ -1125,40 +1125,6 @@ app.get('/listar-miembros', async (req, res) => {
             return res.status(500).json({ error: "Pool no disponible" });
         }
 
-        const prestamosResult = await pool.request().query(`
-            SELECT 
-                p.ID_Prestamo,
-                p.ID_Persona,
-                p.MontoPrestado,
-                ISNULL(p.MontoPagado, 0) as MontoPagado,
-                ISNULL(p.TasaInteres, 0) as TasaInteres,
-                ISNULL(p.FechaInicio, p.Fecha) as FechaInicio,
-                per.Nombre,
-                per.Documento
-            FROM Prestamos p
-            INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
-            WHERE p.Estado = 'Activo'
-        `);
-
-        const prestamos = prestamosResult.recordset;
-        const prestamosIds = prestamos.map(p => p.ID_Prestamo).filter(Boolean);
-
-        const pagosResult = prestamosIds.length > 0
-            ? await pool.request().query(`
-                SELECT ID_Prestamo, Monto, ISNULL(Detalle, '') as Detalle, Fecha
-                FROM HistorialPagos
-                WHERE ID_Prestamo IN (${prestamosIds.join(',')}) AND TipoMovimiento = 'Abono Deuda'
-                ORDER BY Fecha ASC, ID_Pago ASC
-            `)
-            : { recordset: [] };
-
-        const pagosPorPrestamo = pagosResult.recordset.reduce((acc, pago) => {
-            const idPre = pago.ID_Prestamo || 0;
-            if (!acc[idPre]) acc[idPre] = [];
-            acc[idPre].push(pago);
-            return acc;
-        }, {});
-
         const toColombiaDate = (valor) => {
             if (!valor) return null;
             let fecha;
@@ -1193,13 +1159,46 @@ app.get('/listar-miembros', async (req, res) => {
 
         const fechaActual = toColombiaDate(new Date()) || new Date();
 
+        // Traer todos los préstamos activos con sus personas
+        const prestamosResult = await pool.request().query(`
+            SELECT 
+                p.ID_Prestamo,
+                p.ID_Persona,
+                p.MontoPrestado,
+                ISNULL(p.MontoPagado, 0) as MontoPagado,
+                ISNULL(p.TasaInteres, 0) as TasaInteres,
+                ISNULL(p.FechaUltimoAbonoCapital, ISNULL(p.FechaInicio, p.Fecha)) as FechaCalculo,
+                ISNULL(p.FechaInicio, p.Fecha) as FechaInicio,
+                per.Nombre,
+                per.Documento
+            FROM Prestamos p
+            INNER JOIN Personas per ON p.ID_Persona = per.ID_Persona
+            WHERE p.Estado = 'Activo'
+        `);
+
+        // Traer todos los pagos de deuda
+        const pagosResult = await pool.request().query(`
+            SELECT ID_Prestamo, Monto, ISNULL(Detalle, '') as Detalle, Fecha
+            FROM HistorialPagos
+            WHERE TipoMovimiento = 'Abono Deuda'
+            ORDER BY Fecha ASC, ID_Pago ASC
+        `);
+
+        const pagosPorPrestamo = pagosResult.recordset.reduce((acc, pago) => {
+            const idPre = pago.ID_Prestamo || 0;
+            if (!acc[idPre]) acc[idPre] = [];
+            acc[idPre].push(pago);
+            return acc;
+        }, {});
+
+        // Función de cálculo igual a detalle-prestamo
         const calcularSaldoHoy = (prestamo) => {
-            let balance = Number(prestamo.MontoPrestado || 0) - Number(prestamo.MontoPagado || 0);
-            const pagos = pagosPorPrestamo[prestamo.ID_Prestamo] || [];
+            let balance = Number(prestamo.MontoPrestado || 0);
             let lastDate = toColombiaDate(prestamo.FechaInicio) || fechaActual;
             let interesGenerado = 0;
             let interesPagado = 0;
 
+            const pagos = pagosPorPrestamo[prestamo.ID_Prestamo] || [];
             for (const pago of pagos) {
                 const fechaPagoRaw = pago.Fecha ? toColombiaDate(pago.Fecha) : lastDate;
                 const fechaPago = fechaPagoRaw ? new Date(fechaPagoRaw.getFullYear(), fechaPagoRaw.getMonth(), fechaPagoRaw.getDate()) : lastDate;
@@ -1220,35 +1219,38 @@ app.get('/listar-miembros', async (req, res) => {
 
             const diasFinales = calculaDias(lastDate, fechaActual);
             interesGenerado += balance * (Number(prestamo.TasaInteres || 0) / 100.0 / 30.0) * diasFinales;
+
             const interesPendiente = Math.max(0, interesGenerado - interesPagado);
             const saldoHoy = Math.max(0, balance + interesPendiente);
+
             return Number(saldoHoy.toFixed(2));
         };
 
+        // Agrupar por persona y sumar saldos
         const deudaPorPersona = new Map();
 
-        for (const prestamo of prestamos) {
+        for (const prestamo of prestamosResult.recordset) {
             const saldoHoy = calcularSaldoHoy(prestamo);
             if (saldoHoy <= 0) continue;
 
             const personaId = prestamo.ID_Persona;
-            const datosPersona = deudaPorPersona.get(personaId) || {
-                id: personaId,
-                nombre: prestamo.Nombre,
-                documento: prestamo.Documento,
-                saldoHistoricoDetallado: 0,
-                deudaTotal: 0
-            };
+            if (!deudaPorPersona.has(personaId)) {
+                deudaPorPersona.set(personaId, {
+                    id: personaId,
+                    nombre: prestamo.Nombre,
+                    documento: prestamo.Documento,
+                    deudaTotal: 0
+                });
+            }
 
-            datosPersona.saldoHistoricoDetallado += saldoHoy;
-            datosPersona.deudaTotal += saldoHoy;
-            deudaPorPersona.set(personaId, datosPersona);
+            const datos = deudaPorPersona.get(personaId);
+            datos.deudaTotal += saldoHoy;
         }
 
         const resultado = Array.from(deudaPorPersona.values())
             .map(p => ({
                 ...p,
-                saldoHistoricoDetallado: Number(p.saldoHistoricoDetallado.toFixed(2)),
+                saldoHistoricoDetallado: Number(p.deudaTotal.toFixed(2)),
                 deudaTotal: Number(p.deudaTotal.toFixed(2))
             }))
             .sort((a, b) => b.deudaTotal - a.deudaTotal);
