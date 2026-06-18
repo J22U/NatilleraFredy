@@ -1267,44 +1267,140 @@ app.get('/listar-miembros', async (req, res) => {
 app.get('/export/external-members-excel', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT 
-                P.ID_Persona as id,
-                P.Nombre as nombre,
-                CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
-                ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
-                ISNULL((SELECT SUM(SaldoActual) FROM Prestamos WHERE ID_Persona = P.ID_Persona AND Estado = 'Activo'), 0) as deudaTotal
-            FROM Personas P
-            WHERE P.Estado = 'Activo'
-            ORDER BY P.Nombre
-        `);
+        // 1) Traer personas activas
+        const personasRes = await pool.request().query("SELECT ID_Persona as id, Nombre as nombre, Documento as documento, EsSocio FROM Personas WHERE Estado = 'Activo'");
 
-        const rows = result.recordset || [];
+        // 2) Traer ahorros por persona (map)
+        const ahorrosRes = await pool.request().query("SELECT ID_Persona as id, ISNULL(SUM(Monto),0) as totalAhorrado FROM Ahorros GROUP BY ID_Persona");
+        const ahorrosMap = new Map();
+        ahorrosRes.recordset.forEach(r => ahorrosMap.set(r.id, parseFloat(r.totalAhorrado || 0)));
+
+        // 3) Traer préstamos activos y pagos para calcular saldo con intereses
+        const prestamosRes = await pool.request().query(`SELECT ID_Prestamo, ID_Persona, MontoPrestado, ISNULL(MontoPagado,0) as MontoPagado, ISNULL(TasaInteres,0) as TasaInteres, ISNULL(FechaInicio, Fecha) as FechaInicio FROM Prestamos WHERE Estado = 'Activo'`);
+        const pagosRes = await pool.request().query("SELECT ID_Prestamo, Monto, ISNULL(Detalle,'') as Detalle, Fecha FROM HistorialPagos WHERE TipoMovimiento = 'Abono Deuda' ORDER BY Fecha ASC, ID_Pago ASC");
+
+        const pagosPorPrestamo = {};
+        pagosRes.recordset.forEach(p => {
+            const idP = p.ID_Prestamo || 0;
+            if (!pagosPorPrestamo[idP]) pagosPorPrestamo[idP] = [];
+            pagosPorPrestamo[idP].push(p);
+        });
+
+        const toColombiaDate = (valor) => {
+            if (!valor) return null;
+            let fecha;
+            let dateOnly = false;
+
+            if (valor instanceof Date) fecha = valor;
+            else {
+                const fechaTexto = String(valor).trim();
+                const partes = fechaTexto.split(/[-\\/]/);
+                if (partes.length >= 3) {
+                    const year = Number(partes[0]);
+                    const month = Number(partes[1]) - 1;
+                    const day = Number(partes[2]);
+                    if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+                        fecha = new Date(year, month, day);
+                        dateOnly = true;
+                    }
+                }
+                if (!fecha || Number.isNaN(fecha.getTime())) fecha = new Date(fechaTexto);
+            }
+
+            if (!fecha || Number.isNaN(fecha.getTime())) return null;
+            if (dateOnly) return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+
+            const colombiaTs = fecha.getTime() - 5 * 60 * 60 * 1000;
+            const colombia = new Date(colombiaTs);
+            return new Date(colombia.getUTCFullYear(), colombia.getUTCMonth(), colombia.getUTCDate());
+        };
+
+        const calculaDias = (desde, hasta) => {
+            const inicio = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+            const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+            const dias = Math.floor((fin - inicio) / (1000 * 60 * 60 * 24));
+            return Math.max(0, dias);
+        };
+
+        const fechaActual = toColombiaDate(new Date()) || new Date();
+
+        // Calcular saldo con intereses por cada préstamo
+        const deudaPorPersona = new Map();
+
+        for (const p of prestamosRes.recordset) {
+            let balance = Number(p.MontoPrestado || 0);
+            let lastDate = toColombiaDate(p.FechaInicio) || fechaActual;
+            let interesGenerado = 0;
+            let interesPagado = 0;
+
+            const pagos = pagosPorPrestamo[p.ID_Prestamo] || [];
+            for (const pago of pagos) {
+                const fechaPagoRaw = pago.Fecha ? toColombiaDate(pago.Fecha) : lastDate;
+                const fechaPago = fechaPagoRaw ? new Date(fechaPagoRaw.getFullYear(), fechaPagoRaw.getMonth(), fechaPagoRaw.getDate()) : lastDate;
+                const dias = calculaDias(lastDate, fechaPago);
+                interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * dias;
+
+                const detalle = String(pago.Detalle || '').toLowerCase();
+                const esCapital = detalle.includes('capital');
+
+                if (esCapital) {
+                    balance = Math.max(0, balance - Number(pago.Monto || 0));
+                } else {
+                    interesPagado += Number(pago.Monto || 0);
+                }
+
+                lastDate = fechaPago;
+            }
+
+            const diasFinales = calculaDias(lastDate, fechaActual);
+            interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * diasFinales;
+
+            const interesPendiente = Math.max(0, interesGenerado - interesPagado);
+            const saldoHoy = Math.max(0, balance + interesPendiente);
+
+            if (saldoHoy <= 0) continue;
+
+            const personaId = p.ID_Persona;
+            const existing = deudaPorPersona.get(personaId) || 0;
+            deudaPorPersona.set(personaId, existing + Number(saldoHoy));
+        }
+
+        // Construir filas usando todas las personas activas, ordenadas por ID asc
+        const personas = personasRes.recordset.sort((a, b) => a.id - b.id);
+        const rows = personas.map(person => {
+            return {
+                id: person.id,
+                nombre: person.nombre,
+                tipo: person.EsSocio == 1 ? 'SOCIO' : 'EXTERNO',
+                totalAhorrado: ahorrosMap.get(person.id) || 0,
+                deudaConInteres: Number((deudaPorPersona.get(person.id) || 0).toFixed(2))
+            };
+        });
 
         const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Socios Externos');
+        const sheet = workbook.addWorksheet('Miembros');
 
         sheet.columns = [
             { header: 'ID', key: 'id', width: 10 },
             { header: 'Nombre', key: 'nombre', width: 40 },
             { header: 'Tipo', key: 'tipo', width: 12 },
             { header: 'Total Ahorro', key: 'totalAhorrado', width: 18 },
-            { header: 'Total Deuda', key: 'deudaTotal', width: 18 }
+            { header: 'Deuda Total (Con Int.)', key: 'deudaConInteres', width: 20 }
         ];
 
         rows.forEach(r => {
             sheet.addRow({
                 id: r.id,
                 nombre: r.nombre,
-                tipo: r.tipo || (r.EsSocio == 1 ? 'SOCIO' : 'EXTERNO'),
+                tipo: r.tipo,
                 totalAhorrado: parseFloat(r.totalAhorrado || 0),
-                deudaTotal: parseFloat(r.deudaTotal || 0)
+                deudaConInteres: parseFloat(r.deudaConInteres || 0)
             });
         });
 
         // Formato numérico para columnas de dinero
-        sheet.getColumn(3).numFmt = '#,##0.00';
         sheet.getColumn(4).numFmt = '#,##0.00';
+        sheet.getColumn(5).numFmt = '#,##0.00';
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="miembros.xlsx"');
