@@ -1325,7 +1325,8 @@ app.get('/export/external-members-excel', async (req, res) => {
         const fechaActual = toColombiaDate(new Date()) || new Date();
 
         // Calcular saldo con intereses por cada préstamo
-        const deudaPorPersona = new Map();
+        const principalPorPersona = new Map();
+        const interesPorPersona = new Map();
 
         for (const p of prestamosRes.recordset) {
             let balance = Number(p.MontoPrestado || 0);
@@ -1356,24 +1357,28 @@ app.get('/export/external-members-excel', async (req, res) => {
             interesGenerado += balance * (Number(p.TasaInteres || 0) / 100.0 / 30.0) * diasFinales;
 
             const interesPendiente = Math.max(0, interesGenerado - interesPagado);
-            const saldoHoy = Math.max(0, balance + interesPendiente);
-
-            if (saldoHoy <= 0) continue;
 
             const personaId = p.ID_Persona;
-            const existing = deudaPorPersona.get(personaId) || 0;
-            deudaPorPersona.set(personaId, existing + Number(saldoHoy));
+            const existingPrincipal = principalPorPersona.get(personaId) || 0;
+            principalPorPersona.set(personaId, existingPrincipal + Number(balance));
+
+            const existingInteres = interesPorPersona.get(personaId) || 0;
+            interesPorPersona.set(personaId, existingInteres + Number(interesPendiente));
         }
 
         // Construir filas usando todas las personas activas, ordenadas por ID asc
         const personas = personasRes.recordset.sort((a, b) => a.id - b.id);
         const rows = personas.map(person => {
+            const principal = Number(principalPorPersona.get(person.id) || 0);
+            const intereses = Number(interesPorPersona.get(person.id) || 0);
             return {
                 id: person.id,
                 nombre: person.nombre,
                 tipo: person.EsSocio == 1 ? 'SOCIO' : 'EXTERNO',
                 totalAhorrado: ahorrosMap.get(person.id) || 0,
-                deudaConInteres: Number((deudaPorPersona.get(person.id) || 0).toFixed(2))
+                deudaPrincipal: Number(principal.toFixed(2)),
+                interesesPendientes: Number(intereses.toFixed(2)),
+                deudaConInteres: Number((principal + intereses).toFixed(2))
             };
         });
 
@@ -1385,6 +1390,8 @@ app.get('/export/external-members-excel', async (req, res) => {
             { header: 'Nombre', key: 'nombre', width: 40 },
             { header: 'Tipo', key: 'tipo', width: 12 },
             { header: 'Total Ahorro', key: 'totalAhorrado', width: 18 },
+            { header: 'Deuda (Principal)', key: 'deudaPrincipal', width: 18 },
+            { header: 'Intereses Pendientes', key: 'interesesPendientes', width: 18 },
             { header: 'Deuda Total (Con Int.)', key: 'deudaConInteres', width: 20 }
         ];
 
@@ -1394,6 +1401,8 @@ app.get('/export/external-members-excel', async (req, res) => {
                 nombre: r.nombre,
                 tipo: r.tipo,
                 totalAhorrado: parseFloat(r.totalAhorrado || 0),
+                deudaPrincipal: parseFloat(r.deudaPrincipal || 0),
+                interesesPendientes: parseFloat(r.interesesPendientes || 0),
                 deudaConInteres: parseFloat(r.deudaConInteres || 0)
             });
         });
@@ -1401,7 +1410,8 @@ app.get('/export/external-members-excel', async (req, res) => {
         // Formato numérico para columnas de dinero
         sheet.getColumn(4).numFmt = '#,##0.00';
         sheet.getColumn(5).numFmt = '#,##0.00';
-
+        sheet.getColumn(6).numFmt = '#,##0.00';
+        sheet.getColumn(7).numFmt = '#,##0.00';
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="miembros.xlsx"');
 
