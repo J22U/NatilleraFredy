@@ -2611,6 +2611,16 @@ async function descargarBackup() {
 // Descargar Excel con todos los socios externos (usa la ruta del servidor)
 async function descargarMiembrosExcel() {
     try {
+        const confirmado = await Swal.fire({
+            title: '¿Estás seguro de descargar el estado de cuenta de los socios?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Aceptar',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (!confirmado.isConfirmed) return; // usuario canceló
+
         const res = await fetch('/export/external-members-excel');
         if (!res.ok) throw new Error('Error al generar el Excel');
         const blob = await res.blob();
