@@ -2608,6 +2608,26 @@ async function descargarBackup() {
     a.click();
 }
 
+// Descargar Excel con todos los socios externos (usa la ruta del servidor)
+async function descargarMiembrosExcel() {
+    try {
+        const res = await fetch('/export/external-members-excel');
+        if (!res.ok) throw new Error('Error al generar el Excel');
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'miembros.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error('Error descargando Excel:', err);
+        Swal.fire('Error', 'No se pudo descargar el Excel de miembros.', 'error');
+    }
+}
+
 // 2. DISPARAR EL SELECTOR DE ARCHIVOS
 function confirmarRestauracion() {
     Swal.fire({

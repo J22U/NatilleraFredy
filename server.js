@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const ExcelJS = require('exceljs');
 const { sql, poolPromise } = require('./db');
 
 const app = express();
@@ -1259,6 +1260,60 @@ app.get('/listar-miembros', async (req, res) => {
     } catch (err) {
         console.error("Error en /listar-miembros:", err.message);
         res.status(500).json({ error: "Error al obtener miembros", detalle: err.message });
+    }
+});
+
+// Exportar Excel con todos los socios EXTERNOS (total ahorro y total deuda)
+app.get('/export/external-members-excel', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT 
+                P.ID_Persona as id,
+                P.Nombre as nombre,
+                CASE WHEN P.EsSocio = 1 THEN 'SOCIO' ELSE 'EXTERNO' END as tipo,
+                ISNULL((SELECT SUM(Monto) FROM Ahorros WHERE ID_Persona = P.ID_Persona), 0) as totalAhorrado,
+                ISNULL((SELECT SUM(SaldoActual) FROM Prestamos WHERE ID_Persona = P.ID_Persona AND Estado = 'Activo'), 0) as deudaTotal
+            FROM Personas P
+            WHERE P.Estado = 'Activo'
+            ORDER BY P.Nombre
+        `);
+
+        const rows = result.recordset || [];
+
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Socios Externos');
+
+        sheet.columns = [
+            { header: 'ID', key: 'id', width: 10 },
+            { header: 'Nombre', key: 'nombre', width: 40 },
+            { header: 'Tipo', key: 'tipo', width: 12 },
+            { header: 'Total Ahorro', key: 'totalAhorrado', width: 18 },
+            { header: 'Total Deuda', key: 'deudaTotal', width: 18 }
+        ];
+
+        rows.forEach(r => {
+            sheet.addRow({
+                id: r.id,
+                nombre: r.nombre,
+                tipo: r.tipo || (r.EsSocio == 1 ? 'SOCIO' : 'EXTERNO'),
+                totalAhorrado: parseFloat(r.totalAhorrado || 0),
+                deudaTotal: parseFloat(r.deudaTotal || 0)
+            });
+        });
+
+        // Formato numérico para columnas de dinero
+        sheet.getColumn(3).numFmt = '#,##0.00';
+        sheet.getColumn(4).numFmt = '#,##0.00';
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="miembros.xlsx"');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        console.error('Error generando Excel de socios externos:', err.message);
+        res.status(500).json({ error: err.message });
     }
 });
 
