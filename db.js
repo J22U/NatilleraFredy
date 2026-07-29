@@ -1,16 +1,15 @@
 const sql = require('mssql');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const config = {
-    // Usamos las variables de entorno de Render
-    user: process.env.DB_USER, 
-    password: process.env.DB_PASS, // Ojo: en tu .env pusiste DB_PASS, asegúrate que coincida
-    server: process.env.DB_SERVER, 
-    database: process.env.DB_NAME,
-    // El puerto 1433 es el estándar, mssql lo usa por defecto si no se pone
+    user: process.env.DB_USER || process.env.DB_USERNAME,
+    password: process.env.DB_PASS || process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER || process.env.DB_HOST,
+    database: process.env.DB_NAME || process.env.DB_DATABASE,
     options: {
-        trustServerCertificate: true, 
-        encrypt: true // CAMBIO VITAL: Somee y la mayoría de nubes exigen conexión cifrada
+        trustServerCertificate: true,
+        encrypt: true
     }
 };
 
