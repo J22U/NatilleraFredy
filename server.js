@@ -1275,9 +1275,10 @@ app.get('/export/external-members-excel', async (req, res) => {
         const ahorrosMap = new Map();
         ahorrosRes.recordset.forEach(r => ahorrosMap.set(r.id, parseFloat(r.totalAhorrado || 0)));
 
-        // 3) Traer préstamos activos y pagos para calcular saldo con intereses
-        const prestamosRes = await pool.request().query(`SELECT ID_Prestamo, ID_Persona, MontoPrestado, ISNULL(MontoPagado,0) as MontoPagado, ISNULL(TasaInteres,0) as TasaInteres, ISNULL(FechaInicio, Fecha) as FechaInicio FROM Prestamos WHERE Estado = 'Activo'`);
-        const pagosRes = await pool.request().query("SELECT ID_Prestamo, Monto, ISNULL(Detalle,'') as Detalle, Fecha FROM HistorialPagos WHERE TipoMovimiento = 'Abono Deuda' ORDER BY Fecha ASC, ID_Pago ASC");
+        // 3) Traer préstamos activos para deuda y todos los préstamos para calcular intereses pagados
+        const prestamosActivosRes = await pool.request().query(`SELECT ID_Prestamo, ID_Persona, MontoPrestado, ISNULL(MontoPagado,0) as MontoPagado, ISNULL(TasaInteres,0) as TasaInteres, ISNULL(FechaInicio, Fecha) as FechaInicio FROM Prestamos WHERE Estado = 'Activo'`);
+        const prestamosRes = await pool.request().query(`SELECT ID_Prestamo, ID_Persona FROM Prestamos`);
+        const pagosRes = await pool.request().query("SELECT ID_Prestamo, ID_Persona, Monto, ISNULL(Detalle,'') as Detalle, Fecha FROM HistorialPagos WHERE TipoMovimiento = 'Abono Deuda' ORDER BY Fecha ASC, ID_Pago ASC");
 
         const pagosPorPrestamo = {};
         pagosRes.recordset.forEach(p => {
@@ -1324,12 +1325,12 @@ app.get('/export/external-members-excel', async (req, res) => {
 
         const fechaActual = toColombiaDate(new Date()) || new Date();
 
-        // Calcular saldo con intereses por cada préstamo
+        // Calcular deuda e intereses pendientes solo sobre préstamos activos
         const principalPorPersona = new Map();
         const interesPorPersona = new Map();
         const interesesPagadasPorPersona = new Map();
 
-        for (const p of prestamosRes.recordset) {
+        for (const p of prestamosActivosRes.recordset) {
             let balance = Number(p.MontoPrestado || 0);
             let lastDate = toColombiaDate(p.FechaInicio) || fechaActual;
             let interesGenerado = 0;
@@ -1365,9 +1366,17 @@ app.get('/export/external-members-excel', async (req, res) => {
 
             const existingInteres = interesPorPersona.get(personaId) || 0;
             interesPorPersona.set(personaId, existingInteres + Number(interesPendiente));
+        }
 
-            const existingInteresPagado = interesesPagadasPorPersona.get(personaId) || 0;
-            interesesPagadasPorPersona.set(personaId, existingInteresPagado + Number(interesPagado));
+        // Calcular intereses pagados sobre todos los préstamos (incluidos los anteriores)
+        for (const pago of pagosRes.recordset) {
+            const personaId = pago.ID_Persona;
+            const detalle = String(pago.Detalle || '').toLowerCase();
+            const esCapital = detalle.includes('capital');
+            if (!esCapital) {
+                const existingInteresPagado = interesesPagadasPorPersona.get(personaId) || 0;
+                interesesPagadasPorPersona.set(personaId, existingInteresPagado + Number(pago.Monto || 0));
+            }
         }
 
         // Construir filas usando todas las personas activas, ordenadas por ID asc
