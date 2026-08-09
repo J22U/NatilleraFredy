@@ -551,25 +551,101 @@ app.post('/api/retirar-ahorro', async (req, res) => {
 app.get('/reporte-general', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT 
-                (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) as TotalAhorrado,
-                -- Solo préstamos ACTIVOS (no los pagados/completados)
-                (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
-                -- Intereses pagados HISTÓRICOS (todos los préstamos, activos y cerrados)
-                -- Misma lógica que el Excel: todo HistorialPagos que NO sea abono a capital
-                (SELECT ISNULL(SUM(Monto), 0) FROM HistorialPagos 
-                 WHERE TipoMovimiento = 'Abono Deuda' 
-                 AND LOWER(ISNULL(Detalle,'')) NOT LIKE '%capital%') as GananciasBrutas,
-                -- Caja: Ahorros + Ganancias históricas - Capital Préstamos Activos
-                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) 
-                 + (SELECT ISNULL(SUM(Monto), 0) FROM HistorialPagos 
-                    WHERE TipoMovimiento = 'Abono Deuda' 
-                    AND LOWER(ISNULL(Detalle,'')) NOT LIKE '%capital%') 
-                 - (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')) as CajaDisponible
+
+        const toColombiaDate = (valor) => {
+            if (!valor) return null;
+            let fecha;
+            let dateOnly = false;
+            if (valor instanceof Date) fecha = valor;
+            else {
+                const fechaTexto = String(valor).trim();
+                const partes = fechaTexto.split(/[-\/]/);
+                if (partes.length >= 3) {
+                    const year = Number(partes[0]);
+                    const month = Number(partes[1]) - 1;
+                    const day = Number(partes[2]);
+                    if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+                        fecha = new Date(year, month, day);
+                        dateOnly = true;
+                    }
+                }
+                if (!fecha || Number.isNaN(fecha.getTime())) fecha = new Date(fechaTexto);
+            }
+            if (!fecha || Number.isNaN(fecha.getTime())) return null;
+            if (dateOnly) return new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+            const colombiaTs = fecha.getTime() - 5 * 60 * 60 * 1000;
+            const colombia = new Date(colombiaTs);
+            return new Date(colombia.getUTCFullYear(), colombia.getUTCMonth(), colombia.getUTCDate());
+        };
+
+        const calculaDias = (desde, hasta) => {
+            const inicio = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+            const fin = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+            return Math.max(0, Math.floor((fin - inicio) / (1000 * 60 * 60 * 24)));
+        };
+
+        const fechaActual = toColombiaDate(new Date()) || new Date();
+
+        // 1. Total ahorrado (simple, no cambia)
+        const ahorrosRes = await pool.request().query("SELECT ISNULL(SUM(Monto), 0) as total FROM Ahorros");
+        const totalAhorrado = parseFloat(ahorrosRes.recordset[0].total || 0);
+
+        // 2. Préstamos activos + su historial de pagos (misma fuente que el Excel)
+        const prestamosActivosRes = await pool.request().query(`
+            SELECT ID_Prestamo, ID_Persona, MontoPrestado, ISNULL(TasaInteres,0) as TasaInteres, ISNULL(FechaInicio, Fecha) as FechaInicio
+            FROM Prestamos WHERE Estado = 'Activo'
         `);
-        res.json(result.recordset[0]);
-    } catch (err) { res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0, CajaDisponible: 0 }); }
+        const pagosRes = await pool.request().query(`
+            SELECT ID_Prestamo, ID_Persona, Monto, ISNULL(Detalle,'') as Detalle, Fecha
+            FROM HistorialPagos WHERE TipoMovimiento = 'Abono Deuda' ORDER BY Fecha ASC, ID_Pago ASC
+        `);
+
+        const pagosPorPrestamo = {};
+        pagosRes.recordset.forEach(p => {
+            const idP = p.ID_Prestamo || 0;
+            if (!pagosPorPrestamo[idP]) pagosPorPrestamo[idP] = [];
+            pagosPorPrestamo[idP].push(p);
+        });
+
+        // 3. Recalcular capital pendiente REAL de cada préstamo activo (ignora SaldoActual)
+        let capitalPrestado = 0;
+
+        for (const p of prestamosActivosRes.recordset) {
+            let balance = Number(p.MontoPrestado || 0);
+            let lastDate = toColombiaDate(p.FechaInicio) || fechaActual;
+
+            const pagos = pagosPorPrestamo[p.ID_Prestamo] || [];
+            for (const pago of pagos) {
+                const fechaPagoRaw = pago.Fecha ? toColombiaDate(pago.Fecha) : lastDate;
+                const fechaPago = fechaPagoRaw ? new Date(fechaPagoRaw.getFullYear(), fechaPagoRaw.getMonth(), fechaPagoRaw.getDate()) : lastDate;
+                const detalle = String(pago.Detalle || '').toLowerCase();
+                const esCapital = detalle.includes('capital');
+                if (esCapital) balance = Math.max(0, balance - Number(pago.Monto || 0));
+                lastDate = fechaPago;
+            }
+
+            capitalPrestado += balance;
+        }
+
+        // 4. Ganancias brutas (histórico total, ya corregido previamente)
+        const gananciasRes = await pool.request().query(`
+            SELECT ISNULL(SUM(Monto), 0) as total FROM HistorialPagos 
+            WHERE TipoMovimiento = 'Abono Deuda' AND LOWER(ISNULL(Detalle,'')) NOT LIKE '%capital%'
+        `);
+        const gananciasBrutas = parseFloat(gananciasRes.recordset[0].total || 0);
+
+        const cajaDisponible = totalAhorrado + gananciasBrutas - capitalPrestado;
+
+        res.json({
+            TotalAhorrado: Number(totalAhorrado.toFixed(2)),
+            CapitalPrestado: Number(capitalPrestado.toFixed(2)),
+            GananciasBrutas: Number(gananciasBrutas.toFixed(2)),
+            CajaDisponible: Number(cajaDisponible.toFixed(2))
+        });
+    } catch (err) {
+        console.error("Error en reporte-general:", err.message);
+        res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0, CajaDisponible: 0 });
+    }
 });
 
 app.get('/estado-cuenta/:id', async (req, res) => {
