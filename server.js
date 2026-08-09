@@ -990,7 +990,12 @@ app.get('/listar-inactivos', async (req, res) => {
 app.get('/api/ganancias-disponibles', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query("SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) as saldo FROM Prestamos WHERE Estado = 'Activo'");
+        const result = await pool.request().query(`
+            SELECT ISNULL(SUM(Monto), 0) as saldo 
+            FROM HistorialPagos 
+            WHERE TipoMovimiento = 'Abono Deuda' 
+            AND LOWER(ISNULL(Detalle,'')) NOT LIKE '%capital%'
+        `);
         res.json(result.recordset[0]);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
