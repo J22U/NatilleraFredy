@@ -556,10 +556,17 @@ app.get('/reporte-general', async (req, res) => {
                 (SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) as TotalAhorrado,
                 -- Solo préstamos ACTIVOS (no los pagados/completados)
                 (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo') as CapitalPrestado,
-                -- Solo intereses de préstamos ACTIVOS (blindado para que no sea negativo)
-                (SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) FROM Prestamos WHERE Estado = 'Activo') as GananciasBrutas,
-                -- Caja: Ahorros + Ganancias (blindadas) - Capital Préstamos Activos
-                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) + (SELECT ISNULL(SUM(CASE WHEN InteresesPagados < 0 THEN 0 ELSE InteresesPagados END), 0) FROM Prestamos WHERE Estado = 'Activo') - (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')) as CajaDisponible
+                -- Intereses pagados HISTÓRICOS (todos los préstamos, activos y cerrados)
+                -- Misma lógica que el Excel: todo HistorialPagos que NO sea abono a capital
+                (SELECT ISNULL(SUM(Monto), 0) FROM HistorialPagos 
+                 WHERE TipoMovimiento = 'Abono Deuda' 
+                 AND LOWER(ISNULL(Detalle,'')) NOT LIKE '%capital%') as GananciasBrutas,
+                -- Caja: Ahorros + Ganancias históricas - Capital Préstamos Activos
+                ((SELECT ISNULL(SUM(Monto), 0) FROM Ahorros) 
+                 + (SELECT ISNULL(SUM(Monto), 0) FROM HistorialPagos 
+                    WHERE TipoMovimiento = 'Abono Deuda' 
+                    AND LOWER(ISNULL(Detalle,'')) NOT LIKE '%capital%') 
+                 - (SELECT ISNULL(SUM(SaldoActual), 0) FROM Prestamos WHERE Estado = 'Activo')) as CajaDisponible
         `);
         res.json(result.recordset[0]);
     } catch (err) { res.status(500).json({ TotalAhorrado: 0, CapitalPrestado: 0, GananciasBrutas: 0, CajaDisponible: 0 }); }
